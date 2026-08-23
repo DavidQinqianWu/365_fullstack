@@ -73,6 +73,19 @@ export function parseOrderEvent(input: unknown): ParseResult {
         ? { ok: true, event: { type: "DELIVERED", at } }
         : { ok: false, reason: "DELIVERED.at must be an ISO string" };
     }
+    case "RETURN_REQUESTED": {
+      const at = input["at"];
+      const returnReason = input["reason"];
+      return typeof at === "string" && typeof returnReason === "string"
+        ? {
+            ok: true,
+            event: { type: "RETURN_REQUESTED", at, reason: returnReason },
+          }
+        : {
+            ok: false,
+            reason: "RETURN_REQUESTED needs `at` and `reason` strings",
+          };
+    }
     case "CANCELLED": {
       const reason = input["reason"];
       return typeof reason === "string"
