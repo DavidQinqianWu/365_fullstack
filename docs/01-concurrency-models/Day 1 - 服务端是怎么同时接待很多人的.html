@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 1 - 服务端是怎么同时接待很多人的</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  .time { display:inline-block; background: var(--ink); color: #fff; border-radius: 999px; padding: 2px 12px; font-size: 13px; margin-left: 8px; }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 1</div>
+  <h1>Day 1 - 服务端是怎么同时接待很多人的</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 60 min + 习题约 30 min)·
+    主题:<b>并发模型(Concurrency Models)</b>——后端世界的第一块基石 ·
+    练习语言:Node.js(它只是教具,概念才是主角)
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🍜 从一个面馆说起:为什么后端要谈「并发」</a></li>
+    <li><a href="#sec2">📇 概念卡:并发(Concurrency)≠ 并行(Parallelism)</a></li>
+    <li><a href="#sec3">👥 三种开店方案 = 三种并发模型</a></li>
+    <li><a href="#sec4">🔁 放大看 Node.js:event loop 是怎么转起来的</a></li>
+    <li><a href="#sec5">⚠️ 黄金法则:别让服务员站在原地等</a></li>
+    <li><a href="#sec6">🌍 跨语言对照(以后换 C# 也不怕)</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🍜 从一个面馆说起:为什么后端要谈「并发」</h2>
+  <p>你开了家面馆,饭点一到,门口同时挤进来 100 个客人。你只有一个灶台。怎么办?</p>
+  <p>后端服务器每天面对的就是这个问题:成千上万的请求(客人)同时涌进来,而 CPU、内存(灶台、服务员)是有限的。<b>「并发模型」就是一套「开店方案」</b>——怎么安排人手,让尽量多的客人尽快吃上面,还不出乱子(上错菜、厨房着火)。</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    你在浏览器里点开一个网页,背后可能有几百台服务器在接力。你今天学的不是"Node.js 怎么写",而是<b>所有后端语言共同的一道必答题</b>:人手有限,客人无限,怎么调度?
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>📇 概念卡:并发(Concurrency)≠ 并行(Parallelism)</h2>
+  <div class="concept">
+    <span class="tag">概念卡 #1</span>
+    <p><b>并发(Concurrency)</b>:同一时间段内<b>应付</b>多件事——一件事没做完可以先搁下,去做另一件。像一个人一边回微信一边烧水,水开了先去关火。</p>
+    <p><b>并行(Parallelism)</b>:同一时刻<b>真的同时</b>做多件事——需要多个人(多个 CPU 核心)各干各的。</p>
+    <p><b>一句话记:</b>并发是「会切换」,并行是「真同时」。并发是组织结构问题,并行是人手数量问题。</p>
+  </div>
+  <p>这个概念不绑定任何语言。C#、Java、Go、Node 的面试里都会考,而且考法一模一样。</p>
+</section>
+
+<section id="sec3">
+  <h2>👥 三种开店方案 = 三种并发模型</h2>
+  <p>全世界的主流后端语言,应对"100 个客人同时进门"基本就三种思路。记住这三种,你就抓住了所有后端运行时的骨架:</p>
+
+  <h3>方案一:多雇服务员 —— 多线程模型(Java / C# 的传统做法)</h3>
+  <div class="card">
+    <p>每个客人配一个专职服务员(<b>一个请求一个线程</b>)。服务员点完单就站着等后厨出餐,哪儿也不去。</p>
+    <p><b>好处:</b>思路直白,代码从上往下写,好理解。<br>
+    <b>代价:</b>服务员很贵!每个线程要占内存(约 1MB 栈空间),1 万个客人就要 1 万个服务员,餐馆装不下;服务员之间换岗(线程上下文切换)也费时间。</p>
+    <p>现代做法是用<b>线程池(Thread Pool)</b>:固定雇 200 个服务员轮班,而不是来多少客人招多少人。C# 的 <code>async/await</code>、Java 的 virtual threads 都是在给这个方案"减肥"。</p>
+  </div>
+
+  <h3>方案二:一个永不等人的超级服务员 —— 事件循环模型(Node.js)</h3>
+  <div class="card">
+    <p>只雇一个服务员,但他有条铁律:<b>绝不站着等</b>。给 1 号桌点完单,单子递给后厨,立刻去 2 号桌。后厨出餐了按铃(事件),他听到铃声再把菜端过去。</p>
+    <p>这个服务员就是 <b>event loop(事件循环)</b>;后厨是操作系统/线程池在干慢活(读文件、查数据库、发网络请求);按铃就是<b>回调(callback)</b>。</p>
+    <p><b>好处:</b>一个人能"应付"上万桌,因为大部分桌 90% 的时间都在等后厨,根本不需要人陪着。<br>
+    <b>代价:</b>如果有一桌客人拉着服务员现场算一道奥数题(CPU 密集计算),全场都别想点菜了。</p>
+  </div>
+
+  <h3>方案三:雇得起一万个实习生 —— 轻量协程模型(Go)</h3>
+  <div class="card">
+    <p>Go 的 <b>goroutine</b> 像"实习生":工资极低(初始栈只有几 KB),雇 10 万个也不心疼。每个实习生也像方案一那样专职服务一桌,写代码同样是从上往下的直白风格,但成本接近方案二。</p>
+    <p><b>一句话:</b>Go 用很便宜的人手,实现了"多服务员"的简单写法 + "事件循环"的高容量。</p>
+  </div>
+
+  <div class="concept">
+    <span class="tag">概念卡 #2</span>
+    <p><b>并发模型(Concurrency Model)</b>:一门语言的运行时用来"同时应付多个任务"的组织方案。三大流派:<b>多线程 + 线程池</b>(Java/C#)、<b>单线程事件循环 + 异步回调</b>(Node.js)、<b>轻量级协程</b>(Go)。它们解决的问题相同,差别在<b>人手成本</b>和<b>代码写法</b>。</p>
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>🔁 放大看 Node.js:event loop 是怎么转起来的</h2>
+  <p>Node.js 内部就三个关键角色,用面馆来认人:</p>
+  <table>
+    <tr><th>面馆角色</th><th>Node.js 里的真身</th><th>干什么</th></tr>
+    <tr><td>服务员(全场唯一)</td><td><b>Call Stack(调用栈)+ event loop</b></td><td>执行你的 JS 代码,一圈一圈不停地巡视:有没有铃响?有没有活干?</td></tr>
+    <tr><td>等出餐的取餐铃区</td><td><b>Callback Queue(回调队列)</b></td><td>后厨完成的事(定时器到点、文件读完)在这里排队,等服务员来处理</td></tr>
+    <tr><td>后厨帮工</td><td><b>libuv 线程池</b></td><td>真正干慢活:读文件、DNS 查询、加密等。注意:Node 并不是"绝对单线程",只是<b>你的代码</b>跑在单个线程上</td></tr>
+  </table>
+  <p>event loop 的每一圈就像服务员的一次巡视,大致顺序:先看定时器到点没(timers)→ 处理排队的回调(poll)→ 有没有 <code>setImmediate</code>(check)……下周我们会逐阶段拆实验。今天只需要建立画面感:<b>服务员永不停歇地绕圈,绝不站在任何一桌旁边干等。</b></p>
+</section>
+
+<section id="sec5">
+  <h2>⚠️ 黄金法则:别让服务员站在原地等</h2>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    面馆里最可怕的客人不是点 100 碗面的,而是<b>拉着服务员陪他现场磨面粉的</b>。磨面粉的 5 分钟里,全场 100 桌没人点菜、没人结账——服务器对外表现为"卡死"。
+  </div>
+  <p>对应到后端,任务分两类:</p>
+  <table>
+    <tr><th>类型</th><th>例子</th><th>面馆类比</th><th>正确做法</th></tr>
+    <tr><td><b>I/O 密集</b>(等待型)</td><td>查数据库、读文件、调别的 API</td><td>等后厨出餐</td><td>交给"后厨",用异步;event loop 模型最擅长这种</td></tr>
+    <tr><td><b>CPU 密集</b>(计算型)</td><td>图片压缩、大 JSON 解析、加密、复杂循环</td><td>现场磨面粉</td><td>别在主线程做!拆小、或丢给 worker_threads(另雇一个磨粉工)</td></tr>
+  </table>
+  <p>这条法则在 C# 里同样成立,只是表现不同:在 C#/Java 里堵住一个线程,只是占用一个服务员;在 Node 里堵住主线程,是<b>放倒了唯一的服务员</b>。所以今天起养成职业直觉:<b>看到一段代码,先问"它是等待型还是计算型?"</b></p>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照(以后换 C# 也不怕)</h2>
+  <table>
+    <tr><th>通用概念</th><th>Node.js(今天的教具)</th><th>C# / .NET</th><th>Java</th><th>Go</th></tr>
+    <tr><td>并发模型</td><td>event loop + libuv 线程池</td><td>线程池 + async/await(Task)</td><td>线程池 / virtual threads(Loom)</td><td>goroutine + channel</td></tr>
+    <tr><td>"别堵住服务员"</td><td>别阻塞主线程</td><td>别阻塞线程池线程(用 await 让出)</td><td>同左</td><td>goroutine 阻塞了调度器会换人,代价小</td></tr>
+    <tr><td>CPU 密集任务出路</td><td>worker_threads</td><td>Task.Run / 多线程</td><td>线程池 / ForkJoinPool</td><td>多开 goroutine 天然多核</td></tr>
+    <tr><td>异步代码写法</td><td>callback → Promise → async/await</td><td>async/await(语法几乎一样)</td><td>CompletableFuture / 协程(Loom 后回归同步写法)</td><td>写法本身就是同步风格</td></tr>
+  </table>
+  <p>📌 面试翻译练习:如果面试官问 ".NET 的 async/await 和 Node 的有什么区别?",你的答案是:<b>"写法几乎相同,差别在底层——C# 的 await 让出的是线程池里的一个线程,Node 的 await 让出的是唯一的主线程,所以 Node 对阻塞更敏感。"</b> 这就是"学概念而不是学语言"的回报。</p>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+  <p>习题代码写在 <code>src/01-concurrency-models/</code> 目录下,我已放好带中文注释的题目骨架,你来填关键部分。运行方式:<code>npx tsx src/01-concurrency-models/ex1-blocking.ts</code></p>
+
+  <div class="task">
+    <h3>习题 1:抓住"磨面粉的客人"(动手,约 12 min)</h3>
+    <p>文件:<code>ex1-blocking.ts</code></p>
+    <p>同时安排一个 1 秒后该响的"取餐铃"(setTimeout)和一盘要磨 3 秒的面粉(一个空的 while 大循环)。运行后观察:铃声迟到了多久?把观察结果写进代码顶部注释——这就是"主线程被堵,全场停摆"的直接证据。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:服务员不等待(动手,约 10 min)</h3>
+    <p>文件:<code>ex2-io-waiting.ts</code></p>
+    <p>分别用同步(<code>readFileSync</code>)和异步(<code>fs/promises</code> 的 <code>readFile</code>)读一个大文件,各包一层计时。体会:同步版里服务员站在原地等后厨;异步版里他递完单子就去干别的了。想想:这正是 C# 里 <code>File.ReadAllText</code> vs <code>await File.ReadAllTextAsync</code> 的同一道题。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:概念卡默写(动笔不动键盘,约 8 min)</h3>
+    <p>文件:<code>notes.md</code>(放在同一目录)</p>
+    <p>合上本文档,用中文回答两题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>并发和并行有什么区别?举面馆的例子说明。</li>
+      <li>为什么 Node.js 特别怕 CPU 密集任务,而 Java/C# 的多线程模型相对不怕?那 Go 又是怎么"两头占便宜"的?</li>
+    </ol>
+    <p>写完后回到第 2、3、5 节对答案,把说错的地方用红色(or 修改)订正。</p>
+  </div>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li>后端的第一道必答题:<b>人手有限,请求无限,怎么调度</b>——这叫并发模型,与语言无关。</li>
+    <li>三大流派:<b>多线程/线程池</b>(Java/C#)、<b>事件循环</b>(Node.js)、<b>轻量协程</b>(Go),区别在人手成本和代码写法。</li>
+    <li>Node 的秘密不是"单线程",而是"<b>你的代码</b>单线程 + 慢活外包给 libuv 线程池 + 完成后按铃(回调)"。</li>
+    <li>黄金法则:<b>永远别在等待中站着不动;永远别在主线程磨面粉。</b>换成任何语言,这条都成立。</li>
+  </ol>
+  <h3>自测清单(能打勾才算今天过关)</h3>
+  <ul class="check">
+    <li>能向一个不懂技术的人用面馆比喻讲清 event loop</li>
+    <li>能说出三种并发模型各自一个优缺点</li>
+    <li>能解释为什么 <code>setTimeout(fn, 1000)</code> 不保证恰好 1 秒后执行</li>
+    <li>能把 "async/await" 在 Node 和 C# 里的差别用一句话说清</li>
+  </ul>
+</section>
+
+<footer>
+  Day 1 · Phase 1 / Week 1 · 产出:<code>docs/01-concurrency-models/</code> 本文档 + <code>src/01-concurrency-models/</code> 习题代码 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>
