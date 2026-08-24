@@ -3,7 +3,9 @@
 // 运行:npx tsx src/01-concurrency-models/ex2-io-waiting.ts
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { createFile, cleanupFile, BIG_FILE } from "./helper-bigfile.js";
+// 注意:这里写真实的 .ts 扩展名,原生 node(24+ 类型擦除)和 tsx 都能正确解析;
+// 若写 .js 则只有 tsx 能映射回 .ts,直接 node 跑会报 ERR_MODULE_NOT_FOUND
+import { createFile, cleanupFile, BIG_FILE } from "./helper-bigfile.ts";
 
 // 先造一个 200MB 的大文件当"慢后厨"(只造一次,已存在则跳过)
 await createFile();
