@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 2 · Buffer 与 Stream —— 给 10 岁小程序员的课</title>
+<style>
+  :root{
+    --ink:#212121;
+    --paper:#f9f4ed;
+    --c1:#fffcc4; /* 淡黄 · Buffer */
+    --c2:#aadcff; /* 浅蓝 · Stream */
+    --c3:#ffcedb; /* 柔粉 · 四种流 */
+    --c4:#ffdbda; /* 蜜桃 · 背压 */
+    --c5:#e1e1e1; /* 浅灰 · pipeline 实战 */
+    --radius:24px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    line-height:1.9;
+    font-size:18px;
+  }
+  .wrap{max-width:820px;margin:0 auto;padding:0 22px;}
+
+  /* ===== 封面 ===== */
+  header.hero{
+    padding:90px 0 70px;
+    text-align:center;
+  }
+  .hero .tag{
+    display:inline-block;background:var(--ink);color:var(--paper);
+    padding:6px 18px;border-radius:999px;font-size:14px;letter-spacing:2px;
+    margin-bottom:26px;
+  }
+  .hero h1{
+    font-size:clamp(38px,7vw,64px);
+    line-height:1.25;
+    font-weight:800;
+  }
+  .hero h1 .hl-y{background:var(--c1);padding:0 10px;border-radius:12px;}
+  .hero h1 .hl-b{background:var(--c2);padding:0 10px;border-radius:12px;}
+  .hero p.sub{margin-top:22px;font-size:19px;opacity:.75;}
+
+  /* ===== 章节胶囊 ===== */
+  .pill-divider{
+    max-width:820px;margin:64px auto -8px;padding:0 22px;
+  }
+  .pill{
+    display:flex;align-items:center;gap:14px;
+    border-radius:999px;padding:14px 26px;
+    font-weight:700;font-size:17px;
+    box-shadow:0 2px 0 rgba(0,0,0,.12);
+  }
+  .pill .num{
+    background:var(--ink);color:#fff;border-radius:999px;
+    min-width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+    font-size:15px;flex:none;
+  }
+  .pill .enter{opacity:.65;font-weight:400;font-size:14px;}
+
+  /* ===== 彩色章节 ===== */
+  section.chapter{
+    border-radius:var(--radius);
+    margin:24px auto;
+    padding:56px 0 60px;
+  }
+  .ch-1{background:var(--c1);}
+  .ch-2{background:var(--c2);}
+  .ch-3{background:var(--c3);}
+  .ch-4{background:var(--c4);}
+  .ch-5{background:var(--c5);}
+
+  h2{font-size:34px;line-height:1.35;font-weight:800;margin-bottom:8px;}
+  h3{font-size:23px;font-weight:700;margin:38px 0 10px;}
+  p{margin:14px 0;}
+  .lead{font-size:20px;font-weight:600;}
+
+  /* 生活例子框 */
+  .analogy{
+    background:rgba(255,255,255,.75);
+    border-radius:18px;
+    padding:22px 26px;
+    margin:22px 0;
+    border:2px dashed rgba(33,33,33,.35);
+  }
+  .analogy .label{
+    display:inline-block;background:var(--ink);color:#fff;
+    font-size:13px;padding:3px 12px;border-radius:999px;
+    letter-spacing:1px;margin-bottom:10px;
+  }
+  .analogy p{margin:6px 0;}
+
+  /* 代码块 */
+  pre{
+    background:var(--ink);color:#f4f4f4;
+    border-radius:16px;padding:20px 24px;
+    overflow-x:auto;font-size:15px;line-height:1.8;
+    margin:18px 0;
+    font-family:"SF Mono",Menlo,Consolas,monospace;
+  }
+  pre .cm{color:#8f8f8f;}   /* 注释 */
+  pre .kw{color:#aadcff;}   /* 关键字 */
+  code.inline{
+    background:rgba(33,33,33,.1);border-radius:6px;
+    padding:2px 8px;font-family:"SF Mono",Menlo,monospace;font-size:16px;
+  }
+
+  /* 小知识 */
+  .tip{
+    border-left:6px solid var(--ink);
+    background:rgba(255,255,255,.55);
+    padding:14px 20px;border-radius:0 14px 14px 0;
+    margin:20px 0;font-size:16.5px;
+  }
+
+  /* 表格 */
+  table{width:100%;border-collapse:collapse;margin:18px 0;background:rgba(255,255,255,.7);border-radius:14px;overflow:hidden;font-size:16.5px;}
+  th,td{padding:12px 16px;text-align:left;border-bottom:2px solid rgba(33,33,33,.08);}
+  th{background:rgba(33,33,33,.85);color:#fff;font-weight:600;}
+
+  /* SVG 插图容器 */
+  .figure{
+    background:rgba(255,255,255,.6);
+    border-radius:18px;padding:26px;margin:24px 0;
+    text-align:center;
+  }
+  .figure figcaption{font-size:14.5px;opacity:.7;margin-top:10px;}
+
+  /* 背压互动小实验 */
+  .demo button{
+    font-family:inherit;font-size:16px;font-weight:700;
+    border:3px solid var(--ink);border-radius:999px;
+    background:#fff;color:var(--ink);
+    padding:10px 24px;margin:6px;cursor:pointer;
+    transition:transform .1s;
+  }
+  .demo button:active{transform:scale(.95);}
+  .demo button.on{background:var(--ink);color:#fff;}
+  #pipe-stage{margin-top:10px;}
+
+  /* 小测验 */
+  .quiz details{
+    background:rgba(255,255,255,.75);border-radius:14px;
+    padding:16px 22px;margin:12px 0;cursor:pointer;
+  }
+  .quiz summary{font-weight:700;font-size:17.5px;}
+  .quiz .ans{margin-top:10px;padding-top:10px;border-top:2px dashed rgba(33,33,33,.3);}
+
+  /* 记忆口诀 */
+  .chant{
+    text-align:center;font-size:clamp(20px,4vw,28px);font-weight:800;
+    line-height:2;padding:40px 20px;
+  }
+  .chant span{display:block;}
+
+  footer{text-align:center;padding:60px 0 50px;opacity:.6;font-size:14.5px;}
+
+  @media (max-width:600px){
+    body{font-size:16.5px;}
+    h2{font-size:27px;}
+    section.chapter{padding:40px 0;}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="tag">365 天全栈成长 · Day 2</div>
+  <h1><span class="hl-y">Buffer</span> 和 <span class="hl-b">Stream</span><br>搬家公司的故事</h1>
+  <p class="sub">假设你今年 10 岁,刚学编程。今天我们不讲大道理,只讲搬家、接水、汉堡店。</p>
+</header>
+
+<!-- ========== 第 0 章:问题从哪来 ========== -->
+<div class="pill-divider"><div class="pill" style="background:#fff;">
+  <span class="num">00</span><span>先讲个麻烦事 <span class="enter">— 你正在进入「为什么」</span></span>
+</div></div>
+
+<section class="chapter" style="background:var(--paper);">
+  <div class="wrap">
+    <h2>电脑要搬一座「书山」</h2>
+    <p class="lead">想象一下:学校图书馆要搬家,有 <strong>20 万本书</strong> 要搬到新馆。</p>
+
+    <div class="analogy">
+      <span class="label">生活例子</span>
+      <p>🏠 <strong>方法一:全塞进一个大卡车</strong> —— 把所有书一次性装进一辆巨型卡车。问题来了:卡车要多大?可能根本没那么大的车,装到一半车就爆了。</p>
+      <p>🚲 <strong>方法二:每次搬一小箱</strong> —— 用普通小推车,每次搬 20 本,搬很多趟。车不用大,多跑几趟就行,书再多也不怕。</p>
+    </div>
+
+    <p>电脑读文件一模一样。一个 2GB 的日志文件(相当于 20 万本书):</p>
+    <ul style="margin:10px 0 10px 24px;">
+      <li><code class="inline">fs.readFile</code> = 方法一,一次性全读进内存 → 内存可能直接「爆掉」;</li>
+      <li><strong>Stream(流)</strong> = 方法二,一次只读一小块(64KB,一小箱),内存永远只用一点点,20GB 的文件也搬得动。</li>
+    </ul>
+
+    <div class="tip">💡 今天所有知识都围绕这一件事:<strong>怎么用小小的内存,搬大大的数据,还不把自己累死。</strong></div>
+  </div>
+</section>
+
+<!-- ========== 第 1 章:Buffer ========== -->
+<div class="pill-divider"><div class="pill" style="background:var(--c1);">
+  <span class="num">01</span><span>Buffer:装字节的小箱子 <span class="enter">— 你正在进入「字节的世界」</span></span>
+</div></div>
+
+<section class="chapter ch-1">
+  <div class="wrap">
+    <h2>Buffer 是什么?</h2>
+    <p class="lead">Buffer(缓冲区)就是一排<strong>编了号的小格子</strong>,每个格子只能放一个 0~255 的数字。</p>
+
+    <div class="analogy">
+      <span class="label">生活例子</span>
+      <p>🥚 <strong>鸡蛋盒</strong>:一个鸡蛋盒有固定数量的格子,每个格子放一个鸡蛋,不多也不少。Buffer 就是「鸡蛋盒」,只不过格子里放的是「字节」。</p>
+      <p>格子数量在买盒子那一刻就定死了 —— Buffer 创建后<strong>长度不能变</strong>,想装更多?只能换个新盒子。</p>
+    </div>
+
+    <h3>字节 ≠ 字!这是今天最重要的坑</h3>
+    <div class="analogy">
+      <span class="label">生活例子</span>
+      <p>🍬 把「汉字」想成<strong>大糖果</strong>,「字节」想成<strong>小糖纸</strong>。包一颗「中」字大糖果,要用 3 张小糖纸(UTF-8 编码下 1 个汉字 = 3 个字节)。</p>
+      <p>所以:你说「我有 2 颗糖」,糖纸却有 6 张 —— 数的单位不一样!</p>
+    </div>
+
+<pre><span class="kw">'中文'</span>.length              <span class="cm">// 2   ← 2 个汉字(糖果)</span>
+Buffer.from(<span class="kw">'中文'</span>).length  <span class="cm">// 6   ← 6 个字节(糖纸)!</span></pre>
+
+    <div class="tip">⚠️ 真实世界 bug:如果按字节数把字符串「咔嚓」剪断,可能把一个汉字剪成两半,屏幕上就出现乱码 <code class="inline"></code>。这就是糖果被撕开了。</div>
+
+    <h3>三种做盒子的方法</h3>
+    <table>
+      <tr><th>方法</th><th>像什么</th><th>说明</th></tr>
+      <tr><td><code class="inline">Buffer.alloc(8)</code></td><td>买新盒子,格子擦得干干净净</td><td>安全,最常用</td></tr>
+      <tr><td><code class="inline">Buffer.allocUnsafe(8)</code></td><td>捡别人用过的盒子,可能有剩饭</td><td>快,但脏,除非你马上全部擦掉重写</td></tr>
+      <tr><td><code class="inline">Buffer.from('你好')</code></td><td>按纸条内容现做一个正好的盒子</td><td>日常最常用</td></tr>
+    </table>
+
+    <div class="figure">
+      <svg width="100%" max-width="640" viewBox="0 0 640 120" role="img" aria-label="Buffer 鸡蛋盒示意图">
+        <g font-family="monospace" font-size="16" text-anchor="middle">
+          <!-- 6 个格子 -->
+          <g>
+            <rect x="60" y="30" width="80" height="60" rx="10" fill="#fff" stroke="#212121" stroke-width="3"/>
+            <rect x="148" y="30" width="80" height="60" rx="10" fill="#fff" stroke="#212121" stroke-width="3"/>
+            <rect x="236" y="30" width="80" height="60" rx="10" fill="#fff" stroke="#212121" stroke-width="3"/>
+            <rect x="324" y="30" width="80" height="60" rx="10" fill="#fff" stroke="#212121" stroke-width="3"/>
+            <rect x="412" y="30" width="80" height="60" rx="10" fill="#fff" stroke="#212121" stroke-width="3"/>
+            <rect x="500" y="30" width="80" height="60" rx="10" fill="#fff" stroke="#212121" stroke-width="3"/>
+          </g>
+          <text x="100" y="66" fill="#212121">228</text>
+          <text x="188" y="66" fill="#212121">184</text>
+          <text x="276" y="66" fill="#212121">173</text>
+          <text x="364" y="66" fill="#212121">230</text>
+          <text x="452" y="66" fill="#212121">150</text>
+          <text x="540" y="66" fill="#212121">135</text>
+          <text x="188" y="18" fill="#212121" font-weight="bold">「中」= 3 格</text>
+          <text x="452" y="18" fill="#212121" font-weight="bold">「文」= 3 格</text>
+        </g>
+      </svg>
+      <figcaption>「中文」两个字,装进 Buffer 这个鸡蛋盒,占了 6 个格子。</figcaption>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 第 2 章:Stream ========== -->
+<div class="pill-divider"><div class="pill" style="background:var(--c2);">
+  <span class="num">02</span><span>Stream:自来水,不是大水缸 <span class="enter">— 你正在进入「流动的数据」</span></span>
+</div></div>
+
+<section class="chapter ch-2">
+  <div class="wrap">
+    <h2>Stream 是什么?</h2>
+    <p class="lead">Stream(流)就是:<strong>数据不一次给你,像自来水一样,一股一股地流过来。</strong></p>
+
+    <div class="analogy">
+      <span class="label">生活例子</span>
+      <p>🚰 你渴了想喝水,有两种办法:</p>
+      <p>① <strong>大水缸法</strong>:把整条河的水全抽进一个超级大缸,你再喝。你家根本放不下这个缸!(= readFile,内存爆炸)</p>
+      <p>② <strong>水龙头法</strong>:接一根水管,打开水龙头,喝一杯接一杯。你家的杯子很小,但整条河的水你都能喝到。(= Stream)</p>
+    </div>
+
+    <p>流过来的每一「股」水,叫做一个 <strong>chunk(数据块)</strong>,默认大约 64KB —— 正好是一盒 Buffer 鸡蛋盒。</p>
+
+<pre><span class="kw">import</span> fs <span class="kw">from</span> <span class="kw">'node:fs'</span>;
+
+<span class="cm">// 打开「水龙头」</span>
+<span class="kw">const</span> tap = fs.createReadStream(<span class="kw">'很大的日志.txt'</span>);
+
+tap.on(<span class="kw">'data'</span>, (chunk) => {
+  <span class="cm">// 每流来一小块,就接一杯</span>
+  console.log(<span class="kw">'收到一块:'</span>, chunk.length, <span class="kw">'字节'</span>);
+});</pre>
+
+    <div class="tip">🎬 其实你在视频网站看视频,用的就是 Stream 思想:电影 2GB,你不会等它全下载完才看,而是看一段缓冲一段。如果全下载完才能看,你可能要等半小时!</div>
+
+    <h3>Stream 的隐藏超能力:边搬边干活</h3>
+    <div class="analogy">
+      <span class="label">生活例子</span>
+      <p>🍟 麦当劳做薯条,不会等所有土豆都削完皮才开始切 —— <strong>削好一个,就传给切的人,切好一个就传给炸的人</strong>。三个人同时干活,总时间 ≈ 最慢那个人花的时间,而不是三个人时间加起来。Stream 就是这样:文件还没读完,读到的部分已经在被处理、被写出去了。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 第 3 章:四种流 ========== -->
+<div class="pill-divider"><div class="pill" style="background:var(--c3);">
+  <span class="num">03</span><span>Stream 家族四兄弟 <span class="enter">— 你正在进入「认识角色」</span></span>
+</div></div>
+
+<section class="chapter ch-3">
+  <div class="wrap">
+    <h2>四种流,四种角色</h2>
+
+    <table>
+      <tr><th>流</th><th>生活里的它</th><th>干什么</th><th>例子</th></tr>
+      <tr><td><strong>Readable</strong><br>可读流</td><td>🚰 水龙头</td><td>只会往外出水(出数据)</td><td>读文件、别人发给你的请求</td></tr>
+      <tr><td><strong>Writable</strong><br>可写流</td><td>🕳️ 下水口</td><td>只会往里吞水(收数据)</td><td>写文件、回复给别人的响应</td></tr>
+      <tr><td><strong>Duplex</strong><br>双工流</td><td>📞 电话</td><td>既能说又能听,两边互不干扰</td><td>TCP 网络连接</td></tr>
+      <tr><td><strong>Transform</strong><br>转换流</td><td>🍊 榨汁机</td><td>上面扔进橘子,下面流出橙汁</td><td>压缩、加密、改格式</td></tr>
+    </table>
+
+    <div class="figure">
+      <svg width="100%" viewBox="0 0 640 140" role="img" aria-label="流水线示意图">
+        <g font-family="sans-serif" font-size="15" text-anchor="middle">
+          <rect x="20"  y="45" width="130" height="56" rx="28" fill="#aadcff" stroke="#212121" stroke-width="3"/>
+          <text x="85" y="79" font-weight="bold">水龙头 读</text>
+          <rect x="190" y="45" width="130" height="56" rx="28" fill="#ffcedb" stroke="#212121" stroke-width="3"/>
+          <text x="255" y="79" font-weight="bold">榨汁机 转</text>
+          <rect x="360" y="45" width="130" height="56" rx="28" fill="#ffcedb" stroke="#212121" stroke-width="3"/>
+          <text x="425" y="79" font-weight="bold">榨汁机 转</text>
+          <rect x="530" y="45" width="100" height="56" rx="28" fill="#fffcc4" stroke="#212121" stroke-width="3"/>
+          <text x="580" y="79" font-weight="bold">下水口 写</text>
+          <g stroke="#212121" stroke-width="4" fill="none">
+            <path d="M152 73 h34"/><path d="M186 69 l10 4 -10 4z" fill="#212121"/>
+            <path d="M322 73 h34"/><path d="M356 69 l10 4 -10 4z" fill="#212121"/>
+            <path d="M492 73 h34"/><path d="M526 69 l10 4 -10 4z" fill="#212121"/>
+          </g>
+          <text x="320" y="130" fill="#212121">日常 90% 的用法:Readable → Transform → Writable,串成一条流水线</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="analogy">
+      <span class="label">生活例子</span>
+      <p>🍊 水果加工厂:橘子从水龙头(果园)流进来 → 第一台榨汁机削皮 → 第二台榨汁 → 下水口装瓶出厂。每个工人只管自己那一道工序,这就是流的「管道」思想。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 第 4 章:背压 ========== -->
+<div class="pill-divider"><div class="pill" style="background:var(--c4);">
+  <span class="num">04</span><span>Backpressure:汉堡店喊「暂停!」 <span class="enter">— 你正在进入「今天最难也最酷的概念」</span></span>
+</div></div>
+
+<section class="chapter ch-4">
+  <div class="wrap">
+    <h2>背压(backpressure)是什么?</h2>
+    <p class="lead">当「送水的」比「喝水的」快太多,喝水的人会喊:<strong>「等等!先别送了!」</strong> 这个「喊停」的动作,就叫背压。</p>
+
+    <div class="analogy">
+      <span class="label">生活例子</span>
+      <p>🍔 汉堡店出餐窗口:后厨 10 秒做一个汉堡,但前台收银员 1 分钟才能打包卖出去一个。</p>
+      <p>如果后厨不停手,窗口的汉堡会<strong>越堆越高,最后塌下来掉一地</strong>(= 内存里数据越堆越多,程序崩溃)。</p>
+      <p>聪明的做法:前台举个小牌子「<strong>窗口满了,后厨停一下</strong>」,等卖出去了再喊「继续!」。后厨完全不用换,只要听得懂「停」和「继续」就行。</p>
+    </div>
+
+    <p>在代码里,这两个「喊话」是真实存在的:</p>
+    <ul style="margin:10px 0 10px 24px;">
+      <li><code class="inline">write()</code> 返回 <code class="inline">false</code> = 下水口说:「<strong>我满了,别写了!</strong>」</li>
+      <li><code class="inline">'drain'</code> 事件 = 下水口说:「<strong>我排空了,继续!</strong>」(drain 就是「排干」的意思)</li>
+    </ul>
+
+<pre><span class="kw">const</span> ok = out.write(chunk);
+<span class="kw">if</span> (!ok) {
+  <span class="cm">// 窗口满了!后厨(可读流)先停下</span>
+  src.pause();
+  out.once(<span class="kw">'drain'</span>, () => {
+    <span class="cm">// 窗口空了,后厨继续!</span>
+    src.resume();
+  });
+}</pre>
+
+    <h3>👇 动手玩一玩:你来当后厨</h3>
+    <div class="figure demo">
+      <p style="font-size:15.5px;opacity:.8;">点「做一个汉堡」= 后厨生产;「卖掉一个」= 前台销售。窗口最多放 5 个。试试狂点生产,看会发生什么!</p>
+      <svg id="pipe-stage" width="100%" viewBox="0 0 640 170" role="img" aria-label="背压小实验">
+        <g font-family="sans-serif" text-anchor="middle">
+          <rect x="30" y="40" width="130" height="70" rx="16" fill="#fff" stroke="#212121" stroke-width="3"/>
+          <text x="95" y="70" font-size="15" font-weight="bold">后厨</text>
+          <text x="95" y="94" font-size="13" id="kitchen-status">空闲中</text>
+
+          <rect x="230" y="30" width="200" height="90" rx="16" fill="#fffcc4" stroke="#212121" stroke-width="3"/>
+          <text x="330" y="52" font-size="14" font-weight="bold">出餐窗口(最多 5 个)</text>
+          <g id="burgers" font-size="26"></g>
+
+          <rect x="490" y="40" width="120" height="70" rx="16" fill="#fff" stroke="#212121" stroke-width="3"/>
+          <text x="550" y="70" font-size="15" font-weight="bold">顾客</text>
+          <text x="550" y="94" font-size="13">吃掉了 <tspan id="sold-count">0</tspan> 个</text>
+
+          <g stroke="#212121" stroke-width="4" fill="none">
+            <path d="M162 75 h62"/><path d="M224 71 l10 4 -10 4z" fill="#212121"/>
+            <path d="M432 75 h52"/><path d="M484 71 l10 4 -10 4z" fill="#212121"/>
+          </g>
+          <text id="bp-msg" x="330" y="155" font-size="16" font-weight="bold" fill="#c00000"></text>
+        </g>
+      </svg>
+      <div>
+        <button id="make-btn">🍔 做一个汉堡</button>
+        <button id="sell-btn">😋 卖掉一个</button>
+        <button id="reset-btn">🔄 重新开始</button>
+      </div>
+    </div>
+
+    <div class="tip">🏆 记住了:背压不是错误,不是 bug,它是<strong>健康的自我保护</strong>。就像吃饭细嚼慢咽 —— 问题不是「吃得太慢」,而是「塞得太快还不停」。</div>
+  </div>
+</section>
+
+<!-- ========== 第 5 章:pipeline ========== -->
+<div class="pill-divider"><div class="pill" style="background:var(--c5);">
+  <span class="num">05</span><span>pipeline:请一个流水线管家 <span class="enter">— 你正在进入「实战武器」</span></span>
+</div></div>
+
+<section class="chapter ch-5">
+  <div class="wrap">
+    <h2>pipeline:自动管好整条流水线</h2>
+    <p class="lead">手写 pause/resume 太累了。Node.js 给了我们一个「管家」:<code class="inline">pipeline</code>,它自动处理背压、自动收拾残局。</p>
+
+    <div class="analogy">
+      <span class="label">生活例子</span>
+      <p>🎢 你自己去接水管,要自己拧阀门、自己盯水位,万一中间管子爆了,水漫金山(内存泄漏)。</p>
+      <p><code class="inline">pipeline</code> 像游乐园的<strong>自动传送带管理员</strong>:水流快慢它自动调节;任何一节出问题,它立刻关停整条线,并把剩下的水清理干净,绝不淹了你的房子。</p>
+    </div>
+
+<pre><span class="kw">import</span> { pipeline } <span class="kw">from</span> <span class="kw">'node:stream/promises'</span>;
+<span class="kw">import</span> fs <span class="kw">from</span> <span class="kw">'node:fs'</span>;
+<span class="kw">import</span> zlib <span class="kw">from</span> <span class="kw">'node:zlib'</span>;
+
+<span class="cm">// 读文件 → 榨汁机(压缩)→ 写文件,一句话搞定</span>
+<span class="kw">await</span> pipeline(
+  fs.createReadStream(<span class="kw">'大日志.txt'</span>),   <span class="cm">// 🚰 水龙头</span>
+  zlib.createGzip(),                    <span class="cm">// 🍊 榨汁机:压成果汁</span>
+  fs.createWriteStream(<span class="kw">'大日志.txt.gz'</span>) <span class="cm">// 🕳️ 下水口</span>
+);</pre>
+
+    <p>这三行代码背后,pipeline 管家帮你做了四件事:</p>
+    <ul style="margin:10px 0 10px 24px;">
+      <li>✅ 自动处理背压(快了喊停,空了喊继续)</li>
+      <li>✅ 任何一个环节出错,关闭所有流,不浪费内存</li>
+      <li>✅ 出错时把错误告诉你(await 会抛异常)</li>
+      <li>✅ 全部完成后正常返回</li>
+    </ul>
+
+    <h3>🧠 小测验:你真的懂了吗?</h3>
+    <div class="quiz">
+      <details>
+        <summary>1.「你好」这两个汉字,Buffer.from('你好').length 是几?</summary>
+        <div class="ans">6。一个汉字 UTF-8 编码占 3 个字节(一颗大糖果用 3 张糖纸),2 × 3 = 6。</div>
+      </details>
+      <details>
+        <summary>2. 读一个 10GB 的文件,用 readFile 会怎么样?</summary>
+        <div class="ans">它想一次性把 10GB 全塞进内存 —— 相当于想一口吞掉整条河,内存大概率直接爆掉(程序崩溃)。应该用 Stream,一杯一杯地喝。</div>
+      </details>
+      <details>
+        <summary>3. write() 返回 false,你应该继续写还是停下来?</summary>
+        <div class="ans">停下来!这相当于前台举牌「窗口满了」。正确做法是等 'drain'(排空了)事件再继续写 —— 这就是处理背压。</div>
+      </details>
+      <details>
+        <summary>4. Transform 流像生活中的什么?</summary>
+        <div class="ans">榨汁机:上面扔进橘子(写入数据),下面流出橙汁(读出变换后的数据)。压缩、加密都是它。</div>
+      </details>
+    </div>
+
+    <div class="chant">
+      <span>字节小,汉字大,糖纸三张包一颗。</span>
+      <span>数据大,别硬吞,水龙头下一杯杯。</span>
+      <span>窗口满,喊暂停,drain 一响再继续。</span>
+      <span>流水线,找管家,pipeline 全搞定。</span>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Day 2 · Buffer 与 Stream · 实验代码在 <code class="inline">src/02-streams/</code> · 动手跑一遍,知识才是你的
+</footer>
+
+<script>
+(function(){
+  var count = 0, sold = 0, MAX = 5;
+  var burgers = document.getElementById('burgers');
+  var msg = document.getElementById('bp-msg');
+  var kitchen = document.getElementById('kitchen-status');
+  var soldEl = document.getElementById('sold-count');
+  var makeBtn = document.getElementById('make-btn');
+  var sellBtn = document.getElementById('sell-btn');
+  var resetBtn = document.getElementById('reset-btn');
+
+  function render(){
+    // 画汉堡
+    var html = '';
+    for (var i = 0; i < count; i++){
+      html += '<text x="' + (262 + i*28) + '" y="98">🍔</text>';
+    }
+    burgers.innerHTML = html;
+    soldEl.textContent = sold;
+    if (count >= MAX){
+      msg.textContent = '⚠️ 窗口满了!write() 返回 false —— 后厨被喊停(pause)';
+      kitchen.textContent = '⏸ 已暂停';
+      makeBtn.disabled = true;
+      makeBtn.style.opacity = .4;
+    } else {
+      msg.textContent = '';
+      kitchen.textContent = '工作中 🔥';
+      makeBtn.disabled = false;
+      makeBtn.style.opacity = 1;
+    }
+    sellBtn.disabled = count === 0;
+    sellBtn.style.opacity = count === 0 ? .4 : 1;
+  }
+
+  makeBtn.addEventListener('click', function(){
+    if (count < MAX) count++;
+    render();
+  });
+  sellBtn.addEventListener('click', function(){
+    if (count > 0){ count--; sold++; }
+    render();
+    if (count === MAX - 1){
+      msg.textContent = '✅ 窗口空出位置了!触发 drain 事件 —— 后厨继续(resume)';
+    }
+  });
+  resetBtn.addEventListener('click', function(){
+    count = 0; sold = 0; msg.textContent = ''; render();
+    kitchen.textContent = '空闲中';
+  });
+  render();
+})();
+</script>
+
+</body>
+</html>
