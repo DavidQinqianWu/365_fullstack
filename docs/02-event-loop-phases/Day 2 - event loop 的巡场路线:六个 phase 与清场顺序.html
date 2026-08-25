@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 2 - event loop 的巡场路线:六个 phase 与清场顺序</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 1</div>
+  <h1>Day 2 - event loop 的巡场路线:六个 phase 与清场顺序</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 55 min + 习题约 35 min)·
+    主题:<b>event loop 深入(Event Loop Phases)</b>——服务员不是随便绕圈,他有固定路线 ·
+    练习语言:Node.js(它只是教具,调度思想才是主角)
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🗺️ 接上回:服务员巡场,有固定路线吗?</a></li>
+    <li><a href="#sec2">📇 概念卡:event loop 的六个 phase(只记三站)</a></li>
+    <li><a href="#sec3">✂️ 两个编外窗口:nextTick 与 microtask</a></li>
+    <li><a href="#sec4">⚖️ 经典面试题:setTimeout(0) vs setImmediate</a></li>
+    <li><a href="#sec5">☠️ 饿死 loop:为什么让出必须用 setImmediate</a></li>
+    <li><a href="#sec6">🌍 跨语言对照(调度思想 everywhere)</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 35 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🗺️ 接上回:服务员巡场,有固定路线吗?</h2>
+  <p>Day 1 我们知道了:Node.js 的服务员(event loop)永不等待,慢活外包给后厨,出餐按铃(回调)再回来收尾。</p>
+  <p>今天追问一步:<b>铃可能同时响好多个 —— 定时器到点了、文件读完了、Promise 也完成了,服务员先处理哪个?</b>他总不能看心情。答案是:他有一条<b>雷打不动的巡场路线</b>,每一圈都按同样的顺序经过固定的几站。这条路线,就是 event loop 的 <b>phase(阶段)</b>。</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    像商场保安巡逻:监控室 → 一楼大厅 → 消防通道 → 停车场 → 回到监控室,一圈一圈永远这个顺序。哪个点出了事,得等保安巡到那一站才处理。<b>理解了路线,你就能预测任何一段异步代码的执行顺序</b>——这正是面试最爱考的。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>📇 概念卡:event loop 的六个 phase(只记三站)</h2>
+  <p>event loop 每转一圈(iteration),按固定顺序经过 6 个 phase,每个 phase 是一个 FIFO 队列(该站排队等处理的铃铛):</p>
+  <pre><code>   ┌───────────────────────────┐
+┌─▶│  ① timers(定时器站)     │  到期的 setTimeout / setInterval
+│  └─────────────┬─────────────┘
+│  ┌─────────────┴─────────────┐
+│  │  ② pending callbacks      │  系统级回调(如 TCP 错误),日常碰不到
+│  └─────────────┬─────────────┘
+│  ┌─────────────┴─────────────┐
+│  │  ③ idle, prepare          │  Node 内部用,忽略
+│  └─────────────┴─────────────┘
+│  ┌─────────────┴─────────────┐
+│  │  ④ poll(出餐取餐口)      │  I/O 回调:文件读完、网络响应到达
+│  └─────────────┬─────────────┘
+│  ┌─────────────┴─────────────┐
+│  │  ⑤ check(加急窗口)       │  setImmediate
+│  └─────────────┬─────────────┘
+│  ┌─────────────┴─────────────┐
+│  │  ⑥ close callbacks        │  关闭事件,如 socket.on('close')
+│  └─────────────┬─────────────┘
+└──┴─────────────┘ 下一圈</code></pre>
+
+  <div class="concept">
+    <span class="tag">概念卡 #1</span>
+    <p><b>phase(阶段)</b>:event loop 每一圈按固定顺序经过的站点,每站维护一个 FIFO 回调队列。日常只需要记住三站:<b>timers</b>(setTimeout/setInterval)、<b>poll</b>(I/O 回调,巡场的中转站)、<b>check</b>(setImmediate)。</p>
+    <p><b>一句话记:</b>服务员不是随机应变,是<b>固定路线巡逻</b>;你的回调排在哪一站,决定了它什么时候被处理。</p>
+  </div>
+
+  <h3>poll 站:整条路线的"中转站"</h3>
+  <p>poll 是六站里最特殊的一站 —— 它是唯一会"停下来等"的地方。poll 队列空了之后,服务员怎么决定下一步?</p>
+  <ol>
+    <li>有 <code>setImmediate</code> 在排队 → <b>不等</b>,直接去下一站 check;</li>
+    <li>有快到期的 timer → <b>在 poll 等着</b>,等到点了去 timers 站;</li>
+    <li>什么活都没有 → 打烊(进程退出)。</li>
+  </ol>
+  <p>第 1 条是今天第 4 节面试题的关键,先有个印象,待会儿实验验证。</p>
+</section>
+
+<section id="sec3">
+  <h2>✂️ 两个编外窗口:nextTick 与 microtask</h2>
+  <p>上面六站是"正规军"。但还有两类回调<b>不属于任何 phase</b>,它们走的是"编外窗口" —— 每当服务员在一个站点<b>服务完当前这批客人、动身去下一站之前</b>,先把这两个窗口清空:</p>
+
+  <table>
+    <tr><th>窗口</th><th>装什么</th><th>面馆类比</th><th>脾气</th></tr>
+    <tr>
+      <td><b>nextTick 队列</b><br>(Node 维护)</td>
+      <td><code>process.nextTick(fn)</code></td>
+      <td>店长插单:"先去把这桌的账结了再继续巡"</td>
+      <td><b>完全排空才放行</b>;边排边加新单,就永远排不空</td>
+    </tr>
+    <tr>
+      <td><b>microtask 队列</b><br>(V8 维护)</td>
+      <td><code>Promise.then/catch/finally</code>、<code>queueMicrotask</code>、<code>await</code> 后面的"打包纸条"(Day 1 笔记)</td>
+      <td>熟客的预约纸条</td>
+      <td>同样完全排空,优先级通常排在 nextTick 之后</td>
+    </tr>
+  </table>
+
+  <div class="concept">
+    <span class="tag">概念卡 #2</span>
+    <p><b>microtask / macrotask</b>:异步回调的两个优先级档位。每个 phase 的回调(以及 setTimeout、setImmediate、I/O 回调)是 <b>macrotask</b>,按巡场路线排队;<code>Promise.then</code>、<code>nextTick</code> 这类是 <b>microtask</b>,在"当前站点服务完、动身去下一站之前"<b>插队全部清空</b>。</p>
+    <p><b>一句话记:</b>每站服务完 → 先清空 nextTick 窗口 → 再清空 microtask 窗口 → 才动身去下一站。</p>
+  </div>
+
+  <div class="warn">
+    <span class="tag">⚠️ 反直觉彩蛋:ESM 顶层会反序</span>
+    <p>面试标准答案"nextTick 永远优先于 Promise"<b>只在 CommonJS 里成立</b>。本项目 <code>"type": "module"</code>,代码跑在 ES module 里:模块顶层求值由 V8 驱动,求值一结束 V8 立刻清空自己的 microtask 队列,Node 的 nextTick 反而排在后面 —— <b>microtask 先,nextTick 后</b>。进了普通回调(如 I/O 回调)内部,Node 重新主导清场,恢复 nextTick 优先。习题 1 会亲眼看到这个反序。</p>
+  </div>
+
+  <p>回忆 Day 1 笔记:<code>await</code> 之后的代码被打包成纸条挂在 Promise 的铃铛后面 —— 现在知道了,那张纸条走的就是 <b>microtask 窗口</b>。</p>
+</section>
+
+<section id="sec4">
+  <h2>⚖️ 经典面试题:setTimeout(0) vs setImmediate</h2>
+  <p>两个都是"尽快执行",谁先?答案是后端面试的经典陷阱:<b>看在哪儿注册</b>。</p>
+
+  <h3>在顶层注册:不确定</h3>
+  <p>两个冷知识叠加出"不确定":</p>
+  <ul>
+    <li><code>setTimeout(fn, 0)</code> 的 0 会被钳成 <b>1ms</b>,倒计时<b>从调用那一刻</b>起算;</li>
+    <li>timers 站只接待<b>已到期</b>的铃铛。</li>
+  </ul>
+  <p>loop 启动要花一点时间(加载模块等)。启动完巡到 timers 站时,那 1ms 过了没有?<b>过了</b> → setTimeout 先;<b>没过</b> → 一路空站到 check,setImmediate 先。同一台机器多跑几次,两种结果都可能出现。</p>
+
+  <h3>在 I/O 回调里注册:确定,setImmediate 永远先</h3>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    I/O 回调执行时,服务员正站在 <b>poll 站</b>(出餐取餐口)。回调跑完,下一站固定是 check(加急窗口)—— 不管定时器到没到期,路线就这么走的。所以在 I/O 回调里,<code>setImmediate</code> 稳坐下一班,<code>setTimeout(0)</code> 最快也要等下一圈的 timers 站。
+  </div>
+  <p>这正是第 2 节 poll 等待逻辑第 1 条的直接推论:<b>poll 空了 + 有 setImmediate 排队 → 不等待,直奔 check。</b></p>
+
+  <div class="concept">
+    <span class="tag">工程教训</span>
+    <p>只要两段代码的先后关系对你很重要,<b>就绝不能依赖顶层 setTimeout(0) 与 setImmediate 的顺序</b>。要么用 Promise/nextTick 这种语义明确的,要么把注册点放进确定的上下文(如 I/O 回调)里。</p>
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>☠️ 饿死 loop:为什么让出必须用 setImmediate</h2>
+  <p>第 3 节说 nextTick 窗口"完全排空才放行"。如果排空过程中每次都再塞一张新单进去呢?</p>
+  <pre><code>function keepCuttingInLine() {
+  process.nextTick(keepCuttingInLine); // 店长无限插单
+}
+keepCuttingInLine(); // ⚠️ 别真跑:进程卡死,timer、I/O 全部饿死</code></pre>
+  <p>nextTick 队列永远排不空 → 服务员永远动身不了 → 巡场路线停摆 → <b>整个进程卡死,和死循环一样致命</b>。</p>
+
+  <h3>正确的让出:setImmediate 分片</h3>
+  <p>同样是递归,<code>setImmediate</code> 注册的是<b>下一圈 check 站</b>的活 —— 本圈照常走完,timer、I/O 都有机会在片间插入。这就是 Day 1"磨面粉"问题的止血方案:把大计算切成小块,每片结束用 <code>setImmediate</code> 让出。</p>
+  <div class="concept">
+    <span class="tag">概念卡 #3</span>
+    <p><b>协作式让出(cooperative yielding)</b>:单线程调度里,长任务主动切碎、片间把执行权还给调度器的技巧。规则只有一条:<b>让出必须交给"下一圈"(setImmediate / setTimeout),不能交给"当前清场"(nextTick)</b> —— 后者会把清场变成无限循环。</p>
+  </div>
+  <p>记住分片只是止血。治本方案在 Day 1 已经说过:CPU 密集任务丢给 <code>worker_threads</code>(另雇一个磨粉工),那是本周后面几天的主题。</p>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照(调度思想 everywhere)</h2>
+  <table>
+    <tr><th>通用概念</th><th>Node.js(今天的教具)</th><th>C# / .NET</th><th>Java</th><th>Go</th></tr>
+    <tr>
+      <td>调度器本体</td>
+      <td>event loop(libuv),6 个 phase</td>
+      <td>线程池调度器 + SynchronizationContext(UI 程序的消息循环几乎就是 event loop)</td>
+      <td>线程池;<b>Netty 的 EventLoop</b> 和 Node 几乎一个模子(单线程事件循环 + 任务队列)</td>
+      <td>runtime 调度器(GMP 模型):把海量 goroutine 映射到少量线程</td>
+    </tr>
+    <tr>
+      <td>microtask 等价物</td>
+      <td>Promise.then / nextTick</td>
+      <td>await 的 continuation(尽早排队执行)</td>
+      <td>CompletableFuture 的回调链</td>
+      <td>没有等价物(goroutine 切换本身就是廉价调度的粒度)</td>
+    </tr>
+    <tr>
+      <td>协作式让出</td>
+      <td>setImmediate / setTimeout 分片</td>
+      <td><code>Task.Yield()</code></td>
+      <td><code>Thread.yield()</code></td>
+      <td><code>runtime.Gosched()</code>;且 Go 1.14+ 有抢占式调度,死循环不太能饿死别人</td>
+    </tr>
+    <tr>
+      <td>定时器</td>
+      <td>setTimeout(timers phase,不早于 ms)</td>
+      <td><code>Task.Delay</code> / Timer(同样只保证"不早于")</td>
+      <td>ScheduledExecutorService</td>
+      <td><code>time.AfterFunc</code> / <code>time.Sleep</code></td>
+    </tr>
+  </table>
+  <p>📌 面试翻译练习:面试官问 "Node 的 setImmediate 是什么?" 你可以答:<b>"event loop check phase 的调度原语,语义等价于 C# 的 Task.Yield / Go 的 runtime.Gosched —— 都是'把剩下的活排到下一轮,先让调度器服务别人'的协作式让出。"</b> 一个概念,四个生态通用。</p>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 35 min)</h2>
+  <p>习题代码在 <code>src/02-event-loop-phases/</code>,骨架已放好,带中文注释和预测填空。运行方式:<code>npx tsx src/02-event-loop-phases/ex1-nexttick-vs-microtask.ts</code></p>
+
+  <div class="task">
+    <h3>习题 1:清场顺序 + ESM 反序彩蛋(动手,约 10 min)</h3>
+    <p>文件:<code>ex1-nexttick-vs-microtask.ts</code></p>
+    <p><b>先在文件顶部写下你预测的执行顺序,再运行对比。</b>你会看到 microtask 跑赢了先注册的 nextTick —— 想清楚为什么(提示:这个文件是 ESM 还是 CJS?),把解释写进注释。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:顶层不确定 vs I/O 里确定(动手,约 12 min)</h3>
+    <p>文件:<code>ex2-timeout-vs-immediate.ts</code></p>
+    <p>场景 A(顶层 setTimeout(0) vs setImmediate)<b>连跑 5 次</b>,记录每次 T/I 的先后;再观察场景 B(I/O 回调里)为什么永远是 I 先。用第 2、4 节的路线知识,把"为什么"写进 notes.md。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:饿死 loop vs 安全让出(动手,约 8 min)</h3>
+    <p>文件:<code>ex3-starve-the-loop.ts</code></p>
+    <p>先跑 CASE 2(setImmediate 分片):观察 500ms 的铃铛在磨面粉<b>期间</b>照常响起。然后取消注释 CASE 1(递归 nextTick),先预测铃铛还响不响,再运行 —— 3 秒内看不到输出就 <kbd>Ctrl+C</kbd> 杀掉,把进程救回来。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:概念卡默写(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>notes.md</code>(骨架已放好)</p>
+    <p>合上本文档,用中文回答两题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>event loop 的六个 phase 是什么?日常只需记哪三站、各装什么?用保安巡逻比喻讲一遍。</li>
+      <li>为什么在 I/O 回调里 setImmediate 一定先于 setTimeout(0),顶层却不确定?</li>
+    </ol>
+    <p>写完后回到第 2、4 节对答案,把说错的地方订正。</p>
+  </div>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li>event loop 不是随机绕圈,是<b>固定路线巡逻</b>:timers → … → poll → check → close,一圈一圈永远如此。</li>
+    <li>每站服务完、动身之前,先清空两个编外窗口:<b>nextTick → microtask</b>(但 ESM 顶层反序,microtask 先)。</li>
+    <li><code>setTimeout(0)</code> vs <code>setImmediate</code>:<b>顶层不确定,I/O 回调里 setImmediate 必胜</b> —— 因为 poll 的下一站固定是 check。</li>
+    <li>让出执行权只能用 setImmediate/setTimeout(交给下一圈);<b>递归 nextTick 会把清场变成无限循环,饿死整个进程</b>。</li>
+  </ol>
+  <h3>自测清单(能打勾才算今天过关)</h3>
+  <ul class="check">
+    <li>能画出 event loop 六站路线图,并说出日常三站各装什么</li>
+    <li>能解释"每站之间先清 nextTick 再清 microtask",以及 ESM 顶层为什么反序</li>
+    <li>能不查资料说清 setTimeout(0) vs setImmediate 在顶层和 I/O 回调里的两种结果及原因</li>
+    <li>能解释递归 nextTick 为什么卡死进程,以及分片让出的正确姿势</li>
+    <li>能把 setImmediate 翻译成 C#/Go 的等价物(Task.Yield / runtime.Gosched)</li>
+  </ul>
+</section>
+
+<footer>
+  Day 2 · Phase 1 / Week 1 · 产出:<code>docs/02-event-loop-phases/</code> 本文档 + <code>src/02-event-loop-phases/</code> 习题代码 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>
