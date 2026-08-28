@@ -38,6 +38,7 @@
 | 后台任务 / 定时 | BullMQ / node-cron | Hangfire / BackgroundService | Quartz / @Scheduled | cron / asynq |
 | 缓存客户端 | ioredis | StackExchange.Redis | Lettuce / Redisson | go-redis |
 | 消息队列 | amqplib / kafkajs | MassTransit / NServiceBus | Spring AMQP / Kafka | sarama / amqp |
+| 流式 I/O(Stream/Buffer/背压) | stream.Readable/Writable、Buffer、pipeline、write→drain 背压 | System.IO.Stream、byte[]/Span、CopyToAsync、await 隐式背压 | InputStream/OutputStream、ByteBuffer(NIO)、transferTo、Reactive Streams request(n) | io.Reader/io.Writer、[]byte、io.Copy、阻塞读写天然背压 |
 
 学习要求:每周后端任务产出的笔记中,**必须有「概念卡」**(这个概念的通用定义,不绑定任何语言)+ 在上述表格对应行补充一句话心得。
 

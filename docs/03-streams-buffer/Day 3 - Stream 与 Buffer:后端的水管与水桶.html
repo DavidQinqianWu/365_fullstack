@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 3 - Stream 与 Buffer:后端的水管与水桶</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 1</div>
+  <h1>Day 3 - Stream 与 Buffer:后端的水管与水桶</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min)·
+    主题:<b>流式 I/O(Streaming)</b>——大数据不能一次搬,要分块流着搬 ·
+    练习语言:Node.js(它只是教具,"分块 + 缓冲 + 背压"这套思想才是主角)
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">📦 接上回:服务员接单很快,可 2GB 的菜怎么端?</a></li>
+    <li><a href="#sec2">📇 概念卡 #1:Buffer —— 标准周转箱</a></li>
+    <li><a href="#sec3">📇 概念卡 #2:Stream —— 传送带,不是大卡车</a></li>
+    <li><a href="#sec4">🍽️ 四种流:出餐口 / 收盘口 / 对讲机 / 加工台</a></li>
+    <li><a href="#sec5">🚦 backpressure:下游吃得慢,上游必须会被喊停</a></li>
+    <li><a href="#sec6">🔧 pipe 与 pipeline:把水管拧紧</a></li>
+    <li><a href="#sec7">🌍 跨语言对照(流式思想 everywhere)</a></li>
+    <li><a href="#sec8">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec9">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>📦 接上回:服务员接单很快,可 2GB 的菜怎么端?</h2>
+  <p>Day 1–2 我们搞清楚了:Node.js 的服务员(event loop)从不站着等,慢活外包、按铃收尾,一个人能接待成千上万桌客人。</p>
+  <p>但今天有个新麻烦:<b>客人点了一份"读取 2GB 日志文件"。</b>服务员动作再快,这道菜也根本端不上桌 —— 托盘(内存)只有那么大,一次性把 2GB 全读进来,进程直接被压垮。</p>
+  <p>这不是 Node 的问题,是<b>所有后端的日常</b>:</p>
+  <ul>
+    <li>用户上传一个 500MB 的视频 → 不能全塞进内存再存盘;</li>
+    <li>从数据库导出 1000 万行生成 CSV → 不能一次查出全部;</li>
+    <li>代理转发一个下载请求 → 不能把整个文件先吞下来再吐出去。</li>
+  </ul>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    搬家公司的衣柜太大,电梯装不下。笨办法是叫一辆巨型卡车整栋搬(一次性读进内存);聪明办法是<b>拆成一个个纸箱,走传送带一箱一箱运</b>(流式处理)。今天学的就是这条"传送带":Stream,和装纸箱的"标准周转箱":Buffer。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>📇 概念卡 #1:Buffer —— 标准周转箱</h2>
+  <p>先问一个底层问题:文件、网络发给程序的到底是什么?<b>不是文字,不是 JSON,是一串原始字节(byte)</b>。"你好"两个字,在 UTF-8 编码下其实是 6 个字节。程序收到字节后,总得有个容器先装着,才能交给你处理 —— 这个容器就是 buffer。</p>
+
+  <div class="concept">
+    <span class="tag">概念卡 #1(语言无关)</span>
+    <p><b>Buffer(字节缓冲区)</b>:内存里一块<b>固定大小</b>的连续空间,专门临时存放"运输途中"的原始字节。它是 I/O 世界交接货物的标准容器:文件系统、网卡、你的代码,三方都用它倒手。</p>
+    <p><b>一句话记:</b>buffer 是快递行业的<b>标准周转箱</b> —— 全国统一尺寸,只认箱子不认内容;装满就运走,卸空接着用。它是<b>运输中的临时停车位,不是仓库</b>。</p>
+  </div>
+
+  <h3>Node 里的 Buffer 三个脾气</h3>
+  <pre><code>const box = Buffer.alloc(4);          // ① 固定大小:4 字节箱子,多装会被截断
+const b   = Buffer.from("你好");      // ② 按字节算:"你好"= 2 个字符 = 6 个字节
+const part = b.subarray(0, 3);        // ③ subarray/slice 是"隔板"不是"复印":
+                                      //    改 part 会改到 b 本身(共享同一块内存)</code></pre>
+  <p>习题 3 会亲手验证这三个脾气。现在只要记住:<b>chunk(流里的每一块数据)默认就是 Buffer</b> —— 传送带上运的每个纸箱,都是这个标准周转箱。</p>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #2:Stream —— 传送带,不是大卡车</h2>
+
+  <div class="concept">
+    <span class="tag">概念卡 #2(语言无关)</span>
+    <p><b>Stream(流)</b>:把一份大数据拆成一串小块(chunk),<b>一块一块地生产、一块一块地消费</b>,每块到达时用事件(或返回值)通知你的 I/O 抽象。</p>
+    <p><b>一句话记:</b>大卡车一次性拉走 vs 传送带一箱一箱运。流式处理的两大好处:<b>内存恒定</b>(桌上永远只放一盘菜)和<b>即时开工</b>(第一块到了就能处理,不用等全部到齐)。</p>
+  </div>
+
+  <h3>两种读法的人生对比</h3>
+  <table>
+    <tr><th></th><th>大卡车:readFile</th><th>传送带:createReadStream</th></tr>
+    <tr>
+      <td>内存占用</td>
+      <td>≈ 整个文件大小(2GB 文件 = 2GB 内存)</td>
+      <td>≈ 恒定几十 MB(永远只有运输中的几箱)</td>
+    </tr>
+    <tr>
+      <td>何时能开工</td>
+      <td>等全部读完,才开始处理</td>
+      <td>第一块到了就处理,边下边干活</td>
+    </tr>
+    <tr>
+      <td>适合场景</td>
+      <td>小文件(配置、模板,几 MB 以内)</td>
+      <td>大文件 / 网络数据 / 不知道多大的数据</td>
+    </tr>
+  </table>
+
+  <h3>Node 里流怎么"通知"你</h3>
+  <p>Node 的流是一个 EventEmitter,每运来一箱就按一次铃:</p>
+  <pre><code>import { createReadStream } from "node:fs";
+
+const stream = createReadStream("big.log");
+for await (const chunk of stream) {
+  // 每到一个 chunk(一个 Buffer)就执行一次循环体
+  // 全程内存里只有"正在处理的这一块"
+}</code></pre>
+  <p><code>for await</code> 是最现代的吃法;底层靠的是 <code>data</code>(来了一箱)、<code>end</code>(运完了)、<code>error</code>(出事了)三个事件。</p>
+</section>
+
+<section id="sec4">
+  <h2>🍽️ 四种流:出餐口 / 收盘口 / 对讲机 / 加工台</h2>
+  <p>把餐厅想象成一条流水线,四种流各管一段。这个四分法<b>语言无关</b>,任何后端生态都认:</p>
+  <table>
+    <tr><th>流的类型</th><th>餐厅角色</th><th>方向</th><th>Node 例子</th><th>真实场景</th></tr>
+    <tr>
+      <td><b>Readable</b><br>可读流</td>
+      <td>出餐口:只往外端</td>
+      <td>数据源 → 你的代码</td>
+      <td><code>fs.createReadStream</code></td>
+      <td>读文件、读 HTTP 请求体</td>
+    </tr>
+    <tr>
+      <td><b>Writable</b><br>可写流</td>
+      <td>收盘口:只往里收</td>
+      <td>你的代码 → 目的地</td>
+      <td><code>fs.createWriteStream</code></td>
+      <td>写文件、写 HTTP 响应</td>
+    </tr>
+    <tr>
+      <td><b>Duplex</b><br>双工流</td>
+      <td>对讲机:两头各说各的</td>
+      <td>双向,读写互不影响</td>
+      <td>TCP <code>net.Socket</code></td>
+      <td>网络连接、WebSocket</td>
+    </tr>
+    <tr>
+      <td><b>Transform</b><br>转换流</td>
+      <td>加工台:边过边改</td>
+      <td>进来的每块,改完再出去</td>
+      <td><code>zlib.createGzip()</code></td>
+      <td>压缩、加密、转码</td>
+    </tr>
+  </table>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    一条完整的流水线可以串起来:出餐口(读文件)→ 加工台(gzip 压缩)→ 收盘口(写文件)。每一块数据自动流完全程 —— 这就是下一节要拧紧的"水管"。
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>🚦 backpressure:下游吃得慢,上游必须会被喊停</h2>
+  <p>现在思考一个所有流系统都绕不开的问题:<b>上游送货快,下游吃得慢,多出来的货堆在哪?</b></p>
+  <p>答案:堆在内存里。读文件每秒 500MB,写磁盘每秒只能 100MB —— 每秒就有 400MB 积压在内存缓冲区。文件够大,内存照样爆。传送带并没有自动解决这个问题,它只是提供了<b>喊停的机制</b>。</p>
+
+  <div class="concept">
+    <span class="tag">概念卡 #3(语言无关,后端通用痛点)</span>
+    <p><b>Backpressure(背压)</b>:当消费方处理速度跟不上生产方时,由下游向上游传递"慢点 / 停一下"的信号,让上游暂停生产,防止数据在缓冲区无限堆积。</p>
+    <p><b>一句话记:</b>快递分拣中心的红绿灯 —— 传送带堆满了,红灯亮起,装货员停手;分拣员清空了,绿灯(drain)亮起,继续装货。<b>背压不是优化,是流式系统的保命机制。</b></p>
+  </div>
+
+  <h3>Node 里的红绿灯长什么样</h3>
+  <pre><code>const ok = ws.write(chunk);   // 返回 false = 红灯:缓冲区已超过水位线(highWaterMark)
+if (!ok) {
+  await once(ws, "drain");    // drain 事件 = 绿灯:缓冲区排空,可以继续写了
+}</code></pre>
+  <ul>
+    <li><code>highWaterMark</code>(水位线):缓冲区的警戒线,默认 16KB。超过它,write 就亮红灯;</li>
+    <li>无视红灯继续写:<b>数据不会丢,但全堆在内存里</b> —— 习题 2 里 64MB 数据莽夫写法的缓冲区峰值就是 64MB,守规矩写法只有 64KB;</li>
+    <li>用 <code>pipe</code> 的话,红灯绿灯全自动处理(下一节)。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">⚠️ 为什么这是"全后端通用"的概念:</span>
+    TCP 的滑动窗口是背压;Kafka 的消费 lag 监控的是背压;.NET / Java 的 Reactive Streams 规范里 <code>request(n)</code> 就是显式背压;Go 里 channel 写满自然阻塞也是背压。<b>面试任何语言的流/消息队列问题,"背压怎么处理"都是必答题。</b>
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🔧 pipe 与 pipeline:把水管拧紧</h2>
+  <p>手动管理 chunk 和红绿灯太啰嗦,Node 给了两根现成的水管接头:</p>
+
+  <h3>pipe:自动接水 + 自动背压</h3>
+  <pre><code>createReadStream("big.log").pipe(createWriteStream("copy.log"));</code></pre>
+  <p>一行搞定:每来一块自动写过去;下游亮了红灯,上游自动暂停;绿灯亮了自动恢复。</p>
+
+  <h3>pipeline:pipe 的生产环境版(推荐)</h3>
+  <pre><code>import { pipeline } from "node:stream/promises";
+
+await pipeline(
+  createReadStream("big.log"),   // 出餐口
+  createGzip(),                  // 加工台
+  createWriteStream("big.log.gz") // 收盘口
+);</code></pre>
+  <p>pipeline 比 pipe 多解决两件要命的事:</p>
+  <ol>
+    <li><b>错误传播</b>:任何一段出错,异常会抛出来让你 catch(pipe 的错误会静默漏掉);</li>
+    <li><b>资源清理</b>:出错时把整条流上所有段都销毁、释放句柄(pipe 会留下"半截水管"漏资源)。</li>
+  </ol>
+  <p><b>规矩:练手用 pipe 理解原理,生产代码一律 pipeline。</b></p>
+</section>
+
+<section id="sec7">
+  <h2>🌍 跨语言对照(流式思想 everywhere)</h2>
+  <p>今天学的不是"Node 的 stream API",是"流式 I/O"这个通用概念。换语言只是换名词:</p>
+  <table>
+    <tr><th>通用概念</th><th>Node.js(教具)</th><th>C# / .NET</th><th>Java</th><th>Go</th></tr>
+    <tr>
+      <td>流抽象</td>
+      <td>stream.Readable / Writable(对象 + 事件)</td>
+      <td><code>System.IO.Stream</code>(一个基类身兼读写)</td>
+      <td><code>InputStream / OutputStream</code>;NIO 是 <code>Channel</code></td>
+      <td><code>io.Reader / io.Writer</code>(两个小接口,组合出一切)</td>
+    </tr>
+    <tr>
+      <td>字节缓冲区</td>
+      <td><code>Buffer</code>(固定大小,subarray 共享内存)</td>
+      <td><code>byte[]</code> / <code>Memory&lt;byte&gt;</code> / <code>Span&lt;byte&gt;</code></td>
+      <td><code>byte[]</code> / NIO <code>ByteBuffer</code></td>
+      <td><code>[]byte</code>(切片天然共享底层数组)</td>
+    </tr>
+    <tr>
+      <td>分块读</td>
+      <td><code>for await (chunk of stream)</code></td>
+      <td><code>await stream.ReadAsync(buf)</code></td>
+      <td><code>in.read(buf)</code> 循环</td>
+      <td><code>r.Read(p)</code> 循环</td>
+    </tr>
+    <tr>
+      <td>管道拼接</td>
+      <td><code>pipeline(src, …, dst)</code></td>
+      <td><code>src.CopyToAsync(dst)</code></td>
+      <td><code>in.transferTo(out)</code>(Java 9+)</td>
+      <td><code>io.Copy(dst, src)</code></td>
+    </tr>
+    <tr>
+      <td>背压信号</td>
+      <td>显式:<code>write()===false</code> → 等 <code>drain</code></td>
+      <td>隐式:<code>await</code> 写不完不返回,天然排队</td>
+      <td>隐式:阻塞写天然排队;Reactive Streams 用 <code>request(n)</code> 显式化</td>
+      <td>隐式:channel / 阻塞 Read 天然排队</td>
+    </tr>
+  </table>
+  <p>📌 面试翻译练习:面试官问 "Node 的 backpressure 是什么?" 你可以答:<b>"流式系统的流量自保机制 —— 下游跟不上时向上游发暂停信号。Node 因为是事件驱动才需要 write 返回值 + drain 这对显式信号;.NET/Java/Go 的阻塞或 await 写法是'写不完就等着',本质是同一件事的两种实现。"</b> 一个概念,四个生态通用。</p>
+</section>
+
+<section id="sec8">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+  <p>习题代码在 <code>src/03-streams-buffer/</code>,已写好可直接运行,带中文注释和预测填空。运行方式:<code>npx tsx src/03-streams-buffer/ex1-readfile-vs-stream.ts</code></p>
+
+  <div class="task">
+    <h3>习题 1:大卡车 vs 传送带(动手,约 8 min)</h3>
+    <p>文件:<code>ex1-readfile-vs-stream.ts</code></p>
+    <p>同一个 200MB 文件,先用流式读、再用 readFile 读,对比 rss(常驻内存)变化。<b>先在文件顶部写下你对两个数字的预测,再运行对比。</b>想清楚:流式的峰值为什么不随文件大小涨?</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:backpressure 红绿灯(动手,约 10 min)</h3>
+    <p>文件:<code>ex2-backpressure.ts</code></p>
+    <p>同样写 64MB:莽夫写法无视 write 返回值,守规矩写法红灯停绿灯行。观察两者缓冲区峰值差 1000 倍。回答注释里的思考题:如果 TOTAL 是 64GB,莽夫写法会发生什么?把答案写进 notes.md。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:Buffer 五连(动手,约 7 min)</h3>
+    <p>文件:<code>ex3-buffer-basics.ts</code></p>
+    <p>五个小实验,每个先写预测再运行:字节数 ≠ 字符数、固定大小截断、subarray 共享内存、concat 是复印、编码误读。<b>③ 的"隔板"特性是笔试高频坑</b>,务必亲手踩一次。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:概念卡默写(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>notes.md</code>(骨架已放好)</p>
+    <p>合上本文档,用中文回答两题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>用生活比喻讲清 stream、buffer、backpressure 三者的关系(提示:传送带 / 周转箱 / 红绿灯)。</li>
+      <li>为什么生产环境推荐 pipeline 而不是手写 pipe 或 data 事件拼接?多解决了哪两个问题?</li>
+    </ol>
+    <p>写完后回到第 3、5、6 节对答案,把说错的地方订正。</p>
+  </div>
+</section>
+
+<section id="sec9">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li>大数据不能一次搬进内存:<b>stream 是传送带</b>(分块流着搬),<b>buffer 是周转箱</b>(装每一块的固定容器)。</li>
+    <li>流式处理两大好处:<b>内存恒定</b>、<b>即时开工</b>;四种流 = 出餐口 Readable、收盘口 Writable、对讲机 Duplex、加工台 Transform。</li>
+    <li>下游跟不上时,数据会堆在内存 —— <b>backpressure 是流系统的保命机制</b>:write 返回 false 是红灯,drain 是绿灯。</li>
+    <li>手动接水管练原理,<b>生产代码用 pipeline</b>:错误会传播、资源会清理。</li>
+  </ol>
+  <h3>自测清单(能打勾才算今天过关)</h3>
+  <ul class="check">
+    <li>能用"周转箱 + 传送带"比喻讲清 buffer 和 stream 各自是什么</li>
+    <li>能说出流式处理的两大好处,并举两个真实后端场景</li>
+    <li>能解释 backpressure:数据堆在哪、红灯绿灯各是什么、highWaterMark 是什么</li>
+    <li>能说出 pipeline 比 pipe 多解决的两个问题</li>
+    <li>能把 stream 翻译成 .NET/Java/Go 的对应物(Stream / InputStream / io.Reader)</li>
+  </ul>
+</section>
+
+<footer>
+  Day 3 · Phase 1 / Week 1 · 产出:<code>docs/03-streams-buffer/</code> 本文档 + <code>src/03-streams-buffer/</code> 习题代码 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>
