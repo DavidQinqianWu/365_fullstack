@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 4 - 进程模型与 child_process / cluster:服务员不够用时,餐厅怎么开分店?</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 1</div>
+  <h1>Day 4 - 进程模型与 child_process / cluster:服务员不够用时,餐厅怎么开分店?</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min)·
+    主题:<b>多进程(Multi-process)</b>——一个服务员再快也只有一颗 CPU 核,想吃饱多核红利就得开分店 ·
+    练习语言:Node.js(它只是教具,"进程隔离 + 水平扩副本"这套思想才是主角)
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🧱 接上回:服务员再快,也只有一个人 —— 单线程的三块天花板</a></li>
+    <li><a href="#sec2">📇 概念卡 #1:进程 vs 线程 —— 分店 vs 服务员</a></li>
+    <li><a href="#sec3">📇 概念卡 #2:child_process 四兄弟 —— exec / execFile / spawn / fork</a></li>
+    <li><a href="#sec4">📞 fork 与 IPC:分店和总店之间只有一部对讲机</a></li>
+    <li><a href="#sec5">🏬 cluster:同一个门牌号开 N 家分店</a></li>
+    <li><a href="#sec6">🌍 跨语言对照(多进程思想 everywhere)</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🧱 接上回:服务员再快,也只有一个人 —— 单线程的三块天花板</h2>
+  <p>Day 1–3 我们把这个服务员(event loop)调教得很完美了:从不站着等、水管背压都接了。但直到今天,他都有三个物理上限,再努力也突破不了:</p>
+  <ol>
+    <li><b>只有一颗核</b>。你的机器 8 核、16 核,Node 主进程只用一颗。其余 15 颗核在旁边嗑瓜子 —— 好比一个商场只有一家门店,走廊再宽也没用。</li>
+    <li><b>CPU 硬菜卡全场</b>。event loop 治得好"等"(I/O 等待),治不好"算"。来一个图片压缩、密码哈希、大报表计算,服务员亲自下厨 2 秒,全店客人晾 2 秒。</li>
+    <li><b>一崩全崩</b>。服务员只有一个,他摔倒了(未捕获异常),整家店当场歇业,所有桌的菜全停。</li>
+  </ol>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    生意火了,一个服务员接待能力到顶了怎么办?思路一:给店里多招服务员(<b>线程</b>,共享厨房、共享账本);思路二:<b>开分店</b>(<b>进程</b>)——独立的店面、独立的厨房、独立的账本,一家着火不烧别家。今天学的全是思路二:Node 世界里怎么开分店、怎么管分店。
+  </div>
+  <div class="concept">
+    <span class="tag">📇 先记住一句话:</span>
+    <b>进程是资源隔离的单位,线程是调度执行的单位。</b>今天所有 API 都是在回答三个问题:怎么开分店(child_process)?分店之间怎么说话(IPC)?怎么让 N 家分店共用一个门牌号(cluster)?
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>📇 概念卡 #1:进程 vs 线程 —— 分店 vs 服务员</h2>
+  <p>这是操作系统层面的通用概念,不是 Node 特有的。一张表对比清楚:</p>
+  <table>
+    <tr><th></th><th>进程(Process)= 分店</th><th>线程(Thread)= 服务员</th></tr>
+    <tr>
+      <td><b>内存</b></td>
+      <td>独立:每家分店有自己的厨房、自己的账本(独立堆内存),互相看不见</td>
+      <td>共享:同一店里的服务员共用厨房和账本(共享堆内存)</td>
+    </tr>
+    <tr>
+      <td><b>沟通成本</b></td>
+      <td>贵:只能靠 IPC(对讲机)、管道、socket —— 发消息、序列化</td>
+      <td>便宜:直接读写共享变量 —— 但要加锁,否则抢同一本账会记乱</td>
+    </tr>
+    <tr>
+      <td><b>创建成本</b></td>
+      <td>重:几十 MB 内存起步,启动几十~几百 ms</td>
+      <td>轻:几 MB,启动快一个数量级</td>
+    </tr>
+    <tr>
+      <td><b>崩溃影响</b></td>
+      <td>一家分店着火,别家照开(故障隔离)</td>
+      <td>一个服务员打翻油锅,全店可能连坐(共享内存被写坏)</td>
+    </tr>
+    <tr>
+      <td><b>Node 里的形态</b></td>
+      <td><code>child_process</code> / <code>cluster</code>(今天)</td>
+      <td><code>worker_threads</code>(明天 Day 5)</td>
+    </tr>
+  </table>
+  <p><b>为什么 Node 的多核方案首选"开分店"而不是"多招服务员"?</b>因为 Node 的看家本领 event loop 是单线程模型,整个生态(v8 的对象、所有 npm 包)都建立在"不用考虑锁"的前提上。开分店完全不破坏这个前提:每个进程还是一个无忧无虑的单线程 event loop,只是从一家店变成了连锁店。<b>用进程隔离换心智简单,是 Node 的核心工程取舍。</b></p>
+  <div class="warn">
+    <span class="tag">⚠️ 别记歪了:</span>
+    "开分店"不是 Node 独家发明。Java 的 Tomcat 单实例吃满多核靠的是多线程;但 Java 应用部署时照样水平扩多个 JVM 实例 —— 因为<b>隔离和扩容是两个维度的问题</b>,所有语言最后都要回答"单机怎么用满多核"和"多机怎么扩副本"这两题。第 6 节有完整对照。
+  </div>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #2:child_process 四兄弟 —— exec / execFile / spawn / fork</h2>
+  <p>Node 开一个子进程有四个 API,长得像,脾气完全不同。继续用餐厅打比方:</p>
+  <table>
+    <tr><th>API</th><th>餐厅比喻</th><th>输出方式</th><th>走 shell?</th><th>适合场景</th></tr>
+    <tr>
+      <td><code>exec("cmd 字符串")</code></td>
+      <td>外卖窗口:点完单站窗口等,菜齐了一次端走</td>
+      <td>全部攒进 buffer,回调里一次给</td>
+      <td>走(字符串交给 shell 解析)</td>
+      <td>快速跑个小命令、输出就几行(如 <code>git rev-parse HEAD</code>)</td>
+    </tr>
+    <tr>
+      <td><code>execFile("node", ["-e", ...])</code></td>
+      <td>同上,但不经过前台收银(shell),直接下单到厨房</td>
+      <td>同上,buffer 一次性</td>
+      <td><b>不走</b>(参数数组,无注入风险)</td>
+      <td>同 exec 但参数含用户输入时,更安全</td>
+    </tr>
+    <tr>
+      <td><code>spawn("cmd", ["arg"])</code></td>
+      <td>传菜传送带:菜出一盘端一盘,流水作业</td>
+      <td><b>stream</b>,来一块给一块(Day 3 的知识直接复用!)</td>
+      <td>默认不走</td>
+      <td>输出量大/耗时长的命令:构建、日志处理、调用 ffmpeg</td>
+    </tr>
+    <tr>
+      <td><code>fork("./worker.js")</code></td>
+      <td>开分店:新店也是本品牌(跑的是 Node),且配了对讲机</td>
+      <td>stream + <b>IPC 通道</b>(send / on message)</td>
+      <td>不走</td>
+      <td>CPU 密集任务外包、多进程服务(cluster 底层就是它)</td>
+    </tr>
+  </table>
+
+  <h3>exec 的定时炸弹:maxBuffer</h3>
+  <pre><code>import { exec } from "node:child_process";
+
+exec("node 打印6MB输出的脚本", (err, stdout) => {
+  // err: Error: stdout maxBuffer length exceeded ❌
+});</code></pre>
+  <p>exec 默认只给输出留 <b>1MB</b> 的托盘,超了直接报错杀进程。调大 <code>maxBuffer</code> 不是修复,只是把炸弹引线加长 —— 输出是不可控的外部输入,攒 buffer 的模式天生怕"量大"。</p>
+
+  <h3>exec 的另一颗炸弹:shell 注入</h3>
+  <pre><code>// 文件名来自用户输入
+exec(`convert ${userFile} out.png`);          // 用户输入 "a.png; rm -rf ~" → 完蛋
+execFile("convert", [userFile, "out.png"]);   // 参数不经 shell 解析,只是一串普通字符 ✅</code></pre>
+  <p>走 shell = 字符串里每个特殊字符都会被收银台(shell)当成指令解释;不走 shell = 参数原样传给程序,只是数据。<b>规矩:参数里可能出现任何外部输入时,禁用字符串拼接的 exec。</b></p>
+
+  <div class="concept">
+    <span class="tag">📇 选择题秒答法:</span>
+    输出小 + 信任输入 → exec;输出小 + 外部输入 → execFile;输出大/流式 → spawn;跑的是 Node 且要对话 → fork。<b>"输出可能很大"这一条一票否决 exec/execFile。</b>
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📞 fork 与 IPC:分店和总店之间只有一部对讲机</h2>
+  <p>fork 出来的子进程是一个完整的 Node(又一个 V8,自己的 event loop,自己的几十 MB 内存)。它比 spawn 多的只有一样东西:<b>IPC 通道</b> —— 总店和分店之间的对讲机。</p>
+  <pre><code>// 总店(主进程)
+const child = fork("./ex2-heavy-task.ts", [], { stdio: ["inherit","inherit","inherit","ipc"] });
+child.send({ n: 42 });                    // 对讲机派单
+child.on("message", (msg) => { ... });    // 听回话
+
+// 分店(子进程 ex2-heavy-task.ts)
+process.on("message", (msg) => {
+  const result = fib(msg.n);              // 在自己的厨房里做硬菜
+  process.send?.({ result, pid: process.pid }); // 喊回去
+});</code></pre>
+  <p>三个要点:</p>
+  <ol>
+    <li><b>消息是拷贝,不是共享</b>。send 的对象会被序列化(类似 JSON 的结构化克隆),分店收到的是复印件。两家店之间不存在"共享变量" —— 这正是进程隔离的意义,想乱都乱不了。</li>
+    <li><b>CPU 硬菜外包后,总店照常营业</b>。习题 2 里你会亲眼看到:主进程自己算 fib(42) 时心跳停跳 1.5 秒;fork 出去算,心跳一下不停。</li>
+    <li><b>崩溃不连坐,但也没人兜底</b>。分店炸了,主进程活着;主进程炸了,分店变孤儿。谁负责收尸、重启?—— 这就是下一节 cluster 要解决的问题。</li>
+  </ol>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    总店接待客人(event loop 接请求),来了道硬菜(图片压缩)就打电话让分店做,自己接着招呼下一桌;分店做好打电话回来,总店端上桌。<b>总店服务员从头到尾没进过厨房。</b>
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>🏬 cluster:同一个门牌号开 N 家分店</h2>
+  <p>把"开分店 + 看店 + 收尸重启"这套管理动作标准化,就是 cluster 模块。它专为一种场景设计:<b>同一个 HTTP 服务,起 N 份,吃满 N 颗核。</b></p>
+  <pre><code>import cluster from "node:cluster";
+import http from "node:http";
+
+if (cluster.isPrimary) {
+  for (let i = 0; i < 4; i++) cluster.fork();   // 店长开 4 家分店
+  cluster.on("exit", () => cluster.fork());     // 倒一家,原地重开一家
+} else {
+  http.createServer((req, res) => res.end(String(process.pid)))
+      .listen(3456);  // 4 个进程 listen 同一端口,不报 EADDRINUSE!
+}</code></pre>
+
+  <h3>角色分工</h3>
+  <table>
+    <tr><th>角色</th><th>餐厅对应</th><th>干什么</th><th>不干什么</th></tr>
+    <tr>
+      <td><b>primary(主进程)</b></td>
+      <td>店长</td>
+      <td>fork 分店、接收新连接、round-robin 分给分店、分店死了重开</td>
+      <td><b>不接客</b> —— 不处理业务请求</td>
+    </tr>
+    <tr>
+      <td><b>worker(子进程)</b></td>
+      <td>分店</td>
+      <td>跑真正的业务代码,各自是独立的 event loop</td>
+      <td>不管别的分店死活</td>
+    </tr>
+  </table>
+
+  <h3>同一个门牌号(端口)的魔法</h3>
+  <p>4 个进程 <code>listen(3456)</code> 为什么不打架?因为<b>真正持有监听 socket 的是店长</b>(默认 round-robin 模式)。worker 里的 <code>listen</code> 只是向店长登记"我也要接单";新连接进来时由店长收下,再用 IPC 把连接句柄递给下一家分店。所以对外只有一个门牌号,对内是连锁店。</p>
+
+  <h3>为什么店长不接客?</h3>
+  <p>店长进程是整个连锁店的单点:它越闲,越不可能崩。让它处理业务 = 让最不能死的人干最容易死的活。<b>稳定性来自"让调度者无所事事"。</b></p>
+
+  <div class="warn">
+    <span class="tag">⚠️ cluster 的两条边界,面试常考:</span>
+    ① <b>分店之间不共享内存</b> —— 4 个 worker 各有 4 份缓存、4 份内存态。session、计数器、限流这类状态放内存里会直接出错,得外迁到 Redis。② <b>cluster 只解决单机多核</b>,不解决多机;生产上"进程管理"这活通常交给更专业的 PM2 / systemd / k8s,cluster 重在帮你理解原理。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照(多进程思想 everywhere)</h2>
+  <p>今天学的不是"Node 的 cluster API",是"单机吃满多核 + 故障隔离"这个通用命题。各语言的答案不同,但问题相同:</p>
+  <table>
+    <tr><th>命题</th><th>Node.js(教具)</th><th>C# / .NET</th><th>Java</th><th>Go</th></tr>
+    <tr>
+      <td>单机吃满多核</td>
+      <td>多进程:<code>cluster</code> 起 N 份(N = 核数)</td>
+      <td>多线程:线程池天然多核,一个 Kestrel 实例吃满</td>
+      <td>多线程:Tomcat/Netty 线程池,一个 JVM 实例吃满</td>
+      <td>goroutine:runtime 自动调度到所有核</td>
+    </tr>
+    <tr>
+      <td>CPU 密集外包</td>
+      <td><code>fork</code> 子进程 / worker_threads(Day 5)</td>
+      <td><code>Task.Run</code> 丢线程池</td>
+      <td>ForkJoinPool / 线程池</td>
+      <td>直接 <code>go func()</code></td>
+    </tr>
+    <tr>
+      <td>进程内共享内存</td>
+      <td>不共享(刻意设计,worker_threads 才可共享 ArrayBuffer)</td>
+      <td>共享 + lock/Monitor</td>
+      <td>共享 + synchronized/JUC</td>
+      <td>共享但文化上劝你用 channel 传消息</td>
+    </tr>
+    <tr>
+      <td>崩一个请求</td>
+      <td>可能带走整个进程 → 靠多进程隔离兜底</td>
+      <td>异常被请求管道兜住,进程通常不死</td>
+      <td>同左</td>
+      <td>panic 不 recover 会带走整个进程</td>
+    </tr>
+    <tr>
+      <td>水平扩副本(多机/多实例)</td>
+      <td colspan="4"><b>所有语言殊途同归:</b>无状态服务 + 负载均衡 + N 个副本(PM2 cluster / systemd / k8s replicas)。进程内状态必须外迁(Redis/DB)。</td>
+    </tr>
+  </table>
+  <div class="concept">
+    <span class="tag">📇 本周概念卡更新(并发模型三连):</span>
+    Node 答"多核"用<b>多进程</b>(隔离换简单),.NET/Java 用<b>多线程</b>(共享换效率,用锁管复杂度),Go 用<b>轻量协程</b>(runtime 调度,channel 代替锁)。<b>三者没有高下,是对"共享 vs 隔离"这对矛盾的不同取舍。</b>而到了"多机扩副本"这一层,大家都长一个样:无状态 + 外迁状态 + LB。
+  </div>
+  <p>📌 面试翻译练习:面试官问 "Node 是单线程,怎么用满多核?" 你可以答:<b>"单线程指的是一个进程的 JS 执行线程。生产上是 cluster/PM2 起 N 个进程绑定同一端口,由 primary 做连接分发;这套'多进程副本'的思路和 k8s 起 N 个 Pod 是同构的,只是一台机器还是多台机器的区别。代价是进程间不共享内存,所以状态必须无状态化外迁 —— 这本来就是水平扩容的要求,不算额外成本。"</b></p>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+  <p>习题代码在 <code>src/04-process-model/</code>,已写好可直接运行,带中文注释和预测填空。运行方式:<code>npx tsx src/04-process-model/ex1-spawn-vs-exec.ts</code></p>
+
+  <div class="task">
+    <h3>习题 1:exec vs spawn —— 外卖窗口 vs 传送带(动手,约 8 min)</h3>
+    <p>文件:<code>ex1-spawn-vs-exec.ts</code></p>
+    <p>同一个打印 6MB 输出的命令,exec 直接触发 maxBuffer 爆炸,spawn 流式平稳接完。<b>先写预测再运行。</b>然后回答思考题:调大 maxBuffer 为什么不是修复?参数含用户输入时为什么 exec 字符串拼接是安全事故?</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:fork + IPC —— 硬菜外包给分店(动手,约 10 min)</h3>
+    <p>文件:<code>ex2-fork-ipc.ts</code>(分店伙计在 <code>ex2-heavy-task.ts</code>)</p>
+    <p>fib(42) 对照实验:主进程亲自算,心跳停跳 1.5 秒;fork 分店算,心跳一下不停。盯着"💓"的个数看,这就是"总店照常营业"的可视化。回答思考题:两家分店之间为什么没有"共享变量"?子进程崩了/主进程崩了各会怎样?</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:cluster —— 一个门牌号开四家分店(动手,约 7 min)</h3>
+    <p>文件:<code>ex3-cluster-http.ts</code></p>
+    <p>脚本自导自演:开 4 家分店 → 打 8 个请求看 PID 轮流接单 → 枪毙一家分店,观察店长原地重开 → 再打 4 个,服务零中断。<b>想一想:为什么请求里要关 keep-alive 才能看到轮流接单?</b>(注释里有答案,理解了才算懂连接分发)</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:概念卡默写(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>notes.md</code>(骨架已放好)</p>
+    <p>合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>用"总店 / 分店 / 服务员"的比喻讲清:进程和线程的区别是什么?为什么 Node 要靠"多开分店"而不是"多招服务员"来利用多核?</li>
+      <li>child_process 四兄弟各适合什么场景?为什么"输出可能很大"时必须选 spawn?</li>
+      <li>cluster 共享同一个端口的魔法是怎么回事?店长为什么只管看店、不接客?</li>
+    </ol>
+    <p>写完后回到第 2、3、5 节对答案,把说错的地方订正。</p>
+  </div>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li>单线程 event loop 有三块天花板:<b>只用一颗核、CPU 硬菜卡全场、一崩全崩</b>;Node 的解法是开分店(多进程),不是多招服务员。</li>
+    <li><b>进程是资源隔离的单位,线程是调度执行的单位</b>:分店独立厨房独立账本、着火不连坐,代价是沟通只能靠对讲机(IPC 序列化消息)。</li>
+    <li>child_process 四兄弟选择法:<b>输出小 exec、外部输入 execFile、输出大 spawn、跑 Node 要对话 fork</b>;"输出可能很大"一票否决 exec。</li>
+    <li>cluster = 标准化连锁管理:<b>店长(primary)持有端口只管分发和重启,分店(worker)接客</b>;分店间不共享内存,状态必须外迁 —— 这和多机扩副本是同一个要求。</li>
+  </ol>
+  <h3>自测清单(能打勾才算今天过关)</h3>
+  <ul class="check">
+    <li>能用"分店 vs 服务员"讲清进程和线程在内存、沟通、崩溃影响上的区别</li>
+    <li>能说出 Node 单线程的三块天花板,以及多进程如何逐一解决</li>
+    <li>能给 exec / execFile / spawn / fork 各举一个正确场景,并解释 maxBuffer 和 shell 注入两颗炸弹</li>
+    <li>能讲清 fork 的 IPC 是"拷贝不是共享",以及它如何让主进程在 CPU 硬菜面前不卡</li>
+    <li>能解释 cluster 同一端口不冲突的原理,和"店长不接客"的稳定性逻辑</li>
+    <li>能把 cluster 翻译成通用语言:无状态副本 + LB(k8s replicas),并说出与线程池模型的取舍</li>
+  </ul>
+</section>
+
+<footer>
+  Day 4 · Phase 1 / Week 1 · 产出:<code>docs/04-process-model/</code> 本文档 + <code>src/04-process-model/</code> 习题代码 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>
