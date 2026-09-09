@@ -154,7 +154,7 @@ Day 4 做的 [水平测试](docs/00-level-check/level-check.md) 共 25 题。下
 - **Week 24(Day 162–168)React 实战**:给 365 API 做管理前端(Vite):登录、每日任务列表、打卡;部署到 Hetzner。
 - **Week 25(Day 169–175)GraphQL**:schema/resolver、DataLoader 解 N+1、缓存难点、与 REST 的取舍(C1)、codegen 端到端类型。产出:365 API 加 GraphQL 层,前端用 urql 或 Apollo。
 - **Week 26(Day 176–182)实时通信**:长轮询 vs SSE vs WebSocket、ws/socket.io、房间、心跳与重连、Redis pub/sub 跨进程广播。产出:打卡动态实时推送。
-- **Week 27(Day 183–192,10 天)Next.js App Router + 博客三语上线**:RSC、Server Actions、缓存策略、streaming;用 Next.js 重建博客——读取 `docs/` HTML 讲义生成文章页、目录页、Day 索引;next-intl 做 zh/en/de 路由(此时 en/de 只翻站点框架,文章仍是中文);standalone 输出打 Docker 镜像部署到 Hetzner。**www.supergood-tech.de 正式对外。**
+- **Week 27(Day 183–192,10 天)Next.js 深入 + 站点重构**:站点已在 Day 4 用 Next.js(App Router + static export + 自写 i18n)上线,本周做深入与重构——RSC 与 Server Component 的边界、Server Actions、缓存策略、streaming、ISR 与 static export 的取舍;把讲义内容从「构建时读文件」改成「从数据库读」,为 Phase 7 的平台做准备。
 - ✅ 检查点:重答 C1 G1 G2。
 
 ## Phase 6(Day 193–227):系统设计 10 大概念集中攻坚

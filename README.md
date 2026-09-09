@@ -24,6 +24,10 @@ node src/01-event-loop/01-sync-nexttick-microtask.ts
 npx tsx src/01-event-loop/01-sync-nexttick-microtask.ts
 ```
 
+## 网站
+
+讲义同时发布在 https://www.supergood-tech.de (中/英/德三语)。站点源码在 `web/`(Next.js App Router + static export),内容来自 `docs/`,阶段总览来自 `roadmap.md`。部署:`./deploy.sh`。
+
 ## 目录结构
 
 ```

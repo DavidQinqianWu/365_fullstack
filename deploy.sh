@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Build site/ from docs/ and deploy it behind Coolify's Traefik. Re-runnable.
+# Build the Next.js site from docs/ and deploy it behind Coolify's Traefik. Re-runnable.
 set -euo pipefail
 cd "$(dirname "$0")"
 set -a; source .env; set +a
 
 ssh "$DEPLOY_HOST" mkdir -p "$DEPLOY_PATH/html"
-node scripts/build-site.mjs
-rsync -az --delete --exclude .DS_Store site/ "$DEPLOY_HOST:$DEPLOY_PATH/html/"
+npm --prefix web run build
+rsync -az --delete --exclude .DS_Store web/out/ "$DEPLOY_HOST:$DEPLOY_PATH/html/"
 rsync -az deploy/nginx.conf "$DEPLOY_HOST:$DEPLOY_PATH/nginx.conf"
 
 ssh "$DEPLOY_HOST" bash -s "$DEPLOY_PATH" "$SITE_DOMAIN" <<'REMOTE'
