@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="day" content="7">
+<meta name="phase" content="Phase 1 / Week 1">
+<meta name="summary" content="复盘日,不学新内容。画出「一个 HTTP 请求的一生」把六天串起来,默写六张概念卡,给本周代码做一次 review,自测 20 题。">
+<title>Day 7 - 复盘日:把 Week 1 的六天连成一张图</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 1 · 复盘日</div>
+  <h1>Day 7 - 复盘日:把 Week 1 的六天连成一张图</h1>
+  <div class="meta">
+    今日时长:<b>3 小时</b>(默写 60 min + code review 60 min + 补漏 60 min)·
+    <b>今天不学新内容。</b>复盘日的唯一任务是:把学过的东西从「看懂了」变成「说得出、写得出」·
+    产出:一张全景图 + 默写答卷 + 一次代码 review
+  </div>
+</header>
+
+<div class="warn">
+  <span class="tag">⚠️ 复盘日的规矩</span>
+  <p><b>不许翻前六天的讲义。</b>先凭记忆写,写完再对照订正。订正的地方用红色或加粗标出来——<b>那些就是你真正的知识缺口</b>,下周会再考。</p>
+  <p>如果某一题完全写不出来,不要跳过。写下「我不会」,然后去看讲义,再用自己的话重写一遍。</p>
+</div>
+
+<nav class="toc">
+  <h2>📖 今天的四件事</h2>
+  <ol>
+    <li><a href="#sec1">🗺️ 第一件事:画出「一个 HTTP 请求的一生」</a></li>
+    <li><a href="#sec2">✍️ 第二件事:六张概念卡默写</a></li>
+    <li><a href="#sec3">🔍 第三件事:给自己这周的代码做一次 review</a></li>
+    <li><a href="#sec4">📊 第四件事:补对照表 + 自测 20 题</a></li>
+    <li><a href="#sec5">🎯 Week 1 结算与 Week 2 预告</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🗺️ 第一件事:画出「一个 HTTP 请求的一生」(约 40 min)</h2>
+
+  <p>这是本周最重要的产出。<b>把六天学的东西,串成一条线。</b></p>
+
+  <h3>任务</h3>
+
+  <p>在 <code>src/07-week1-review/request-lifecycle.md</code> 里,用文字或 mermaid 画出下面这个过程,<b>每一步标注它对应 Day 几学的内容</b>:</p>
+
+  <div class="task">
+    <h3>场景</h3>
+    <p>一个德国用户在浏览器输入 <code>https://www.supergood-tech.de/de/day/1/</code>,回车。你的 Node 服务器上发生了什么?</p>
+    <p>要覆盖这些环节(顺序你自己排):</p>
+    <ul>
+      <li>浏览器发出的那段文本长什么样</li>
+      <li>TCP 连接建立后,谁通知了 event loop</li>
+      <li>event loop 在哪个 phase 取出这个事件</li>
+      <li>你的 handler 在哪个线程上跑</li>
+      <li>handler 里 <code>await</code> 数据库时,主线程去干嘛了</li>
+      <li>如果 handler 里有 2 秒 CPU 计算,会发生什么,该怎么办</li>
+      <li>响应体 100MB 时,该怎么写出去</li>
+      <li>想吃满 4 核,该用什么</li>
+      <li>响应报文长什么样,必须有哪几个 header</li>
+    </ul>
+  </div>
+
+  <h3>写完之后自查:这九个环节你标出了几个 Day?</h3>
+
+  <p>参考答案的<b>对应关系</b>(不是完整答案,只是给你对一下 Day 编号):</p>
+
+  <table>
+    <tr><th>环节</th><th>对应</th></tr>
+    <tr><td>请求报文格式、状态码、header</td><td>Day 6</td></tr>
+    <tr><td>libuv 通知 → poll phase 取出</td><td>Day 2</td></tr>
+    <tr><td>handler 在主线程跑,await 时让出</td><td>Day 1</td></tr>
+    <tr><td>CPU 计算卡住全场 → worker_threads</td><td>Day 5</td></tr>
+    <tr><td>大响应体用流,别拼字符串</td><td>Day 3</td></tr>
+    <tr><td>吃满多核 → cluster 多进程</td><td>Day 4</td></tr>
+  </table>
+
+  <div class="concept">
+    <span class="tag">为什么这张图值 40 分钟</span>
+    <p>面试官问「你了解 Node 吗」,背 API 的人说「我用过 Express」;<b>能画这张图的人,直接进入下一轮。</b></p>
+    <p>更重要的是:这张图在 C#、Java、Go 里<b>结构完全一样</b>,只有第 3、4 步不同(它们用线程池,不用 event loop)。你画的是「后端服务器」,不是「Node 服务器」。</p>
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>✍️ 第二件事:六张概念卡默写(约 60 min)</h2>
+
+  <p>写在 <code>src/07-week1-review/concept-cards.md</code>。<b>每张卡片必须包含三部分</b>:通用定义(不绑定语言)、Node 里的样子、其他语言里的样子。</p>
+
+  <div class="task">
+    <h3>卡片 1:并发模型(Day 1)</h3>
+    <ul>
+      <li>并发和并行的区别,用一句话</li>
+      <li>三种并发模型各自的取舍(多线程 / 事件循环 / 协程)</li>
+      <li>为什么说 Node 的模型适合 I/O 密集,不适合 CPU 密集</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>卡片 2:事件循环(Day 2)</h3>
+    <ul>
+      <li>六个 phase 的顺序,以及你只需要记住的三站是哪三站</li>
+      <li>nextTick 和 microtask 在什么时候清场,它们属于 phase 吗</li>
+      <li><code>setTimeout(fn, 0)</code> 和 <code>setImmediate(fn)</code>,顶层调用时谁先?I/O 回调里调用时谁先?为什么不一样</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>卡片 3:流与背压(Day 3)</h3>
+    <ul>
+      <li>为什么 2GB 文件不能用 <code>readFileSync</code></li>
+      <li>背压是什么,<code>write()</code> 返回 false 时该做什么</li>
+      <li>字节和字符的区别,一个中文字在 UTF-8 里几个字节</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>卡片 4:进程模型(Day 4)</h3>
+    <ul>
+      <li>进程和线程的区别(内存、沟通、崩溃影响三个维度)</li>
+      <li>exec / execFile / spawn / fork 各自的场景,以及两颗炸弹是什么</li>
+      <li>cluster 多个进程共享同一个端口的原理</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>卡片 5:线程与共享内存(Day 5)</h3>
+    <ul>
+      <li>worker_threads 和 cluster 的三个区别</li>
+      <li>拷贝 / 转移 / 共享三种传数据方式,各自什么时候用</li>
+      <li>什么是竞态条件,Atomics 在防什么</li>
+      <li><b>决策表至少 5 行</b>:什么时候用 worker / cluster / child_process / 什么都不用</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>卡片 6:HTTP(Day 6)</h3>
+    <ul>
+      <li>请求报文的四个部分,那个空行的作用</li>
+      <li>五类状态码,401 和 403 的区别</li>
+      <li>幂等的定义,以及它和客户端重试的关系</li>
+      <li>Content-Length 和 chunked 的区别</li>
+    </ul>
+  </div>
+</section>
+
+<section id="sec3">
+  <h2>🔍 第三件事:给自己这周的代码做一次 review(约 40 min)</h2>
+
+  <p>打开你这周写的所有代码(<code>src/01-</code> 到 <code>src/06-</code>),<b>用「别人写的代码」的眼光看一遍</b>。把发现写在 <code>src/07-week1-review/code-review.md</code>。</p>
+
+  <h3>Review 清单(逐条检查)</h3>
+
+  <table>
+    <tr><th>检查项</th><th>为什么重要</th><th>对应 Day</th></tr>
+    <tr><td>有没有地方用了 <code>readFileSync</code> 读可能很大的文件</td><td>内存炸弹</td><td>Day 3</td></tr>
+    <tr><td>有没有 <code>body += chunk</code> 这种攒字符串的写法,且没有大小上限</td><td>上传攻击面</td><td>Day 3 / 6</td></tr>
+    <tr><td>有没有创建了 worker / child_process 但忘了 terminate / kill</td><td>进程不退出</td><td>Day 4 / 5</td></tr>
+    <tr><td>有没有在主线程做超过 100ms 的同步计算</td><td>卡住所有请求</td><td>Day 1 / 5</td></tr>
+    <tr><td>错误有没有被吞掉(空的 catch、没监听 <code>error</code> 事件)</td><td>问题被藏起来</td><td>全部</td></tr>
+    <tr><td>用 <code>exec</code> 的地方,命令里有没有拼接外部输入</td><td>shell 注入</td><td>Day 4</td></tr>
+    <tr><td>Content-Length 有没有用 <code>.length</code> 而不是 <code>Buffer.byteLength</code></td><td>中文截断</td><td>Day 6</td></tr>
+    <tr><td>变量名和函数名,一周后的你看得懂吗</td><td>可维护性</td><td>—</td></tr>
+  </table>
+
+  <div class="task">
+    <h3>产出要求</h3>
+    <p>每发现一个问题,写成这个格式:</p>
+    <pre><code>## 文件:src/03-streams-buffer/ex2.ts 第 18 行
+**问题:** 用 readFileSync 读了一个可能 2GB 的文件
+**后果:** 内存会被吃光,进程崩溃
+**改法:** 改成 createReadStream + pipeline
+**我当时为什么这么写:** 只想着能跑通,没想文件会变大</code></pre>
+    <p><b>最后一行最重要。</b>记录当时的想法,才能发现自己的思维盲区。</p>
+    <p>如果一个问题都没发现,<b>那说明 review 得不够仔细</b>——再看一遍,特别看错误处理和资源释放。</p>
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📊 第四件事:补对照表 + 自测 20 题(约 40 min)</h2>
+
+  <h3>4.1 补跨语言对照表</h3>
+
+  <p>打开 <code>roadmap.md</code>,找到顶部的「后端概念跨语言对照表」。这周学到的东西,至少补三行:</p>
+
+  <ul>
+    <li><b>运行时与并发模型</b> 行 —— 补一句你自己的理解(Day 1 / 5)</li>
+    <li><b>流式 I/O</b> 行 —— 补一句(Day 3)</li>
+    <li>新增一行 <b>HTTP 服务器</b> —— 填 Node / C# / Java / Python / Go(Day 6 讲义里有)</li>
+  </ul>
+
+  <p><b>要求:补的内容必须是你亲手验证过的</b>,不是抄讲义。抄的东西记不住。</p>
+
+  <h3>4.2 自测 20 题(闭卷,写在 <code>src/07-week1-review/self-test.md</code>)</h3>
+
+  <div class="task">
+    <h3>基础题(每题 1 分)</h3>
+    <ol>
+      <li>并发和并行的区别是什么?</li>
+      <li>event loop 的六个 phase,哪三个最重要?</li>
+      <li><code>process.nextTick</code> 和 <code>Promise.then</code>,谁先执行?</li>
+      <li>为什么递归调用 <code>process.nextTick</code> 会饿死 event loop?</li>
+      <li>Buffer 和 String 的区别是什么?</li>
+      <li><code>write()</code> 返回 <code>false</code> 意味着什么?你该做什么?</li>
+      <li><code>pipe()</code> 和 <code>pipeline()</code> 的区别?该用哪个?</li>
+      <li>进程和线程,在「内存」这个维度上有什么区别?</li>
+      <li><code>exec</code> 的 <code>maxBuffer</code> 是什么?超了会怎样?</li>
+      <li>cluster 的多个 worker 怎么能监听同一个端口?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>理解题(每题 2 分)</h3>
+    <ol start="11">
+      <li>为什么说 worker_threads 不是 cluster 的升级版?</li>
+      <li>postMessage 的「转移」和「共享」有什么区别?各自什么时候用?</li>
+      <li>什么是竞态条件?用一个具体例子说明。</li>
+      <li>HTTP 请求报文的四个部分是什么?那个空行为什么必须有?</li>
+      <li>401 和 403 的区别?</li>
+      <li>为什么表单校验失败不该返回 500?</li>
+      <li>什么是幂等?POST 和 PUT 哪个幂等?</li>
+      <li>什么时候必须用 chunked 而不是 Content-Length?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>综合题(每题 5 分)</h3>
+    <ol start="19">
+      <li><b>场景题:</b>你的 API 有一个 <code>/report</code> 接口,要生成一个 PDF,耗时约 3 秒(纯 CPU)。上线后用户反馈「点了报表,整个网站都卡住了」。<b>用这周学的知识完整解释原因,并给出两个不同层次的解决方案。</b></li>
+      <li><b>场景题:</b>你的 API 有一个 <code>/export</code> 接口,要导出一个 2GB 的 CSV。目前的实现是先在内存里拼好字符串再返回。<b>说出至少三个问题,并给出改法。</b>改完之后,响应头会有什么变化?</li>
+    </ol>
+  </div>
+
+  <p><b>评分:</b>满分 36。<b>低于 25 分,下周开始前先把错题对应的那天重看一遍。</b></p>
+</section>
+
+<section id="sec5">
+  <h2>🎯 Week 1 结算与 Week 2 预告</h2>
+
+  <h3>这周你从「不知道」到「能讲清楚」的东西</h3>
+
+  <table>
+    <tr><th>Day</th><th>主题</th><th>核心收获</th></tr>
+    <tr><td>1</td><td>并发模型</td><td>一个服务员怎么招呼一千桌客人</td></tr>
+    <tr><td>2</td><td>event loop</td><td>他的巡场路线和清场顺序</td></tr>
+    <tr><td>3</td><td>Stream / Buffer</td><td>2GB 的菜怎么端才不砸锅</td></tr>
+    <tr><td>4</td><td>进程模型</td><td>一个人不够时怎么开分店</td></tr>
+    <tr><td>5</td><td>worker_threads</td><td>店里加操作台,以及什么时候不该加</td></tr>
+    <tr><td>6</td><td>HTTP</td><td>客人递的那张纸条长什么样</td></tr>
+  </table>
+
+  <div class="concept">
+    <span class="tag">一句话总结 Week 1</span>
+    <p><b>你现在知道一个后端服务器从「接到字节」到「发出字节」的完整链路,以及每一环可能出什么事。</b></p>
+    <p>这是所有后端知识的地基。接下来学的东西(框架、数据库、缓存、部署)都是盖在这上面的。</p>
+  </div>
+
+  <h3>Week 2 预告(Day 8–14):服务端 TypeScript + HTTP 语义深入</h3>
+
+  <ul>
+    <li>TypeScript 在服务端真正有用的部分:泛型、<b>discriminated union 与类型收窄</b>(你的水平测试 G2 题)、<code>unknown</code> vs <code>any</code></li>
+    <li>用 <b>zod</b> 做运行时校验——为什么「类型」和「校验」是两件不同的事</li>
+    <li>HTTP 语义深入:幂等、内容协商、缓存头</li>
+    <li>统一错误格式 RFC 9457 problem+json 正式落地</li>
+    <li><b>产出:</b>把 Day 6 的裸 http API 加上 zod 校验和统一错误体</li>
+  </ul>
+
+  <h3>提交今天的产出</h3>
+
+  <pre><code>git add -A
+git commit -m "docs: week 1 review"</code></pre>
+</section>
+
+<section>
+  <h2>✅ 复盘日自检</h2>
+  <ul class="check">
+    <li>画出了「一个 HTTP 请求的一生」,九个环节都标了 Day 编号</li>
+    <li>六张概念卡全部默写完,每张都有「通用定义 + Node + 其他语言」三部分</li>
+    <li>对本周代码做了 review,至少找出 3 个问题并写清了改法和当时的想法</li>
+    <li>roadmap 对照表补了至少 3 行,内容是自己验证过的</li>
+    <li>自测 20 题做完并打分,低于 25 分的部分已经安排重看</li>
+    <li>今天的产出已经 commit</li>
+  </ul>
+</section>
+
+<footer>
+  Day 7 · Phase 1 / Week 1 · 复盘日 · 产出:<code>src/07-week1-review/</code> 下的四份文档 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+
+</body>
+</html>
