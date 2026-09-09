@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# Deploy docs/ as a static site behind Coolify's Traefik. Re-runnable.
+# Build site/ from docs/ and deploy it behind Coolify's Traefik. Re-runnable.
 set -euo pipefail
 cd "$(dirname "$0")"
 set -a; source .env; set +a
 
 ssh "$DEPLOY_HOST" mkdir -p "$DEPLOY_PATH/html"
-rsync -az --delete --exclude .DS_Store docs/ "$DEPLOY_HOST:$DEPLOY_PATH/html/"
+node scripts/build-site.mjs
+rsync -az --delete --exclude .DS_Store site/ "$DEPLOY_HOST:$DEPLOY_PATH/html/"
 rsync -az deploy/nginx.conf "$DEPLOY_HOST:$DEPLOY_PATH/nginx.conf"
 
 ssh "$DEPLOY_HOST" bash -s "$DEPLOY_PATH" "$SITE_DOMAIN" <<'REMOTE'
 set -e
 P=$1; D=$2
-docker inspect sfs-docs >/dev/null 2>&1 && { echo "container exists, files synced"; exit 0; }
+docker inspect sfs-docs >/dev/null 2>&1 && { docker restart sfs-docs >/dev/null; echo "updated + restarted"; exit 0; }
 docker run -d --name sfs-docs --restart unless-stopped --network coolify \
   -v "$P/html:/usr/share/nginx/html:ro" \
   -v "$P/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
