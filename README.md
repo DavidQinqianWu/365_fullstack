@@ -1,7 +1,7 @@
 # 365_SFS · 365 天高级全栈工程师成长计划
 
-> 7 年前端经验 → 高级全栈工程师。全 TypeScript 栈(Next.js + Node.js/NestJS)+ PostgreSQL + 云部署 + 系统设计 + AI Engineering。
-> 每天 2 小时,每天都有 GitHub 可见产出。完整路线见 [roadmap.md](roadmap.md),每日记录见 [progress.md](progress.md)。
+> 7 年前端经验 → 后端偏重的全栈工程师。TypeScript 全栈(Node.js/NestJS + React/Next.js)+ PostgreSQL + Redis + Docker + Hetzner/AWS + 系统设计。
+> 每天 3 小时(保底 90 min),每天都有 GitHub 可见产出。完整路线见 [roadmap.md](roadmap.md),每日记录见 [progress.md](progress.md)。
 
 ## 语言策略
 
