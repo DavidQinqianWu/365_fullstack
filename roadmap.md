@@ -125,6 +125,8 @@ Day 4 做的 [水平测试](docs/00-level-check/level-check.md) 共 25 题。下
 ## Phase 3(Day 76–105):Hetzner + Docker + HTTPS + CI/CD
 
 > 从本阶段起,**每周至少部署一次到 Hetzner**,直到年底。
+>
+> ⚠️ **服务器提醒(给 Agent):** 现有的 `hetzner` 主机(116.203.92.116)是公司测试环境,跑着 Coolify + Traefik 和公司项目。Day 1–75 只在上面放静态站(`deploy.sh` 的 `sfs-docs` 容器),不做任何实验。**Phase 3 第一天(Day 76)的任务必须先让学员租一台独立的最小 Hetzner VPS(CX22 级别,约 4 €/月)专门做学习**,之后所有实验(搞坏容器、压测、PG 主从、Prometheus、K8s 概念演示)都在新机器上做。禁止在公司机器上重启或修改 Coolify/Traefik。学习站可以在 Week 14 迁到新机器,也可以留在原处。
 
 - **Week 12(Day 76–82)Linux 服务器基础(Hetzner)**:SSH key 登录、新建 sudo 用户、ufw 防火墙、`ss`/`lsof` 看端口、`df`/`du`、`journalctl`(D1)、systemd unit、fail2ban、自动安全更新。产出:(1)Caddy 静态托管现有 `docs/` HTML,**www.supergood-tech.de 第一次有内容**——一天完成,不用框架;(2)365 API 用 systemd 裸跑上线(还不用 Docker);写中文运维手册。
 - **Week 13(Day 83–89)Docker**:镜像分层、多阶段构建、`.dockerignore`、非 root 用户、为什么先 COPY package.json(D2);docker compose 编排 API + PG + Redis(D3)、volume、network、healthcheck。产出:本地和 Hetzner 都用 compose 跑起来。

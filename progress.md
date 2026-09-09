@@ -2,7 +2,7 @@
 
 - 计数方式:**只按 Day N 计数,不写具体日期**——不要求每天连续学习,完成一天才算一天,Day N 永远 = 已完成天数 + 1。
 - 当前进度:Day 4(进行中,材料已备,习题待学员完成)
-- 时间标准:每天 3 小时(保底日 90 min)。路线图已于 Day 4 重写为 v2(后端为主,见 `roadmap.md`)。全年主线项目:365 平台(www.supergood-tech.de,三语博客 + 学习计划),`docs/` 讲义即公开文章。
+- 时间标准:每天 3 小时(保底日 90 min)。路线图已于 Day 4 重写为 v2(后端为主,见 `roadmap.md`)。⚠️ `hetzner` 主机是公司测试环境(Coolify + Traefik),Day 76 前只放静态站;Day 76 先租独立学习 VPS,见 roadmap Phase 3 提醒。全年主线项目:365 平台(www.supergood-tech.de,三语博客 + 学习计划),`docs/` 讲义即公开文章。
 - 水平测试(Day 4 完成):**1 / 46**,全部 7 个领域从零起步,React/TS 深层知识为真实缺口。每个 Phase 结束重答对应题目,见 `docs/00-level-check/level-check.md`。
 - 说明:第一轮(Day 1–8)的旧文件已归档至 `archive/round-1/`,供对照参考。
 
