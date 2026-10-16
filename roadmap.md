@@ -1,23 +1,20 @@
-# 365 天全栈工程师成长路线图(v2 · 后端为主)
+# 365 天高级全栈工程师成长路线图
 
-> 学员背景:7 年前端经验,但 Day 4 水平测试 1/46 分——**后端、数据库、DevOps、系统设计从零起步,React/TS 深层知识也有真实缺口**。
-> 目标:12 个月后拿到德国 **mid-level full-stack(后端偏重)** 岗位的面试与 offer。Senior 靠进岗后的工作年限积累,不在本路线图承诺范围内。
-> 比重:后端 50% · DevOps 20% · 前端(React 栈)15% · 系统设计/代码设计 15%。
-> 技术栈:TypeScript 全栈(Node.js + NestJS + React/Next.js)+ PostgreSQL + Redis + Docker + **Hetzner(主)** + AWS(第 10 个月补 3 周)。
-> **核心策略:概念先行,语言为器。** 每个后端概念都要能换成 C#/Java/Python/Go 讲一遍。跨语言对照表是速查表,不是作业。
-> 时间标准:**每天 3 小时**(50 min 学 + 100 min 做 + 30 min 写)。保底日 90 min,只做「做」的部分。
-> 计数规则:只按 Day N 计数,不写日期。完成一天才算一天。
-> 节奏:每 7 天的第 7 天是**复盘日**——不学新内容,只做默写、概念卡、对照表、code review。
-> 语言策略:产出以中文为主,技术术语保留英文;代码标识符英文,注释中文。英/德版本由 Phase 9 的 AI 翻译 pipeline 生成,后期人工校对。
-> **贯穿全年的项目:365 平台(www.supergood-tech.de)**——中英德三语博客 + 学习计划平台,标题《AI 时代:从前端到全栈》,副标题「帮助前端程序员一步一步成长为全栈程序员」。Phase 1–4 做它的后端 API(用户 / 每日任务 / 打卡),Phase 3 静态上线,Phase 5 用 Next.js 重建并三语上线,Phase 7 做完整平台,Phase 9–10 加 AI 翻译、问答与公开 beta。求职是持续进行的事,不占路线图时间。
+> 学员背景:7 年前端经验,目标成为高级全栈工程师,应聘全球市场(重点:德国/瑞士)。
+> 技术主线:**全 TypeScript 栈**(Next.js + Node.js/NestJS)+ PostgreSQL + 云部署 + 系统设计 + AI Engineering。
+> **核心学习策略:概念先行,语言为器。** 学员的优先级声明(置顶,所有阶段的最高指导原则):**语言不是重点,深刻理解后端才是。** 要重点吃透的通用领域:后端运行机制、**架构设计、系统设计、计算机网络、数据库、高并发、流量分发(负载均衡/分流)** 等——这些概念在任何语言里都一样。Node.js/TypeScript 只是顺手的「教具/练习语言」;**具体语言的深入(如 C#/.NET 生态工具链)等确定工作方向后再专题学**,届时靠概念映射快速上手即可。每个后端主题都要产出「概念卡 + 跨语言对照」,但不追求教具语言本身的边角知识。
+> **已掌握模块:Next.js(App Router / RSC / Server Actions 等)学员已学完**——路线图中不再为它单独排课,Capstone 前端只做「够用的薄 UI」,省下的时间全部投入**后端深度与安全**。
+> 时间标准:**每天 1.5 小时**(约 50 min 学习 + 30 min 动手练习 + 10 min 产出整理)。
+> 原则:每天进步一点点,每天都有 GitHub 可见的产出(commit / PR / issue / 文档)。
+> 语言策略:**产出以中文为主**——笔记、文档、README、设计稿一律用中文写,技术术语保留英文原文(如 event loop、middleware、transaction),先保证理解透;变量名、函数名保持英文(行业惯例),代码注释也用中文写;英文版产出(README/总结/面试表达)只作为有余力时或求职冲刺阶段的可选加分项,不作每日要求。
 
-## 目标市场技术栈参考(德国 · TS 全栈方向)
+## 目标市场技术栈参考(德国/瑞士招聘高频 · TS 方向)
 
-- 前端:React、TypeScript、TanStack Query、Next.js(App Router)
-- 后端:Node.js、NestJS、REST、GraphQL、WebSocket
-- 数据:PostgreSQL、Redis、消息队列(RabbitMQ/BullMQ)
-- DevOps:Linux、Docker、docker compose、GitHub Actions、Hetzner、AWS(EC2/RDS/S3/IAM);Kubernetes 只到概念层
-- 加分:OpenTelemetry/Grafana、AI Engineering(RAG)、德语 B2(不在本路线图内,但对岗位数量影响最大)
+- 前端/全栈:React、Next.js(App Router、RSC、Server Actions)✅ 已掌握,只做后端视角复用、TypeScript 高级类型
+- 后端:Node.js、NestJS、GraphQL/tRPC、WebSocket(**注意:欧洲市场 C#/.NET 与 Java 岗位同样极多,概念可迁移性是硬通货**)
+- 数据:PostgreSQL、Redis、消息队列(Kafka/RabbitMQ)、向量数据库(pgvector/Qdrant)
+- DevOps:Docker、Kubernetes、CI/CD(GitHub Actions)、AWS 为主
+- AI Engineering:LLM API、RAG、Agent、Vercel AI SDK / LangChain.js(欧洲市场 2025+ 高增长方向)
 
 ---
 
@@ -26,192 +23,166 @@
 > 这就是后端世界的「Vue ↔ React 对照表」。每学一个概念,就在对应行补上你亲手验证过的理解。
 > 目标:面试 C#/.NET 岗位时,能把每个 .NET 名词翻译回你已掌握的通用概念。
 
-| 通用概念 | Node.js / TS 生态(你的教具) | C# / .NET | Java | Python | Go |
-|---|---|---|---|---|---|
-| 运行时与并发模型 | event loop + libuv 线程池 + worker_threads | 线程池 + async/await (Task) | 线程池 / virtual threads (Loom) | asyncio event loop + GIL(多进程绕开 CPU 限制) | goroutine + channel |
-| Web 框架 | NestJS(企业级)/ Express(裸) | ASP.NET Core | Spring Boot | FastAPI(async)/ Django(全家桶)/ Flask | Gin / Echo |
-| 请求管线 / 中间件 | Express middleware、NestJS interceptor/guard | Middleware pipeline + Filter | Filter / Interceptor (AOP) | ASGI middleware / Django middleware | middleware(handler 链) |
-| 依赖注入(DI) | NestJS IoC 容器 | 内置 DI(Microsoft.Extensions.DI) | Spring IoC | FastAPI Depends()(函数式 DI)| 手动注入 / wire |
-| ORM / 数据访问 | Prisma / Drizzle | EF Core(LINQ) | Hibernate / JPA | SQLAlchemy / Django ORM | GORM / sqlx |
-| DB 迁移 | Prisma Migrate | EF Core Migrations | Flyway / Liquibase | Alembic / Django migrations | goose / migrate |
-| 输入校验 | zod / class-validator | DataAnnotations / FluentValidation | Bean Validation | pydantic | validator |
-| 配置与环境 | dotenv + 类型安全 env | appsettings.json + Options 模式 | application.yml + @ConfigurationProperties | pydantic-settings / django settings.py | env / viper |
-| 结构化日志 | pino / winston | Serilog / ILogger | SLF4J + Logback | logging / structlog | slog / zap |
-| 测试 | Vitest / Jest / supertest | xUnit + WebApplicationFactory | JUnit + MockMvc | pytest + httpx TestClient | testing + httptest |
-| API 文档 | OpenAPI/Swagger(语言无关标准) | Swashbuckle / Scalar | springdoc | FastAPI 内置 OpenAPI / drf-spectacular | swag |
-| 后台任务 / 定时 | BullMQ / node-cron | Hangfire / BackgroundService | Quartz / @Scheduled | Celery / APScheduler | cron / asynq |
-| 缓存客户端 | ioredis | StackExchange.Redis | Lettuce / Redisson | redis-py | go-redis |
-| 消息队列 | amqplib / kafkajs | MassTransit / NServiceBus | Spring AMQP / Kafka | Celery(broker)/ pika / aiokafka | sarama / amqp |
-| 流式 I/O(Stream/Buffer/背压) | stream.Readable/Writable、Buffer、pipeline、write→drain 背压 | System.IO.Stream、byte[]/Span、CopyToAsync、await 隐式背压 | InputStream/OutputStream、ByteBuffer(NIO)、transferTo、Reactive Streams request(n) | file-like object、bytes/bytearray、shutil.copyfileobj、async generator(await 隐式背压)| io.Reader/io.Writer、[]byte、io.Copy、阻塞读写天然背压 |
+| 通用概念 | Node.js / TS 生态(你的教具) | C# / .NET | Java | Go |
+|---|---|---|---|---|
+| 运行时与并发模型 | event loop + libuv 线程池 + worker_threads | 线程池 + async/await (Task) | 线程池 / virtual threads (Loom) | goroutine + channel |
+| Web 框架 | NestJS(企业级)/ Express(裸) | ASP.NET Core | Spring Boot | Gin / Echo |
+| 请求管线 / 中间件 | Express middleware、NestJS interceptor/guard | Middleware pipeline + Filter | Filter / Interceptor (AOP) | middleware(handler 链) |
+| 依赖注入(DI) | NestJS IoC 容器 | 内置 DI(Microsoft.Extensions.DI) | Spring IoC | 手动注入 / wire |
+| ORM / 数据访问 | Prisma / Drizzle | EF Core(LINQ) | Hibernate / JPA | GORM / sqlx |
+| DB 迁移 | Prisma Migrate | EF Core Migrations | Flyway / Liquibase | goose / migrate |
+| 认证授权 / 安全框架 | Passport + NestJS Guard、helmet | ASP.NET Core Identity + Authorization Policy、Data Protection | Spring Security | middleware + golang-jwt / casbin |
+| 输入校验 | zod / class-validator | DataAnnotations / FluentValidation | Bean Validation | validator |
+| 配置与环境 | dotenv + 类型安全 env | appsettings.json + Options 模式 | application.yml + @ConfigurationProperties | env / viper |
+| 结构化日志 | pino / winston | Serilog / ILogger | SLF4J + Logback | slog / zap |
+| 测试 | Vitest / Jest / supertest | xUnit + WebApplicationFactory | JUnit + MockMvc | testing + httptest |
+| API 文档 | OpenAPI/Swagger(语言无关标准) | Swashbuckle / Scalar | springdoc | swag |
+| 后台任务 / 定时 | BullMQ / node-cron | Hangfire / BackgroundService | Quartz / @Scheduled | cron / asynq |
+| 缓存客户端 | ioredis | StackExchange.Redis | Lettuce / Redisson | go-redis |
+| 消息队列 | amqplib / kafkajs | MassTransit / NServiceBus | Spring AMQP / Kafka | sarama / amqp |
+| 流式 I/O(Stream/Buffer/背压) | stream.Readable/Writable、Buffer、pipeline、write→drain 背压 | System.IO.Stream、byte[]/Span、CopyToAsync、await 隐式背压 | InputStream/OutputStream、ByteBuffer(NIO)、transferTo、Reactive Streams request(n) | io.Reader/io.Writer、[]byte、io.Copy、阻塞读写天然背压 |
 
-使用方式:这张表是**对照速查表**,不是每周作业。学到某个概念时,顺手在对应行补一句你验证过的理解;没学到的行保持原样。目的:看一眼就知道这个概念在 C#/Java/Python/Go 里叫什么,面试或换栈时能快速上手。
+学习要求:每周后端任务产出的笔记中,**必须有「概念卡」**(这个概念的通用定义,不绑定任何语言)+ 在上述表格对应行补充一句话心得。
 
 ---
 
-## 必懂的 10 个 System Design 核心概念(全年主线)
+## 必懂的 10 个 System Design 核心概念(全年主线,显式嵌入各周)
 
 | # | 概念 | 关键词 | 落点 |
 |---|---|---|---|
-| 1 | Load Balancer | 流量分发、L4/L7、算法 | Week 28 |
-| 2 | Caching | Cache Aside、穿透/雪崩/击穿 | Week 10 |
-| 3 | CDN | 边缘缓存、失效 | Week 28 |
-| 4 | Database Replication | 主从、读写分离、故障切换 | Week 29 |
-| 5 | Sharding | 分片键、一致性哈希 | Week 29 |
-| 6 | Message Queues | at-least-once、幂等、outbox | Week 30 |
-| 7 | Rate Limiting | 令牌桶、滑动窗口 | Week 18 |
-| 8 | Circuit Breaker | 熔断/重试/超时/降级 | Week 44 |
-| 9 | Health Checks | liveness/readiness、compose healthcheck | Week 14 |
-| 10 | Observability | logs / metrics / traces | Week 15 入门,Week 31 深入 |
+| 1 | Load Balancer | 流量分发、L4/L7、健康路由 | Week 21 |
+| 2 | Caching | Redis + Cache Aside、穿透/雪崩 | Week 7 |
+| 3 | CDN | 内容分发加速、边缘缓存 | Week 21 |
+| 4 | Database Replication | 主从复制、读写分离、高可用 | Week 22(Week 8 实战预热) |
+| 5 | Sharding | 水平扩展、分片键、再平衡 | Week 22 |
+| 6 | Message Queues | Kafka / RabbitMQ、异步解耦 | Week 23 |
+| 7 | Rate Limiting | 令牌桶/滑动窗口、接口保护 | Week 11(Redis 实现) |
+| 8 | Circuit Breaker | 故障隔离、熔断/降级 | Week 40 |
+| 9 | Health Checks | 服务探活、liveness/readiness | Week 16 |
+| 10 | Observability | Logs + Metrics + Traces | Week 16(Week 46 进阶到 LLM) |
 
-要求:每个概念都要「能画图 + 能手写最小实现或配置 + 能用中文 5 句话讲清楚」。
-
----
-
-## 水平测试 → 路线图的映射
-
-Day 4 做的 [水平测试](docs/00-level-check/level-check.md) 共 25 题。下表标出每题在哪一周被补上。**每个 Phase 结束时重答该 Phase 覆盖的题,必须每题 2/2 才进入下一 Phase。**
-
-| 题号 | 主题 | 补上的周 |
-|---|---|---|
-| A1 A2 | HTTP 幂等、状态码、错误体 | Week 2 |
-| A3 | CPU 密集接口 | Week 3 |
-| A4 | JWT / 登出 | Week 16 |
-| A5 | CORS | Week 18 |
-| B1 | SQL 聚合 | Week 6 |
-| B2 | 索引 / LIKE | Week 8 |
-| B3 | 并发扣库存 | Week 8 |
-| B4 | N+1 | Week 9 |
-| B5 | Redis vs PG | Week 10 |
-| C1 | GraphQL 取舍 | Week 25 |
-| C2 | 分页 | Week 5 |
-| D1 | Linux 命令 | Week 12 |
-| D2 D3 | Dockerfile / compose | Week 13 |
-| D4 | HTTPS | Week 14 |
-| D5 | CI/CD | Week 15 |
-| D6 | 何时不用 K8s | Week 15 |
-| E1 | 拆分 createOrder | Week 19 |
-| E2 | DI | Week 4 + Week 19 |
-| E3 | 分层边界 | Week 20 |
-| F1 F2 F3 | 系统设计 | Week 28 + Week 32 |
-| G1 | useEffect 竞态 | Week 21 |
-| G2 | discriminated union | Week 2 |
-| H1 | 令牌桶 | Week 18 |
+学习要求:每个概念都要「能画图 + 能手写最小实现或配置 + 能用中文 5 句话讲清楚」。(面试需要的英文版表达,留到求职冲刺阶段统一补,不占用日常学习时间。)
 
 ---
 
-## Phase 1(Day 1–35):后端运行机制 + HTTP + Web 框架 + REST
+## Phase 1(Day 1–30):后端运行机制 — 服务端是怎么跑起来的
 
-> 主题:服务端是怎么跑起来的。Node.js 是观察样本,每周问一次:「这个机制在 .NET / Java / Python / Go 里长什么样?」
+> 本阶段主题:任何后端语言都绕不开的底层机制——**运行时、并发模型、HTTP 协议、Web 框架解剖**。Node.js 只是第一个观察样本,每周都要回答一个问题:「这个机制在 .NET / Java / Go 里长什么样?」
 
-- **Week 1(Day 1–7)运行时与并发模型**:Day 1–4 已完成(并发模型、event loop、Stream/Buffer、进程模型)。Day 5:worker_threads 与「什么时候该用」。Day 6:用原生 `http` 模块裸写服务器——请求报文、响应报文、header、状态码。Day 7:复盘日。
-- **Week 2(Day 8–14)服务端 TypeScript 补强 + HTTP 语义**:泛型、discriminated union 与类型收窄(G2)、unknown/never、zod 校验;HTTP 方法与幂等(A1)、状态码与统一错误格式 RFC 9457 problem+json(A2)、内容协商、缓存头。产出:原生 http 写一个 JSON API,带 zod 校验和统一错误体。
-- **Week 3(Day 15–21)Express 解剖**:手写 middleware 链(`next()` 原理)、路由、错误处理中间件、async 错误陷阱;CPU 密集接口的两种解法——worker_threads 与任务队列(A3)。产出:365 API v1(内存存储)。
-- **Week 4(Day 22–28)NestJS 与依赖注入**:模块、provider、DI 容器原理(E2)、pipe/guard/interceptor/exception filter 的执行顺序;对照 ASP.NET Core / Spring / FastAPI 的同类物。产出:365 API v2(NestJS)。
-- **Week 5(Day 29–35)REST API 设计**:资源建模、page vs cursor 分页(C2)、版本化、idempotency key、OpenAPI(Swagger 模块自动生成)。产出:365 API 独立仓库 + OpenAPI 文档 + 中文设计文档。
-- ✅ 检查点:重答 A1 A2 A3 C2 E2 G2。
+- Week 1:运行时与并发模型 I(以 Node.js 为例):event loop、流、Buffer、进程模型、worker_threads;**概念卡:单线程事件循环 vs 多线程线程池(.NET/Java)vs 轻量协程(Go),三种并发模型的取舍**
+- Week 2:类型系统与并发模型 II:TypeScript 高级类型在服务端的应用(泛型、条件类型、类型安全的环境变量/DI);**概念卡:静态类型对服务端工程的价值——C#/Java 天然静态类型,TS 是你在 JS 世界提前适应静态类型思维的桥梁**
+- Week 3:Web 框架通用解剖(以 NestJS 为例):**请求管线(中间件 → 守卫 → 拦截器 → 管道)、依赖注入、路由、异常过滤**——这些概念逐一标注 ASP.NET Core(middleware/filter/内置 DI)与 Spring(AOP/IoC)的对应物,而不是背 NestJS 的 API
+- Week 4:API 设计(语言无关):**HTTP 语义深入(方法、状态码、幂等性、内容协商)、REST 约束、版本化、分页、统一错误格式(RFC 7807 problem+json)、OpenAPI 规范**;实战:完整 REST API(任务管理服务),用 NestJS 实现,但设计文档按语言无关的方式写
+- GitHub 产出:每天提交代码或中文笔记;Week 4 项目独立仓库,中文 README;**每周一张概念卡 + 对照表更新**
 
-## Phase 2(Day 36–75):PostgreSQL 从零 + Redis
+## Phase 2(Day 31–60):数据层 — 数据库是后端的心脏
 
-> 本阶段语言无关度最高。SQL、索引、事务在任何技术栈里一字不差。
+> 本阶段是整个路线图中**语言无关度最高**的部分:SQL、事务、索引、缓存模式在任何技术栈里一字不差。ORM 则是最体现「同概念不同实现」的典型(Prisma ≈ EF Core ≈ Hibernate)。
 
-- **Week 6(Day 36–42)SQL 从零**:`docker run postgres` 起本地库(第一次接触 Docker,只用一条命令);SELECT/WHERE/JOIN/GROUP BY/HAVING/子查询/CTE/窗口函数。产出:20 道 SQL 练习题及答案(含 B1)。
-- **Week 7(Day 43–49)数据建模与迁移**:范式、主键/外键/约束、枚举与 JSONB、迁移脚本(SQL 文件 → Prisma Migrate)。产出:365 API 的 ERD 与迁移文件。
-- **Week 8(Day 50–56)索引、执行计划、事务**:B-tree、复合索引最左前缀、`LIKE '%x'` 为什么不走索引(B2)、EXPLAIN ANALYZE;ACID、四种隔离级别实验(脏读/不可重复读/幻读)、`SELECT ... FOR UPDATE` 悲观锁 vs version 列乐观锁(B3)、死锁复现。
-- **Week 9(Day 57–63)ORM 与数据访问模式**:Prisma(或 Drizzle)、Repository 模式、N+1 与解法(B4)、连接池、ORM 里的事务。产出:365 API 接上 PostgreSQL。
-- **Week 10(Day 64–70)Redis 与缓存(概念 #2)**:数据结构、Cache Aside、TTL、穿透/雪崩/击穿、分布式锁、session 存储;什么时候选 Redis 不选 PG(B5)。产出:365 API 加缓存层 + cheat sheet。
-- **Week 11(Day 71–75,5 天)实战**:造 100 万行数据、autocannon 压测、索引前后对比、缓存前后对比。产出:中文性能报告。
-- ✅ 检查点:重答 B1–B5。
+- Week 5:关系型数据库核心(**纯概念,与语言零绑定**):关系模型、SQL 深入(JOIN、窗口函数)、索引原理(B-tree、复合索引最左前缀)、EXPLAIN 执行计划、**事务 ACID 与四种隔离级别(脏读/不可重复读/幻读实验)**、连接池概念
+- Week 6:ORM 与数据访问模式(**重点学模式,不是学 Prisma**):ActiveRecord vs DataMapper、Unit of Work、Repository 模式争议、N+1 问题;用 Prisma(或 Drizzle)实现,对照 EF Core 的 LINQ + DbContext 写法写一页对照笔记
+- Week 7:Redis 与缓存通用模式(**概念 #2 Caching**:Cache Aside / Read-Through / Write-Behind、穿透/雪崩/击穿、分布式锁、会话存储)——模式全部语言无关,ioredis 只是客户端之一
+- Week 8:实战 — 给 Phase 1 的 API 加上 PostgreSQL + Redis 缓存层,写性能对比笔记;预热**概念 #4**:本地起主从两个 PG 实例观察复制;**可选加深:NoSQL 全景认知一页纸(文档型 MongoDB / KV / 宽列 Cassandra / 图),各自解决什么问题**
+- GitHub 产出:迁移脚本、索引优化前后 EXPLAIN 对比 markdown、cache-aside 实现代码、事务隔离级别实验记录
 
-## Phase 3(Day 76–105):Hetzner + Docker + HTTPS + CI/CD
+## Phase 3(Day 61–90):工程化 — 认证、测试、架构风格 I
 
-> 从本阶段起,**每周至少部署一次到 Hetzner**,直到年底。
->
-> ⚠️ **服务器提醒(给 Agent):** 现有的 `hetzner` 主机(116.203.92.116)是公司测试环境,跑着 Coolify + Traefik 和公司项目。Day 1–75 只在上面放静态站(`deploy.sh` 的 `sfs-docs` 容器),不做任何实验。**Phase 3 第一天(Day 76)的任务必须先让学员租一台独立的最小 Hetzner VPS(CX22 级别,约 4 €/月)专门做学习**,之后所有实验(搞坏容器、压测、PG 主从、Prometheus、K8s 概念演示)都在新机器上做。禁止在公司机器上重启或修改 Coolify/Traefik。学习站可以在 Week 14 迁到新机器,也可以留在原处。
+- Week 9:认证授权(**协议层,语言无关**):JWT 结构与签名验证原理、Refresh Token 轮换、OAuth2/OIDC 流程(授权码模式 + PKCE)、RBAC vs ABAC 权限模型——实现用 NestJS,但产出物是协议时序图
+- Week 10:测试体系(测试金字塔是通用方法论):单元/集成/E2E 的边界划分、测试替身(mock/stub/fake)、覆盖率门禁;工具用 Vitest/Jest + supertest + Playwright,对照 xUnit + WebApplicationFactory 的等价物
+- Week 11:API 安全与质量(**概念 #7 Rate Limiting**:用 Redis 手写令牌桶 + 滑动窗口限流器、CORS 原理、输入校验、OWASP Top 10)——全部是协议与模式层面的知识
+- Week 12:**架构风格 I(代码级架构,新增重点)+ 实战**:分层架构 → 六边形架构(Hexagonal / Ports & Adapters)→ Clean Architecture 的演进逻辑;**DDD 战术模式入门**(实体、值对象、聚合根、仓储);实战:用六边形架构重构任务服务并落地完整认证模块,测试覆盖率 ≥80%,附中文 SECURITY.md;**对照:微软官方 Clean Architecture 模板(eShop 参考应用)的目录结构**
+- GitHub 产出:测试 PR、限流器代码、架构重构前后对比笔记(为什么端口-适配器模式让你换数据库/换框架时业务代码不动)
 
-- **Week 12(Day 76–82)Linux 服务器基础(Hetzner)**:SSH key 登录、新建 sudo 用户、ufw 防火墙、`ss`/`lsof` 看端口、`df`/`du`、`journalctl`(D1)、systemd unit、fail2ban、自动安全更新。产出:(1)Caddy 静态托管现有 `docs/` HTML,**www.supergood-tech.de 第一次有内容**——一天完成,不用框架;(2)365 API 用 systemd 裸跑上线(还不用 Docker);写中文运维手册。
-- **Week 13(Day 83–89)Docker**:镜像分层、多阶段构建、`.dockerignore`、非 root 用户、为什么先 COPY package.json(D2);docker compose 编排 API + PG + Redis(D3)、volume、network、healthcheck。产出:本地和 Hetzner 都用 compose 跑起来。
-- **Week 14(Day 90–96)反向代理 + HTTPS + 健康检查(概念 #9)**:DNS A 记录、Caddy 自动 TLS(D4,Nginx + certbot 作对照)、环境变量与 secrets 管理、`/health` 端点、compose healthcheck 与重启策略。
-- **Week 15(Day 97–103)GitHub Actions + 备份 + 日志(概念 #10 入门)**:typecheck/test/build → 构建镜像推 GHCR → SSH 部署到 Hetzner(D5);pg_dump 定时备份 + 恢复演练;pino 结构化日志、Uptime Kuma 探活。Day 103:K8s 概念一页纸——只讲概念,不安装(D6)。
-- **Day 104–105 复盘**:写一篇「一个请求从浏览器到 Hetzner 上的容器经过了什么」。
-- ✅ 检查点:重答 D1–D6。
+## Phase 4(Day 91–120):DevOps — Docker / CI/CD / 云部署
 
-## Phase 4(Day 106–140):认证、测试、安全、代码设计
+> 本阶段天然语言无关:Docker、K8s、CI/CD 不关心你容器里跑的是 Node 还是 .NET。
 
-- **Week 16(Day 106–112)认证授权**:argon2 密码哈希、session vs JWT、JWT 三段与签名验证、refresh token 轮换、登出与黑名单(A4)、OAuth2 授权码 + PKCE(GitHub 登录)、RBAC。产出:协议时序图 + 实现。
-- **Week 17(Day 113–119)测试体系**:测试金字塔、Vitest 单元测试、supertest 集成测试(testcontainers 起真 PG)、一个 Playwright E2E、覆盖率门禁进 CI。
-- **Week 18(Day 120–126)API 安全(概念 #7)**:Redis 令牌桶限流器(H1)、滑动窗口、CORS 真正原理——浏览器挡的是读响应不是发请求(A5)、helmet、输入校验、OWASP Top 10 逐条对照 365 API。
-- **Week 19(Day 127–133)代码设计 I**:SOLID 逐条配重构例子、重构手法(extract function、参数对象)、纯函数与副作用分离、拆分 createOrder 并测试(E1)、DI 容器原理(E2)。
-- **Week 20(Day 134–140)代码设计 II**:分层 → 六边形(Ports & Adapters)→ Clean Architecture 的演进逻辑,为什么业务层不能 import 框架(E3);DDD 战术模式(实体/值对象/聚合根/仓储)。产出:365 API 重构成六边形 + 一篇 ADR。
-- ✅ 检查点:重答 A4 A5 E1 E2 E3 H1。
+- Week 13:Docker(镜像分层、多阶段构建、docker-compose 编排全栈环境)+ **容器安全基线**(非 root 运行、最小基础镜像、镜像漏洞扫描 Trivy)
+- Week 14:GitHub Actions(测试/构建/部署流水线、缓存、矩阵构建、密钥管理)
+- Week 15:云部署(AWS EC2/ECS 或 Fly.io/Render,域名、HTTPS、环境变量管理)+ Kubernetes 入门(minikube/k3s:Deployment、Service、滚动更新)
+- Week 16:**概念 #9 + #10**:健康检查(liveness/readiness probe)+ 可观测性(**结构化日志、Metrics、Traces 三大支柱是语言无关的**,OpenTelemetry 本身就是跨语言标准;Node 侧用 pino + Prometheus + Grafana)
+- GitHub 产出:workflow 文件、Dockerfile、K8s manifest、中文部署文档
 
-## Phase 5(Day 141–192):React 补强 4 周 + GraphQL + 实时 + Next.js 博客上线
+## Phase 5(Day 121–150):应用安全攻防 · API 范式 · 实时通信
 
-> React 4 周按 3h/天设计,相当于 2h/天的 6 周。目标:达到德国 React 中高级面试水平。本阶段末,博客以 Next.js 三语版公开上线。
+> 调整说明:原 Week 17「Next.js App Router 深入」已删除(学员已掌握),整周改为**应用安全攻防**;Next.js 只在 Week 18 以「Server Actions 是一种 RPC」的后端视角出现一次。
 
-- **Week 21(Day 141–147)React 心智模型**:渲染阶段 vs 提交阶段、state 不可变、useEffect 生命周期与清理、竞态与 AbortController(G1)、依赖数组规则、自定义 hook、StrictMode 双调用。
-- **Week 22(Day 148–154)React 数据与性能**:memo/useMemo/useCallback 何时该用何时不该用、TanStack Query 服务端状态、react-hook-form + zod(与后端共用 schema)、错误边界、Suspense。
-- **Week 23(Day 155–161)React 工程**:组件设计(compound / headless)、Testing Library + MSW、可访问性基础、泛型组件与 discriminated props。
-- **Week 24(Day 162–168)React 实战**:给 365 API 做管理前端(Vite):登录、每日任务列表、打卡;部署到 Hetzner。
-- **Week 25(Day 169–175)GraphQL**:schema/resolver、DataLoader 解 N+1、缓存难点、与 REST 的取舍(C1)、codegen 端到端类型。产出:365 API 加 GraphQL 层,前端用 urql 或 Apollo。
-- **Week 26(Day 176–182)实时通信**:长轮询 vs SSE vs WebSocket、ws/socket.io、房间、心跳与重连、Redis pub/sub 跨进程广播。产出:打卡动态实时推送。
-- **Week 27(Day 183–192,10 天)Next.js 深入 + 站点重构**:站点已在 Day 4 用 Next.js(App Router + static export + 自写 i18n)上线,本周做深入与重构——RSC 与 Server Component 的边界、Server Actions、缓存策略、streaming、ISR 与 static export 的取舍;把讲义内容从「构建时读文件」改成「从数据库读」,为 Phase 7 的平台做准备。
-- ✅ 检查点:重答 C1 G1 G2。
+- Week 17:**应用安全攻防周(新增重点,替代原 Next.js 周)**——用「攻击者视角」先亲手复现漏洞、再修复,每个漏洞产出「攻击步骤 → 根因 → 修复 → 跨语言对照」:
+  - 注入家族:SQL / NoSQL / 命令注入(呼应 Day 4 的 shell 注入炸弹)、参数化查询为什么能根治
+  - 浏览器侧攻击的**服务端防线**:XSS 与 CSP、CSRF 与 SameSite Cookie、安全响应头(HSTS、X-Frame-Options)
+  - 服务端特有漏洞:SSRF(云元数据接口 169.254.169.254)、IDOR / 越权访问(BOLA,OWASP API Security Top 10 第 1 名)、批量赋值(mass assignment)
+  - 密码学实用层:密码存储(bcrypt/argon2:加盐 + 慢哈希)、TLS 握手原理、对称/非对称加密与签名的区别、secrets 管理(不进 git、轮换)
+  - 供应链安全:lockfile、npm audit、Dependabot、SBOM
+  - **威胁建模**:STRIDE 方法给任务服务画一张威胁图
+  - **合规概念卡:GDPR/DSGVO 与瑞士 nDSG 对后端设计的影响**(数据最小化、删除权、日志脱敏、数据驻留)——德国/瑞士面试高频
+  - 对照:ASP.NET Core Data Protection / Antiforgery、Spring Security 的等价能力
+- Week 18:API 范式横向对比(**概念卡:REST vs GraphQL vs RPC(tRPC/gRPC)各自的适用场景**——gRPC 在 .NET/Java 微服务里极高频):tRPC 端到端类型安全(或 GraphQL + Pothos/codegen),对比 REST 写中文复盘;**把已掌握的 Next.js Server Actions 当作「框架内置 RPC」纳入对比**(只写一页后端视角笔记:它在网络上实际发了什么请求、如何鉴权、如何防 CSRF),不额外占课时;**GraphQL 安全**:查询深度/复杂度限制、introspection 关闭
+- Week 19:实时通信协议(语言无关):长轮询 vs SSE vs WebSocket vs WebRTC 的原理与取舍、乐观更新、presence/协作基础;Node 侧用 ws 实现,标注 SignalR(.NET)的等价能力
+- Week 20:实战 — 给已有项目加实时通知模块 + tRPC/GraphQL 层
+- GitHub 产出:`security-lab/`(每个漏洞一个「复现 → 修复」前后对比目录 + STRIDE 威胁模型图 + GDPR 概念卡)、实时模块代码、三种 API 范式对比文章(中文 markdown)
 
-## Phase 6(Day 193–227):系统设计 10 大概念集中攻坚
+## Phase 6(Day 151–185):系统设计基础(10 大概念集中攻坚)
 
-- **Week 28(Day 193–199)概念 #1 + #3**:L4/L7、轮询/最少连接/一致性哈希;Caddy upstream 分发到 4 个 Node 进程的实验,对比 cluster(F3);CDN 缓存命中与失效,给博客静态资源接 CDN。
-- **Week 29(Day 200–206)概念 #4 + #5**:compose 起 PG 主从、读写分离、故障切换;分片键选择、一致性哈希、跨分片查询的代价。
-- **Week 30(Day 207–213)概念 #6**:RabbitMQ 或 BullMQ、at-least-once 与幂等消费、outbox 模式、死信队列。产出:平台邮件(注册确认、每日提醒)异步化。
-- **Week 31(Day 214–220)概念 #10 深入**:OpenTelemetry traces、Prometheus metrics、Grafana 看板、告警规则。产出:全部部署到 Hetzner。
-- **Week 32(Day 221–227)经典题 I**:URL shortener(F1)、限流器、通知系统、「DB 慢了按什么顺序排查」(F2)。每题一张架构图 + 中文设计稿,发布为博客文章。
-- ✅ 检查点:重答 F1 F2 F3;10 个概念各一页 cheat sheet(除 #8)。
+- Week 21:**概念 #1 Load Balancer + #3 CDN**(L4/L7、轮询/最少连接、Nginx/HAProxy 本地实验、CDN 缓存命中与失效)
+- Week 22:**概念 #4 Database Replication + #5 Sharding**(主从复制、读写分离、故障切换直觉;分片键选择、一致性哈希、跨分片查询)
+- Week 23:**概念 #6 Message Queues**(Kafka/RabbitMQ、事件驱动架构、**幂等性、at-least-once vs exactly-once、outbox 模式**——这些语义在任何 MQ 客户端里都一样)
+- Week 24:经典系统设计题 I(URL shortener、限流器、feed 系统)—— 每题画架构图 + 中文设计稿,强制用上已学概念
+- Week 25:实战 — 在现有项目中引入消息队列,实现异步任务(邮件/报表);**对照:.NET 的 Hangfire/MassTransit、Java 的 Quartz 解决同类问题**
+- GitHub 产出:`system-design/` 目录,每题一个中文 markdown + mermaid 架构图;10 个概念各一页中文 cheat sheet
 
-## Phase 7(Day 228–282):Capstone —— 365 平台 v1(8 周)
+## Phase 7(Day 186–230):全栈 Capstone 项目 1
 
-- 目标:任何前端程序员都能注册、按天学习、打卡、看进度、留言。
-- 硬性要求:Next.js + NestJS + PostgreSQL + Redis + 消息队列 + Docker + GitHub Actions + Hetzner + 测试覆盖 + 可观测性 + 六边形架构 + 至少 6 个 10 大概念。
-- **Week 33–34(Day 228–241)设计**:ERD(用户、计划、Day、打卡、评论)、API 设计、ADR、里程碑计划。
-- **Week 35–38(Day 242–269)实现**:账号(邮箱 + GitHub OAuth)→ 每日打卡与连续天数 → 进度看板 → 评论 → 每日提醒邮件(MQ)。每 2 周一个可演示里程碑,写中文 dev log 并发布为博客文章。
-- **Week 39–40(Day 270–282)打磨**:压测、安全检查、备份演练、README、演示视频。
-- 产出:v1 线上可注册,README 挂地址。
+- 题目建议:多租户 SaaS(如团队协作/招聘平台 clone,贴合欧洲市场业务)
+- 要求:NestJS + PostgreSQL + Redis + Docker + CI/CD + 云部署 + 完整测试;**前端用已掌握的 Next.js 做够用的薄 UI,不在前端打磨上花时间**;
+- **后端与安全加码(用省下的前端时间)**:多租户数据隔离(PostgreSQL Row-Level Security vs 每租户 schema 的取舍)、审计日志、上线前 STRIDE 威胁建模 + OWASP ASVS Level 1 自查清单、GDPR 数据导出/删除接口;必须用到至少 5 个 10 大概念(缓存、限流、健康检查、可观测性、消息队列);**代码组织必须按 Week 12 学的六边形架构,并在 README 里写清「如果明天换成 ASP.NET Core,哪些层可以原样保留思路」**
+- 文档语言:中文 README、commit message、issue/PR;每 2 周一个可演示里程碑,写中文 dev log
+- GitHub 产出:主仓库持续提交,部署链接挂在 README
 
-## Phase 8(Day 283–302):AWS 3 周
+## Phase 8(Day 231–270):全栈 Capstone 项目 2 + 开源贡献
 
-> 把 Hetzner 上跑通的平台搬到 AWS 一次。目的是简历关键词 + 真实经历,不是深入 AWS。搬完再搬回 Hetzner,AWS 只保留可复现的 IaC 脚本。
+- Week 31–35:第二个项目(建议含实时特性:协作编辑/通知/白板,用上 Phase 5 的 WebSocket 能力)
+- Week 36–38:开源贡献 — 给 NestJS/Prisma/tRPC/Fastify 等**后端**仓库提 PR(从 good first issue 开始;开源 PR 的标题与描述按目标仓库惯例用英文,这是极少数必须用英文的场景)
+- **可选支线(有余力时):用 C#/.NET 把一个已有小项目(如 Week 4 的任务管理 API)重写一遍**——这是对全年「概念可迁移性」学习策略的终极检验,也是对标欧洲 .NET 岗位的直接作品
+- GitHub 产出:开源 PR 记录、项目 2 仓库
 
-- **Week 41(Day 283–289)**:IAM 最小权限、Budgets 成本告警(第一天就设)、EC2、安全组、VPC 概念;API 以 Docker 方式跑在 EC2。
-- **Week 42(Day 290–296)**:RDS PostgreSQL、S3 + presigned URL(用户头像上传)、Secrets Manager;可选 ElastiCache。
-- **Week 43(Day 297–302)**:GitHub Actions OIDC 免密部署、CloudWatch 日志;ECS Fargate 概念一页纸。产出:博客文章「同一项目两种云:Hetzner vs AWS」。
+## Phase 9(Day 271–305):高级系统设计 + 架构风格 II
 
-## Phase 9(Day 303–337):高级架构 + AI Engineering
+- Week 39:**架构风格 II(系统级架构)+ 分布式基础**:模块化单体 vs 微服务的取舍(什么时候不该拆)、服务发现、API Gateway、CAP、一致性模型、分布式锁、leader election 直觉
+- Week 40:**概念 #8 Circuit Breaker** + 可靠性设计(重试、熔断、降级、超时预算、saga 分布式事务;手写一个熔断器实现)——对照 .NET 生态的 Polly 库,你会发现设计一模一样
+- Week 41:经典系统设计题 II(设计 Uber/订票系统/分布式 KV/指标监控系统)—— 中文设计稿 + 容量估算
+- Week 42:复盘重构 — 把 Phase 6 的设计题按新认知重写一遍,对比前后版本
+- GitHub 产出:高级设计文档、熔断器代码、前后版本对比笔记
 
-- **Week 44(Day 303–309)概念 #8 + 分布式基础**:模块化单体 vs 微服务(什么时候不该拆)、API Gateway、CAP、重试/超时/熔断/降级/saga;手写 circuit breaker。
-- **Week 45(Day 310–316)经典题 II**:订票系统、分布式 KV、指标监控系统;容量估算。发布为博客文章。
-- **Week 46(Day 317–323)AI I:翻译 pipeline**:LLM API、structured output、prompt 与术语表;把 `docs/` 中文讲义批量翻译成 en/de,存库或存文件,构建时生成三语文章页。**博客从此真正三语。**
-- **Week 47(Day 324–330)AI II:RAG 问答**:pgvector、chunking、检索评估;平台上线「问课程助手」,只回答课程内容。
-- **Week 48(Day 331–337)AI III:生产化**:tool calling、评估、成本与延迟、Langfuse 可观测、guardrails。
+## Phase 10(Day 306–340):AI Engineering 基础(TS 栈)
 
-## Phase 10(Day 338–365):365 平台 v2 + 全年复盘
+- Week 43:LLM 应用基础(OpenAI/Anthropic API、prompt 工程、structured output、function/tool calling)
+- Week 44:RAG 实战(embedding、chunking 策略、pgvector/Qdrant、检索评估)—— 用 TS 实现完整 RAG pipeline
+- Week 45:Agent 与工具链(Vercel AI SDK 或 LangChain.js、多步工具调用、Human-in-the-loop、流式 UI)
+- Week 46:生产化(**概念 #10 进阶**:LLM 可观测性 Langfuse/OpenTelemetry、成本/延迟优化、评估 evals、guardrails)
+- GitHub 产出:`ai-lab/` 仓库:RAG demo、agent demo、中文实验笔记
 
-- **Week 49(Day 338–344)SEO 与性能**:Lighthouse 全绿、sitemap、hreflang 三语、OG 图、图片优化、缓存头。
-- **Week 50(Day 345–351)运营基础**:自托管统计(Umami 或 Plausible)、RSS、错误告警、备份/恢复再演练、安全审计(OWASP 逐条)。
-- **Week 51(Day 352–358)公开 beta**:邀请 10 个前端程序员试用,收集反馈,修 bug,写 CONTRIBUTING(允许他人贡献讲义)。
-- **Week 52(Day 359–365)全年复盘**:重答全部 25 道水平测试题、整理跨语言对照表成独立文章、三语年终技术总结《AI 时代:从前端到全栈——我的 365 天》。
-- 可选:给 NestJS/Prisma/TanStack 提开源 PR,任何有余力的复盘日都可以做。
+## Phase 11(Day 341–365):AI 全栈 Capstone + 系统设计综合复盘
+
+- Week 47–49:AI 全栈项目 — 把 LLM 能力做进一个完整产品(如 AI 知识库问答 SaaS:NestJS + pgvector + RAG + 流式响应 + 订阅计费,前端仍是 Next.js 薄 UI);**AI 安全必做:prompt injection 防护、RAG 检索的租户权限过滤、PII 脱敏后再发给 LLM**,全程沿用 Capstone 1 的工程标准
+- Week 50:系统设计综合周 — 每天一题,把 AI 系统纳入设计(如"设计一个支持 RAG 的企业搜索"),逐题自查 10 大概念覆盖度
+- Week 51–52:全年复盘 — 整理 GitHub 成果墙、重构最有价值的两个仓库 README、**把填满的「后端概念跨语言对照表」整理成一篇独立的可迁移性总结(求职 .NET/Java 岗位时的秘密武器)**、写一篇中文年终技术总结(此时如有余力,可把核心 README 和总结翻成英文,直接进入求职冲刺)
+- GitHub 产出:AI capstone 仓库、中文年度总结博客(可放 GitHub Pages)
 
 ---
 
 ## 每日任务执行规则(给每日 Agent)
 
-1. 先读 `progress.md`,确定当前 Day N = 已完成天数 + 1。只按 Day N 计数,不用日期。
-2. 按**每天 3 小时**设计任务:50 min 学 + 100 min 做 + 30 min 写。同时标出「保底版」——只保留 90 min 的动手部分。
-3. 每 7 天的第 7 天是复盘日:不出新内容。任务固定为默写、概念卡、对照表补行、对本周代码做 code review。
-4. 当天讲义汇总为一个 HTML:文件名 `Day N - 主题.html`,放在 `docs/NN-主题/`(编号从 05 续接)。HTML 要有目录、章节图标、结尾总结。讲解把学员当 10 岁新手,多用生活比喻。
-   讲义就是博客文章,按公开内容写:不含个人信息;`<head>` 里固定放 `<meta name="day">`、`<meta name="phase">`、`<meta name="summary">`,站点靠它们生成索引。
-5. 习题代码写入 `src/NN-主题/`。
-6. 概念先行,语言为器:先讲通用概念,再用 Node.js 举例;笔记含「概念卡」;学到对照表里的概念时补一行。
-7. 从 Phase 3 起,每周至少一次真实部署到 Hetzner,任务里必须写明。
-8. 每个 Phase 最后一天:重答该 Phase 覆盖的水平测试题,记录分数到 `progress.md`。未达 2/2 的题,下一 Phase 第一天补。
-9. 涉及 10 大概念的周,显式标注编号(如「概念 #2 Caching」),并要求 cheat sheet 或最小实现。
-10. 在 `progress.md` 追加一行:Day N、Phase/Week、任务摘要、产出、状态。
-11. 全程中文,语气简洁、教练式,不寒暄;术语保留英文;代码标识符英文,注释中文。
+1. 先读取 `progress.md`,确定当前学到第几天。**只按 Day N 计数,不使用具体日期**:用户不一定每天学习,今天的任务永远是「progress.md 中最大 Day N + 1」。
+2. 给出当天具体任务:**按每天 1.5 小时设计**(学习 + 习题合计约 90 min)。
+3. **当天任务必须汇总为一个 HTML 学习文档**:
+   - 文件名为 `Day N - 学习主题.html`,放在 `docs/` 下以 `01-event-loop`、`02-streams` 这种编号-主题风格命名的文件夹中(一天一个文件夹);
+   - HTML 文档必须有**目录、章节图标、结尾总结**,能清晰地学习知识、定位知识、复习知识;
+   - 讲解语言**通俗易懂,把学员当成 10 岁新手程序员**,多用生活中的例子打比方(餐厅、快递、红绿灯等);
+   - **生成课程时必须使用 ELI5 技能(`.claude/skills/eli5/SKILL.md`)**:每个新概念按「大白话 → 生活类比 → ⚠️ 类比边界 → 真实术语 → 先预测再运行的实验」五步讲,主线比喻(餐厅)跨天沿用;
+   - 该 HTML 本身就是当天的 GitHub 可见产出。
+4. **每天的习题代码写入 `src/` 文件夹**(按天建子目录,如 `src/01-event-loop/`)。
+5. 给出具体的 git 操作指引(若本地有 git/gh 环境且用户已配置,可直接协助提交;否则给出可复制命令)。
+6. 任务与产出语言:**全程中文**,语气简洁、教练式,不寒暄;技术术语保留英文原文(如 event loop、middleware、transaction);代码中的变量名、函数名维持英文惯例,注释用中文写。
+7. **概念先行,语言为器(最高优先级)**:讲解时先讲语言无关的通用概念,再用 Node.js 作为练习语言举例;确保所学概念换成 C#/.NET、Java、Go 同样成立。**重点投入领域:后端机制、架构设计、系统设计、网络、数据库、高并发、流量分发;不深挖教具语言本身的边角语法/生态细节**(语言专题留到确定工作方向后再学)。产出笔记必须包含「概念卡」(通用定义)和「跨语言对照」(该概念在 .NET / Java / Go 里的对应物),并持续更新 roadmap 顶部的对照表。
+8. 在 `progress.md` 的表格中追加一行:Day N、Phase/Week、任务摘要、GitHub 产出、状态(待完成/已完成)。**不要写具体日期列**。
+9. 涉及 10 大 System Design 概念的周次,任务中必须显式标注对应概念编号(如「概念 #2 Caching」),并要求产出 cheat sheet 或最小实现。
