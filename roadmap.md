@@ -13,7 +13,7 @@
 - 前端/全栈:React、Next.js(App Router、RSC、Server Actions)✅ 已掌握,只做后端视角复用、TypeScript 高级类型
 - 后端:Node.js、NestJS、GraphQL/tRPC、WebSocket(**注意:欧洲市场 C#/.NET 与 Java 岗位同样极多,概念可迁移性是硬通货**)
 - 数据:**PostgreSQL(全年数据库主线)**、Redis、消息队列(Kafka/RabbitMQ)、向量数据库(pgvector/Qdrant)
-- DevOps:Docker、Kubernetes、CI/CD(GitHub Actions)、AWS 为主
+- DevOps / 云原生:Docker、Kubernetes(+ Helm、Argo CD)、Terraform(IaC)、CI/CD(GitHub Actions)、OpenTelemetry + Prometheus/Grafana、AWS 为主(Azure 在德国 .NET 公司常见)
 - AI Engineering:LLM API、RAG、Agent、Vercel AI SDK / LangChain.js(欧洲市场 2025+ 高增长方向)
 
 ---
@@ -51,67 +51,70 @@
 
 | # | 概念 | 关键词 | 落点 |
 |---|---|---|---|
-| 1 | Load Balancer | 流量分发、L4/L7、健康路由 | Week 24 |
-| 2 | Caching | Redis + Cache Aside、穿透/雪崩 | Week 9 |
-| 3 | CDN | 内容分发加速、边缘缓存 | Week 24 |
-| 4 | Database Replication | 主从复制、读写分离、高可用 | Week 25(Week 10 实战预热) |
-| 5 | Sharding | 水平扩展、分片键、再平衡 | Week 25 |
-| 6 | Message Queues | Kafka / RabbitMQ、异步解耦 | Week 26 |
-| 7 | Rate Limiting | 令牌桶/滑动窗口、接口保护 | Week 13(Redis 实现) |
+| 1 | Load Balancer | 流量分发、L4/L7、健康路由 | Week 25 |
+| 2 | Caching | Redis + Cache Aside、穿透/雪崩 | Week 8 |
+| 3 | CDN | 内容分发加速、边缘缓存 | Week 25 |
+| 4 | Database Replication | 主从复制、读写分离、高可用 | Week 26(Week 9 实战预热) |
+| 5 | Sharding | 水平扩展、分片键、再平衡 | Week 26 |
+| 6 | Message Queues | Kafka / RabbitMQ、异步解耦 | Week 27 |
+| 7 | Rate Limiting | 令牌桶/滑动窗口、接口保护 | Week 12(Redis 实现) |
 | 8 | Circuit Breaker | 故障隔离、熔断/降级 | Week 41 |
-| 9 | Health Checks | 服务探活、liveness/readiness | Week 18 |
-| 10 | Observability | Logs + Metrics + Traces | Week 18(Week 46 进阶到 LLM) |
+| 9 | Health Checks | 服务探活、liveness/readiness | Week 19 |
+| 10 | Observability | Logs + Metrics + Traces | Week 19(Week 46 进阶到 LLM) |
 
 学习要求:每个概念都要「能画图 + 能手写最小实现或配置 + 能用中文 5 句话讲清楚」。(面试需要的英文版表达,留到求职冲刺阶段统一补,不占用日常学习时间。)
 
 ---
 
-## Phase 1(Day 1–28 · Week 1–4):后端运行机制 — 服务端是怎么跑起来的
+## Phase 1(Day 1–21 · Week 1–3):后端运行机制 — 服务端是怎么跑起来的
 
 > 本阶段主题:任何后端语言都绕不开的底层机制——**运行时、并发模型、HTTP 协议、Web 框架解剖**。Node.js 只是第一个观察样本,每周都要回答一个问题:「这个机制在 .NET / Java / Go 里长什么样?」
 
 - Week 1:运行时与并发模型 I(以 Node.js 为例):event loop、流、Buffer、进程模型、worker_threads;**概念卡:单线程事件循环 vs 多线程线程池(.NET/Java)vs 轻量协程(Go),三种并发模型的取舍**
-- Week 2:类型系统与并发模型 II:TypeScript 高级类型在服务端的应用(泛型、条件类型、类型安全的环境变量/DI);**概念卡:静态类型对服务端工程的价值——C#/Java 天然静态类型,TS 是你在 JS 世界提前适应静态类型思维的桥梁**
-- Week 3:Web 框架通用解剖(以 NestJS 为例):**请求管线(中间件 → 守卫 → 拦截器 → 管道)、依赖注入、路由、异常过滤**——这些概念逐一标注 ASP.NET Core(middleware/filter/内置 DI)与 Spring(AOP/IoC)的对应物,而不是背 NestJS 的 API
-- Week 4:API 设计(语言无关):**HTTP 语义深入(方法、状态码、幂等性、内容协商)、REST 约束、版本化、分页、统一错误格式(RFC 7807 problem+json)、OpenAPI 规范**;实战:完整 REST API(任务管理服务),用 NestJS 实现,但设计文档按语言无关的方式写
-- GitHub 产出:每天提交代码或中文笔记;Week 4 项目独立仓库,中文 README;**每周一张概念卡 + 对照表更新**
+- Week 2:Web 框架通用解剖(以 NestJS 为例,含 1 天 TypeScript 服务端类型实战:类型安全的 env 配置 / DI token / zod 推导类型——原独立的 TS 高级类型周已并入此处,语言不是重点):**请求管线(中间件 → 守卫 → 拦截器 → 管道)、依赖注入、路由、异常过滤**——这些概念逐一标注 ASP.NET Core(middleware/filter/内置 DI)与 Spring(AOP/IoC)的对应物,而不是背 NestJS 的 API
+- Week 3:API 设计(语言无关):**HTTP 语义深入(方法、状态码、幂等性、内容协商)、REST 约束、版本化、分页、统一错误格式(RFC 7807 problem+json)、OpenAPI 规范**;实战:完整 REST API(任务管理服务),用 NestJS 实现,但设计文档按语言无关的方式写
+- GitHub 产出:每天提交代码或中文笔记;Week 3 项目独立仓库,中文 README;**每周一张概念卡 + 对照表更新**
 
-## Phase 2(Day 29–70 · Week 5–10):数据层 — 数据库是后端的心脏(以 PostgreSQL 为主线)
+## Phase 2(Day 22–63 · Week 4–9):数据层 — 数据库是后端的心脏(以 PostgreSQL 为主线)
 
 > 本阶段是整个路线图中**语言无关度最高**的部分:SQL、事务、索引、缓存模式在任何技术栈里一字不差。**数据库统一以 PostgreSQL 为主线**(欧洲招聘高频,开源且功能最全;学透 PG 再看 SQL Server / MySQL 只是方言差异)。ORM 则是最体现「同概念不同实现」的典型(Prisma ≈ EF Core ≈ Hibernate)。
-> 调整说明:原 Week 5 一周塞了 SQL + 索引 + 事务,已拆成 Week 5–7 三周,并在 Week 10 加入 PG 运维。
+> 调整说明:原来一周塞了 SQL + 索引 + 事务,已拆成 Week 4–6 三周,并在 Week 9 加入 PG 运维。
 
-- Week 5:**PostgreSQL 入门 + SQL 与数据建模**:docker 起 PG、psql 基本功;关系模型与范式(1NF–3NF)以及什么时候反范式;主键选择(自增 vs UUID v7)、外键与约束(NOT NULL / UNIQUE / CHECK)当作「数据库层的最后一道校验」;SQL 深入(JOIN 全家、子查询 vs CTE、窗口函数、`UPSERT` / `ON CONFLICT`、`RETURNING`);PG 特色类型:JSONB(何时用、何时别用)、数组、`timestamptz`(时区坑);**概念卡:schema 设计是最难改的决定**
-- Week 6:**索引与查询优化(PG)**:B-tree 原理与复合索引最左前缀、覆盖索引(`INCLUDE`)、部分索引 / 表达式索引、GIN(JSONB/全文搜索)/ BRIN(时序大表)各自场景;`EXPLAIN (ANALYZE, BUFFERS)` 读执行计划(Seq Scan / Index Scan / Bitmap / Nested Loop / Hash Join)、统计信息与 `ANALYZE`、`pg_stat_statements` 找慢查询;索引的代价(写放大);**实验:百万行数据,优化前后 EXPLAIN 对比**
-- Week 7:**事务与并发控制(PG)**:ACID 逐个字母拆开;四种隔离级别与 PG 实际行为(Read Committed 默认、Repeatable Read 即快照、Serializable 的 SSI 与重试);**MVCC**(为什么读不阻塞写)、`VACUUM` 与表膨胀;锁:行锁 `SELECT ... FOR UPDATE / SKIP LOCKED`(用 PG 实现任务队列)、表锁、死锁复现与排查、advisory lock;乐观锁(version 字段)vs 悲观锁;连接池原理(为什么 PG 一个连接一个进程,PgBouncer 解决什么);**实验:两个 psql 窗口复现脏读/不可重复读/幻读/丢失更新**
-- Week 8:ORM 与数据访问模式(**重点学模式,不是学 Prisma**):ActiveRecord vs DataMapper、Unit of Work、Repository 模式争议、N+1 问题;用 Prisma(或 Drizzle)实现,对照 EF Core 的 LINQ + DbContext 写法写一页对照笔记;**何时该绕过 ORM 写原生 SQL**(报表、批量、窗口函数)
-- Week 9:Redis 与缓存通用模式(**概念 #2 Caching**:Cache Aside / Read-Through / Write-Behind、穿透/雪崩/击穿、分布式锁、会话存储)——模式全部语言无关,ioredis 只是客户端之一
-- Week 10:**PG 运维 + 实战**:零停机 schema 迁移(expand → migrate → contract,加列/改列/建索引 `CONCURRENTLY` 不锁表)、备份与恢复(`pg_dump` 逻辑备份 vs WAL + PITR 时间点恢复,**做一次恢复演练**)、分区表入门;实战:给 Phase 1 的 API 加上 PostgreSQL + Redis 缓存层,写性能对比笔记;预热**概念 #4**:本地起主从两个 PG 实例观察流复制;**可选加深:NoSQL 全景认知一页纸(文档型 MongoDB / KV / 宽列 Cassandra / 图),各自解决什么问题**
+- Week 4:**PostgreSQL 入门 + SQL 与数据建模**:docker 起 PG、psql 基本功;关系模型与范式(1NF–3NF)以及什么时候反范式;主键选择(自增 vs UUID v7)、外键与约束(NOT NULL / UNIQUE / CHECK)当作「数据库层的最后一道校验」;SQL 深入(JOIN 全家、子查询 vs CTE、窗口函数、`UPSERT` / `ON CONFLICT`、`RETURNING`);PG 特色类型:JSONB(何时用、何时别用)、数组、`timestamptz`(时区坑);**概念卡:schema 设计是最难改的决定**
+- Week 5:**索引与查询优化(PG)**:B-tree 原理与复合索引最左前缀、覆盖索引(`INCLUDE`)、部分索引 / 表达式索引、GIN(JSONB/全文搜索)/ BRIN(时序大表)各自场景;`EXPLAIN (ANALYZE, BUFFERS)` 读执行计划(Seq Scan / Index Scan / Bitmap / Nested Loop / Hash Join)、统计信息与 `ANALYZE`、`pg_stat_statements` 找慢查询;索引的代价(写放大);**实验:百万行数据,优化前后 EXPLAIN 对比**
+- Week 6:**事务与并发控制(PG)**:ACID 逐个字母拆开;四种隔离级别与 PG 实际行为(Read Committed 默认、Repeatable Read 即快照、Serializable 的 SSI 与重试);**MVCC**(为什么读不阻塞写)、`VACUUM` 与表膨胀;锁:行锁 `SELECT ... FOR UPDATE / SKIP LOCKED`(用 PG 实现任务队列)、表锁、死锁复现与排查、advisory lock;乐观锁(version 字段)vs 悲观锁;连接池原理(为什么 PG 一个连接一个进程,PgBouncer 解决什么);**实验:两个 psql 窗口复现脏读/不可重复读/幻读/丢失更新**
+- Week 7:ORM 与数据访问模式(**重点学模式,不是学 Prisma**):ActiveRecord vs DataMapper、Unit of Work、Repository 模式争议、N+1 问题;用 Prisma(或 Drizzle)实现,对照 EF Core 的 LINQ + DbContext 写法写一页对照笔记;**何时该绕过 ORM 写原生 SQL**(报表、批量、窗口函数)
+- Week 8:Redis 与缓存通用模式(**概念 #2 Caching**:Cache Aside / Read-Through / Write-Behind、穿透/雪崩/击穿、分布式锁、会话存储)——模式全部语言无关,ioredis 只是客户端之一
+- Week 9:**PG 运维 + 实战**:零停机 schema 迁移(expand → migrate → contract,加列/改列/建索引 `CONCURRENTLY` 不锁表)、备份与恢复(`pg_dump` 逻辑备份 vs WAL + PITR 时间点恢复,**做一次恢复演练**)、分区表入门;实战:给 Phase 1 的 API 加上 PostgreSQL + Redis 缓存层,写性能对比笔记;预热**概念 #4**:本地起主从两个 PG 实例观察流复制;**可选加深:NoSQL 全景认知一页纸(文档型 MongoDB / KV / 宽列 Cassandra / 图),各自解决什么问题**
 - GitHub 产出:`db-lab/`(建模 ER 图、索引优化前后 EXPLAIN 对比 markdown、四种隔离级别 + 死锁复现脚本、`SKIP LOCKED` 任务队列、零停机迁移示例、备份恢复演练记录)、cache-aside 实现代码
 
-## Phase 3(Day 71–98 · Week 11–14):工程化 — 认证、测试、架构风格 I
+## Phase 3(Day 64–91 · Week 10–13):工程化 — 认证、测试、架构风格 I
 
-- Week 11:认证授权(**协议层,语言无关**):JWT 结构与签名验证原理、Refresh Token 轮换、OAuth2/OIDC 流程(授权码模式 + PKCE)、RBAC vs ABAC 权限模型——实现用 NestJS,但产出物是协议时序图
-- Week 12:测试体系(测试金字塔是通用方法论):单元/集成/E2E 的边界划分、测试替身(mock/stub/fake)、覆盖率门禁;工具用 Vitest/Jest + supertest + Playwright,对照 xUnit + WebApplicationFactory 的等价物
-- Week 13:API 安全与质量(**概念 #7 Rate Limiting**:用 Redis 手写令牌桶 + 滑动窗口限流器、CORS 原理、输入校验、OWASP Top 10)——全部是协议与模式层面的知识
-- Week 14:**架构风格 I(代码级架构,新增重点)+ 实战**:分层架构 → 六边形架构(Hexagonal / Ports & Adapters)→ Clean Architecture 的演进逻辑;**DDD 战术模式入门**(实体、值对象、聚合根、仓储);实战:用六边形架构重构任务服务并落地完整认证模块,测试覆盖率 ≥80%,附中文 SECURITY.md;**对照:微软官方 Clean Architecture 模板(eShop 参考应用)的目录结构**
+- Week 10:认证授权(**协议层,语言无关**):JWT 结构与签名验证原理、Refresh Token 轮换、OAuth2/OIDC 流程(授权码模式 + PKCE)、RBAC vs ABAC 权限模型——实现用 NestJS,但产出物是协议时序图
+- Week 11:测试体系(测试金字塔是通用方法论):单元/集成/E2E 的边界划分、测试替身(mock/stub/fake)、覆盖率门禁;工具用 Vitest/Jest + supertest + Playwright,对照 xUnit + WebApplicationFactory 的等价物
+- Week 12:API 安全与质量(**概念 #7 Rate Limiting**:用 Redis 手写令牌桶 + 滑动窗口限流器、CORS 原理、输入校验、OWASP Top 10)——全部是协议与模式层面的知识
+- Week 13:**架构风格 I(代码级架构,新增重点)+ 实战**:分层架构 → 六边形架构(Hexagonal / Ports & Adapters)→ Clean Architecture 的演进逻辑;**DDD 战术模式入门**(实体、值对象、聚合根、仓储);实战:用六边形架构重构任务服务并落地完整认证模块,测试覆盖率 ≥80%,附中文 SECURITY.md;**对照:微软官方 Clean Architecture 模板(eShop 参考应用)的目录结构**
 - GitHub 产出:测试 PR、限流器代码、架构重构前后对比笔记(为什么端口-适配器模式让你换数据库/换框架时业务代码不动)
 
-## Phase 4(Day 99–126 · Week 15–18):DevOps — Docker / CI/CD / 云部署
+## Phase 4(Day 92–133 · Week 14–19):DevOps 与云原生 — Docker / CI/CD / Kubernetes / Terraform / 云
 
-> 本阶段天然语言无关:Docker、K8s、CI/CD 不关心你容器里跑的是 Node 还是 .NET。
+> 本阶段天然语言无关:Docker、K8s、CI/CD、IaC 不关心你容器里跑的是 Node 还是 .NET。
+> 调整说明:原来 K8s 只占半周「入门」,现扩为两整周,并新增 IaC(Terraform)与 AWS 落地周——这些是德国/瑞士后端与全栈岗位 JD 的高频硬要求。
+> 一条主线贯穿 6 周:**同一个任务服务,从「本机能跑」→ 容器 → 流水线 → K8s 集群 → 用代码造出来的云环境 → 看得见它的健康状态。**
 
-- Week 15:Docker(镜像分层、多阶段构建、docker-compose 编排全栈环境)+ **容器安全基线**(非 root 运行、最小基础镜像、镜像漏洞扫描 Trivy)
-- Week 16:GitHub Actions(测试/构建/部署流水线、缓存、矩阵构建、密钥管理)
-- Week 17:云部署(AWS EC2/ECS 或 Fly.io/Render,域名、HTTPS、环境变量管理)+ Kubernetes 入门(minikube/k3s:Deployment、Service、滚动更新)
-- Week 18:**概念 #9 + #10**:健康检查(liveness/readiness probe)+ 可观测性(**结构化日志、Metrics、Traces 三大支柱是语言无关的**,OpenTelemetry 本身就是跨语言标准;Node 侧用 pino + Prometheus + Grafana)
-- GitHub 产出:workflow 文件、Dockerfile、K8s manifest、中文部署文档
+- Week 14:**Docker 深入**:镜像 vs 容器(菜谱 vs 做出来的菜)、镜像分层与缓存、多阶段构建、`.dockerignore`、网络(bridge / 端口映射 / 容器间 DNS)与数据卷、docker compose 编排全栈本地环境(API + PostgreSQL + Redis)、容器里的信号处理与优雅关闭(PID 1、SIGTERM——呼应 Day 4 进程模型);**容器安全基线**(非 root 运行、最小基础镜像 distroless/alpine、镜像漏洞扫描 Trivy);**概念卡:容器 ≠ 虚拟机**(namespace + cgroup 隔离,共享内核)
+- Week 15:**CI/CD(GitHub Actions)**:流水线 = lint → test → build 镜像 → 推送镜像仓库(GHCR/ECR)→ 部署;缓存、矩阵构建、可复用 workflow、环境与审批门禁、secrets 与 OIDC 免密钥登录云;镜像打 tag 策略(git sha vs semver);**概念卡:CI(持续集成)vs CD(持续交付/部署)**
+- Week 16:**Kubernetes 核心**:为什么需要编排(一台机器管容器 vs 一千台);控制平面 vs 节点、「期望状态 + 控制循环」思想;Pod、Deployment、ReplicaSet、Service(ClusterIP/NodePort/LoadBalancer)、Namespace、ConfigMap、Secret;`kubectl` 基本功与排障(`describe` / `logs` / `exec`、CrashLoopBackOff、ImagePullBackOff);用 kind 或 k3d 在本地起集群,把任务服务 + PostgreSQL 跑上去
+- Week 17:**Kubernetes 生产化**:Ingress / Gateway API(L7 路由 + TLS,cert-manager)、liveness / readiness / startup probe、资源 requests/limits 与 OOMKilled、HPA 自动扩缩容(压测看副本数变化)、滚动更新与回滚、PodDisruptionBudget;有状态服务(StatefulSet、PVC)以及「为什么生产数据库通常用托管 RDS 而不放进 K8s」;**Helm** 打包应用(chart、values 分环境);**GitOps 入门**(Argo CD:git 即期望状态);K8s 安全基础(RBAC、NetworkPolicy、Pod Security)
+- Week 18:**云与基础设施即代码(AWS + Terraform)**:云的核心积木(VPC / 子网 / 安全组、IAM 最小权限、ECR、RDS PostgreSQL、S3、托管 K8s EKS vs 更简单的 ECS Fargate 取舍);**Terraform**:provider / resource / state / plan → apply、远程 state 与锁、模块化、多环境(dev/prod);用 Terraform 造一个最小环境(VPC + RDS + 运行服务),域名与 HTTPS;**成本意识**:用完 `terraform destroy`,设预算告警;**概念卡:IaC 为什么比在控制台点按钮可靠**(可审查、可复现、可回滚);对照:Azure(Bicep/AKS)与 GCP(GKE)的等价物——德国很多 .NET 公司用 Azure
+- Week 19:**概念 #9 + #10**:健康检查(与 Week 17 的 K8s probe 打通)+ 可观测性(**结构化日志、Metrics、Traces 三大支柱是语言无关的**,OpenTelemetry 本身就是跨语言标准;Node 侧用 pino + OpenTelemetry SDK,后端用 Prometheus + Grafana + Loki/Tempo);告警与 SLO 入门(SLI / SLO / 错误预算)
+- GitHub 产出:`infra/` 目录(Dockerfile + compose、workflow 文件、K8s manifest、Helm chart、Terraform 模块、Grafana 面板 JSON)+ 中文部署文档(含「从零到上线」步骤与 `terraform destroy` 清理说明)
 
-## Phase 5(Day 127–161 · Week 19–23):应用安全攻防 · 数据安全 · API 范式 · 实时通信
+## Phase 5(Day 134–168 · Week 20–24):应用安全攻防 · 数据安全 · API 范式 · 实时通信
 
-> 调整说明:原「Next.js App Router 深入」周已删除(学员已掌握),改为**应用安全攻防**;本次再新增**后端数据安全周**,与攻防周组成连续两周的安全专题。Next.js 只在 Week 21 以「Server Actions 是一种 RPC」的后端视角出现一次。
+> 调整说明:原「Next.js App Router 深入」周已删除(学员已掌握),改为**应用安全攻防**;本次再新增**后端数据安全周**,与攻防周组成连续两周的安全专题。Next.js 只在 Week 22 以「Server Actions 是一种 RPC」的后端视角出现一次。
 
-- Week 19:**应用安全攻防周**——用「攻击者视角」先亲手复现漏洞、再修复,每个漏洞产出「攻击步骤 → 根因 → 修复 → 跨语言对照」:
+- Week 20:**应用安全攻防周**——用「攻击者视角」先亲手复现漏洞、再修复,每个漏洞产出「攻击步骤 → 根因 → 修复 → 跨语言对照」:
   - 注入家族:SQL / NoSQL / 命令注入(呼应 Day 4 的 shell 注入炸弹)、参数化查询为什么能根治
   - 浏览器侧攻击的**服务端防线**:XSS 与 CSP、CSRF 与 SameSite Cookie、安全响应头(HSTS、X-Frame-Options)
   - 服务端特有漏洞:SSRF(云元数据接口 169.254.169.254)、IDOR / 越权访问(BOLA,OWASP API Security Top 10 第 1 名)、批量赋值(mass assignment)
@@ -119,7 +122,7 @@
   - 供应链安全:lockfile、npm audit、Dependabot、SBOM
   - **威胁建模**:STRIDE 方法给任务服务画一张威胁图
   - 对照:ASP.NET Core Antiforgery、Spring Security 的等价能力
-- Week 20:**后端数据安全周(新增重点)**——上周是「别让坏人进门」,这周是「**就算进了门、拖走了库,也拿不到有用的数据**」。主线实验:先用 Week 19 的 SQL 注入把用户表拖出来,然后一层层加防线,每加一层重新「拖库」一次,看泄露出去的东西还剩多少价值:
+- Week 21:**后端数据安全周(新增重点)**——上周是「别让坏人进门」,这周是「**就算进了门、拖走了库,也拿不到有用的数据**」。主线实验:先用 Week 20 的 SQL 注入把用户表拖出来,然后一层层加防线,每加一层重新「拖库」一次,看泄露出去的东西还剩多少价值:
   - **数据分级分类**:公开 / 内部 / 机密 / 个人数据(PII)/ 特殊类别个人数据(GDPR 第 9 条:健康、宗教等);先分级,再决定每一级的保护强度
   - **传输中加密**:应用到 PG 强制 TLS(`sslmode=verify-full`,不是只开 `require`)、服务间 mTLS 概念
   - **静态加密的三层**:磁盘/云盘加密(防偷硬盘)→ 数据库层(PG `pgcrypto`)→ **应用层字段加密**(AES-256-GCM,防 DBA 和拖库);三层各自防住谁、防不住谁,做成一张表
@@ -131,33 +134,33 @@
   - **secrets 管理**:数据库密码和 API key 不进 git(gitleaks 扫描)、Secrets Manager、短期动态凭证(Vault 动态 DB 账号)、轮换
   - **合规概念卡:GDPR/DSGVO 与瑞士 nDSG 对后端设计的影响**:数据最小化、存储期限与自动删除(TTL 任务)、删除权与导出权接口、假名化 vs 匿名化(假名化的数据仍是个人数据)、数据驻留(数据存在哪个国家)、72 小时泄露通报——德国/瑞士面试高频
   - 对照:SQL Server Always Encrypted / TDE、ASP.NET Core Data Protection、Java JCE + Spring Vault、Go `crypto/aes` + Vault SDK
-- Week 21:API 范式横向对比(**概念卡:REST vs GraphQL vs RPC(tRPC/gRPC)各自的适用场景**——gRPC 在 .NET/Java 微服务里极高频):tRPC 端到端类型安全(或 GraphQL + Pothos/codegen),对比 REST 写中文复盘;**把已掌握的 Next.js Server Actions 当作「框架内置 RPC」纳入对比**(只写一页后端视角笔记:它在网络上实际发了什么请求、如何鉴权、如何防 CSRF),不额外占课时;**GraphQL 安全**:查询深度/复杂度限制、introspection 关闭
-- Week 22:实时通信协议(语言无关):长轮询 vs SSE vs WebSocket vs WebRTC 的原理与取舍、乐观更新、presence/协作基础;Node 侧用 ws 实现,标注 SignalR(.NET)的等价能力
-- Week 23:实战 — 给已有项目加实时通知模块 + tRPC/GraphQL 层
+- Week 22:API 范式横向对比(**概念卡:REST vs GraphQL vs RPC(tRPC/gRPC)各自的适用场景**——gRPC 在 .NET/Java 微服务里极高频):tRPC 端到端类型安全(或 GraphQL + Pothos/codegen),对比 REST 写中文复盘;**把已掌握的 Next.js Server Actions 当作「框架内置 RPC」纳入对比**(只写一页后端视角笔记:它在网络上实际发了什么请求、如何鉴权、如何防 CSRF),不额外占课时;**GraphQL 安全**:查询深度/复杂度限制、introspection 关闭
+- Week 23:实时通信协议(语言无关):长轮询 vs SSE vs WebSocket vs WebRTC 的原理与取舍、乐观更新、presence/协作基础;Node 侧用 ws 实现,标注 SignalR(.NET)的等价能力
+- Week 24:实战 — 给已有项目加实时通知模块 + tRPC/GraphQL 层
 - GitHub 产出:`security-lab/`(每个漏洞一个「复现 → 修复」前后对比目录 + STRIDE 威胁模型图)、`data-security-lab/`(「拖库实验」每加一层防线的前后对比、字段加密 + 盲索引 + 信封加密实现、PG 权限与 RLS 脚本、日志脱敏配置、数据分级表 + GDPR 概念卡)、实时模块代码、三种 API 范式对比文章(中文 markdown)
 
-## Phase 6(Day 162–196 · Week 24–28):系统设计基础(10 大概念集中攻坚)
+## Phase 6(Day 169–203 · Week 25–29):系统设计基础(10 大概念集中攻坚)
 
-- Week 24:**概念 #1 Load Balancer + #3 CDN**(L4/L7、轮询/最少连接、Nginx/HAProxy 本地实验、CDN 缓存命中与失效)
-- Week 25:**概念 #4 Database Replication + #5 Sharding**(主从复制、读写分离、故障切换直觉;分片键选择、一致性哈希、跨分片查询)
-- Week 26:**概念 #6 Message Queues**(Kafka/RabbitMQ、事件驱动架构、**幂等性、at-least-once vs exactly-once、outbox 模式**——这些语义在任何 MQ 客户端里都一样)
-- Week 27:经典系统设计题 I(URL shortener、限流器、feed 系统)—— 每题画架构图 + 中文设计稿,强制用上已学概念
-- Week 28:实战 — 在现有项目中引入消息队列,实现异步任务(邮件/报表);**对照:.NET 的 Hangfire/MassTransit、Java 的 Quartz 解决同类问题**
+- Week 25:**概念 #1 Load Balancer + #3 CDN**(L4/L7、轮询/最少连接、Nginx/HAProxy 本地实验、CDN 缓存命中与失效)
+- Week 26:**概念 #4 Database Replication + #5 Sharding**(主从复制、读写分离、故障切换直觉;分片键选择、一致性哈希、跨分片查询)
+- Week 27:**概念 #6 Message Queues**(Kafka/RabbitMQ、事件驱动架构、**幂等性、at-least-once vs exactly-once、outbox 模式**——这些语义在任何 MQ 客户端里都一样)
+- Week 28:经典系统设计题 I(URL shortener、限流器、feed 系统)—— 每题画架构图 + 中文设计稿,强制用上已学概念
+- Week 29:实战 — 在现有项目中引入消息队列,实现异步任务(邮件/报表);**对照:.NET 的 Hangfire/MassTransit、Java 的 Quartz 解决同类问题**
 - GitHub 产出:`system-design/` 目录,每题一个中文 markdown + mermaid 架构图;10 个概念各一页中文 cheat sheet
 
-## Phase 7(Day 197–231 · Week 29–33):全栈 Capstone 项目 1
+## Phase 7(Day 204–238 · Week 30–34):全栈 Capstone 项目 1
 
 - 题目建议:多租户 SaaS(如团队协作/招聘平台 clone,贴合欧洲市场业务)
-- 要求:NestJS + PostgreSQL + Redis + Docker + CI/CD + 云部署 + 完整测试;**前端用已掌握的 Next.js 做够用的薄 UI,不在前端打磨上花时间**;
-- **后端与安全加码(用省下的前端时间)**:多租户数据隔离(PostgreSQL Row-Level Security vs 每租户 schema 的取舍)、审计日志、**按 Week 20 的标准做数据安全**(数据分级表、PII 字段加密 + 盲索引、最小权限 DB 账号、日志脱敏、加密备份 + 恢复演练)、上线前 STRIDE 威胁建模 + OWASP ASVS Level 1 自查清单、GDPR 数据导出/删除接口;必须用到至少 5 个 10 大概念(缓存、限流、健康检查、可观测性、消息队列);**代码组织必须按 Week 14 学的六边形架构,并在 README 里写清「如果明天换成 ASP.NET Core,哪些层可以原样保留思路」**
+- 要求:NestJS + PostgreSQL + Redis + Docker + CI/CD + **K8s(Helm 部署)+ Terraform 管理云资源** + 完整测试;**前端用已掌握的 Next.js 做够用的薄 UI,不在前端打磨上花时间**;
+- **后端与安全加码(用省下的前端时间)**:多租户数据隔离(PostgreSQL Row-Level Security vs 每租户 schema 的取舍)、审计日志、**按 Week 21 的标准做数据安全**(数据分级表、PII 字段加密 + 盲索引、最小权限 DB 账号、日志脱敏、加密备份 + 恢复演练)、上线前 STRIDE 威胁建模 + OWASP ASVS Level 1 自查清单、GDPR 数据导出/删除接口;必须用到至少 5 个 10 大概念(缓存、限流、健康检查、可观测性、消息队列);**代码组织必须按 Week 13 学的六边形架构,并在 README 里写清「如果明天换成 ASP.NET Core,哪些层可以原样保留思路」**
 - 文档语言:中文 README、commit message、issue/PR;每 2 周一个可演示里程碑,写中文 dev log
 - GitHub 产出:主仓库持续提交,部署链接挂在 README
 
-## Phase 8(Day 232–273 · Week 34–39):全栈 Capstone 项目 2 + 开源贡献
+## Phase 8(Day 239–273 · Week 35–39):全栈 Capstone 项目 2 + 开源贡献
 
-- Week 34–36:第二个项目(压缩为 3 周,只做实时特性这一个新增点,其余复用 Capstone 1 的工程骨架)(建议含实时特性:协作编辑/通知/白板,用上 Phase 5 的 WebSocket 能力)
-- Week 37–39:开源贡献 — 给 NestJS/Prisma/tRPC/Fastify 等**后端**仓库提 PR(从 good first issue 开始;开源 PR 的标题与描述按目标仓库惯例用英文,这是极少数必须用英文的场景)
-- **可选支线(有余力时):用 C#/.NET 把一个已有小项目(如 Week 4 的任务管理 API)重写一遍**——这是对全年「概念可迁移性」学习策略的终极检验,也是对标欧洲 .NET 岗位的直接作品
+- Week 35–37:第二个项目(压缩为 3 周,只做实时特性这一个新增点,其余复用 Capstone 1 的工程骨架)(建议含实时特性:协作编辑/通知/白板,用上 Phase 5 的 WebSocket 能力)
+- Week 38–39:开源贡献(由 3 周压到 2 周,让时间给云原生) — 给 NestJS/Prisma/tRPC/Fastify 等**后端**仓库提 PR(从 good first issue 开始;开源 PR 的标题与描述按目标仓库惯例用英文,这是极少数必须用英文的场景)
+- **可选支线(有余力时):用 C#/.NET 把一个已有小项目(如 Week 3 的任务管理 API)重写一遍**——这是对全年「概念可迁移性」学习策略的终极检验,也是对标欧洲 .NET 岗位的直接作品
 - GitHub 产出:开源 PR 记录、项目 2 仓库
 
 ## Phase 9(Day 274–294 · Week 40–42):高级系统设计 + 架构风格 II
