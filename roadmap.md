@@ -3,13 +3,14 @@
 > 学员背景:7 年前端经验,目标成为高级全栈工程师,应聘全球市场(重点:德国/瑞士)。
 > 技术主线:**全 TypeScript 栈**(Next.js + Node.js/NestJS)+ PostgreSQL + 云部署 + 系统设计 + AI Engineering。
 > **核心学习策略:概念先行,语言为器。** 学员的优先级声明(置顶,所有阶段的最高指导原则):**语言不是重点,深刻理解后端才是。** 要重点吃透的通用领域:后端运行机制、**架构设计、系统设计、计算机网络、数据库、高并发、流量分发(负载均衡/分流)** 等——这些概念在任何语言里都一样。Node.js/TypeScript 只是顺手的「教具/练习语言」;**具体语言的深入(如 C#/.NET 生态工具链)等确定工作方向后再专题学**,届时靠概念映射快速上手即可。每个后端主题都要产出「概念卡 + 跨语言对照」,但不追求教具语言本身的边角知识。
+> **已掌握模块:Next.js(App Router / RSC / Server Actions 等)学员已学完**——路线图中不再为它单独排课,Capstone 前端只做「够用的薄 UI」,省下的时间全部投入**后端深度与安全**。
 > 时间标准:**每天 1.5 小时**(约 50 min 学习 + 30 min 动手练习 + 10 min 产出整理)。
 > 原则:每天进步一点点,每天都有 GitHub 可见的产出(commit / PR / issue / 文档)。
 > 语言策略:**产出以中文为主**——笔记、文档、README、设计稿一律用中文写,技术术语保留英文原文(如 event loop、middleware、transaction),先保证理解透;变量名、函数名保持英文(行业惯例),代码注释也用中文写;英文版产出(README/总结/面试表达)只作为有余力时或求职冲刺阶段的可选加分项,不作每日要求。
 
 ## 目标市场技术栈参考(德国/瑞士招聘高频 · TS 方向)
 
-- 前端/全栈:React、Next.js(App Router、RSC、Server Actions)、TypeScript 高级类型
+- 前端/全栈:React、Next.js(App Router、RSC、Server Actions)✅ 已掌握,只做后端视角复用、TypeScript 高级类型
 - 后端:Node.js、NestJS、GraphQL/tRPC、WebSocket(**注意:欧洲市场 C#/.NET 与 Java 岗位同样极多,概念可迁移性是硬通货**)
 - 数据:PostgreSQL、Redis、消息队列(Kafka/RabbitMQ)、向量数据库(pgvector/Qdrant)
 - DevOps:Docker、Kubernetes、CI/CD(GitHub Actions)、AWS 为主
@@ -30,6 +31,7 @@
 | 依赖注入(DI) | NestJS IoC 容器 | 内置 DI(Microsoft.Extensions.DI) | Spring IoC | 手动注入 / wire |
 | ORM / 数据访问 | Prisma / Drizzle | EF Core(LINQ) | Hibernate / JPA | GORM / sqlx |
 | DB 迁移 | Prisma Migrate | EF Core Migrations | Flyway / Liquibase | goose / migrate |
+| 认证授权 / 安全框架 | Passport + NestJS Guard、helmet | ASP.NET Core Identity + Authorization Policy、Data Protection | Spring Security | middleware + golang-jwt / casbin |
 | 输入校验 | zod / class-validator | DataAnnotations / FluentValidation | Bean Validation | validator |
 | 配置与环境 | dotenv + 类型安全 env | appsettings.json + Options 模式 | application.yml + @ConfigurationProperties | env / viper |
 | 结构化日志 | pino / winston | Serilog / ILogger | SLF4J + Logback | slog / zap |
@@ -95,19 +97,29 @@
 
 > 本阶段天然语言无关:Docker、K8s、CI/CD 不关心你容器里跑的是 Node 还是 .NET。
 
-- Week 13:Docker(镜像分层、多阶段构建、docker-compose 编排全栈环境)
+- Week 13:Docker(镜像分层、多阶段构建、docker-compose 编排全栈环境)+ **容器安全基线**(非 root 运行、最小基础镜像、镜像漏洞扫描 Trivy)
 - Week 14:GitHub Actions(测试/构建/部署流水线、缓存、矩阵构建、密钥管理)
 - Week 15:云部署(AWS EC2/ECS 或 Fly.io/Render,域名、HTTPS、环境变量管理)+ Kubernetes 入门(minikube/k3s:Deployment、Service、滚动更新)
 - Week 16:**概念 #9 + #10**:健康检查(liveness/readiness probe)+ 可观测性(**结构化日志、Metrics、Traces 三大支柱是语言无关的**,OpenTelemetry 本身就是跨语言标准;Node 侧用 pino + Prometheus + Grafana)
 - GitHub 产出:workflow 文件、Dockerfile、K8s manifest、中文部署文档
 
-## Phase 5(Day 121–150):现代 TS 全栈深化 — Next.js / tRPC / GraphQL / 实时
+## Phase 5(Day 121–150):应用安全攻防 · API 范式 · 实时通信
 
-- Week 17:Next.js App Router 深入(RSC、Server Actions、缓存策略、Streaming SSR)——以全栈视角重学前端框架
-- Week 18:API 范式横向对比(**概念卡:REST vs GraphQL vs RPC(tRPC/gRPC)各自的适用场景**——gRPC 在 .NET/Java 微服务里极高频):tRPC 端到端类型安全(或 GraphQL + Pothos/codegen),对比 REST 写中文复盘
+> 调整说明:原 Week 17「Next.js App Router 深入」已删除(学员已掌握),整周改为**应用安全攻防**;Next.js 只在 Week 18 以「Server Actions 是一种 RPC」的后端视角出现一次。
+
+- Week 17:**应用安全攻防周(新增重点,替代原 Next.js 周)**——用「攻击者视角」先亲手复现漏洞、再修复,每个漏洞产出「攻击步骤 → 根因 → 修复 → 跨语言对照」:
+  - 注入家族:SQL / NoSQL / 命令注入(呼应 Day 4 的 shell 注入炸弹)、参数化查询为什么能根治
+  - 浏览器侧攻击的**服务端防线**:XSS 与 CSP、CSRF 与 SameSite Cookie、安全响应头(HSTS、X-Frame-Options)
+  - 服务端特有漏洞:SSRF(云元数据接口 169.254.169.254)、IDOR / 越权访问(BOLA,OWASP API Security Top 10 第 1 名)、批量赋值(mass assignment)
+  - 密码学实用层:密码存储(bcrypt/argon2:加盐 + 慢哈希)、TLS 握手原理、对称/非对称加密与签名的区别、secrets 管理(不进 git、轮换)
+  - 供应链安全:lockfile、npm audit、Dependabot、SBOM
+  - **威胁建模**:STRIDE 方法给任务服务画一张威胁图
+  - **合规概念卡:GDPR/DSGVO 与瑞士 nDSG 对后端设计的影响**(数据最小化、删除权、日志脱敏、数据驻留)——德国/瑞士面试高频
+  - 对照:ASP.NET Core Data Protection / Antiforgery、Spring Security 的等价能力
+- Week 18:API 范式横向对比(**概念卡:REST vs GraphQL vs RPC(tRPC/gRPC)各自的适用场景**——gRPC 在 .NET/Java 微服务里极高频):tRPC 端到端类型安全(或 GraphQL + Pothos/codegen),对比 REST 写中文复盘;**把已掌握的 Next.js Server Actions 当作「框架内置 RPC」纳入对比**(只写一页后端视角笔记:它在网络上实际发了什么请求、如何鉴权、如何防 CSRF),不额外占课时;**GraphQL 安全**:查询深度/复杂度限制、introspection 关闭
 - Week 19:实时通信协议(语言无关):长轮询 vs SSE vs WebSocket vs WebRTC 的原理与取舍、乐观更新、presence/协作基础;Node 侧用 ws 实现,标注 SignalR(.NET)的等价能力
 - Week 20:实战 — 给已有项目加实时通知模块 + tRPC/GraphQL 层
-- GitHub 产出:实时模块代码、三种 API 范式对比文章(中文 markdown)
+- GitHub 产出:`security-lab/`(每个漏洞一个「复现 → 修复」前后对比目录 + STRIDE 威胁模型图 + GDPR 概念卡)、实时模块代码、三种 API 范式对比文章(中文 markdown)
 
 ## Phase 6(Day 151–185):系统设计基础(10 大概念集中攻坚)
 
@@ -121,14 +133,15 @@
 ## Phase 7(Day 186–230):全栈 Capstone 项目 1
 
 - 题目建议:多租户 SaaS(如团队协作/招聘平台 clone,贴合欧洲市场业务)
-- 要求:Next.js + NestJS + PostgreSQL + Redis + Docker + CI/CD + 云部署 + 完整测试;必须用到至少 5 个 10 大概念(缓存、限流、健康检查、可观测性、消息队列);**代码组织必须按 Week 12 学的六边形架构,并在 README 里写清「如果明天换成 ASP.NET Core,哪些层可以原样保留思路」**
+- 要求:NestJS + PostgreSQL + Redis + Docker + CI/CD + 云部署 + 完整测试;**前端用已掌握的 Next.js 做够用的薄 UI,不在前端打磨上花时间**;
+- **后端与安全加码(用省下的前端时间)**:多租户数据隔离(PostgreSQL Row-Level Security vs 每租户 schema 的取舍)、审计日志、上线前 STRIDE 威胁建模 + OWASP ASVS Level 1 自查清单、GDPR 数据导出/删除接口;必须用到至少 5 个 10 大概念(缓存、限流、健康检查、可观测性、消息队列);**代码组织必须按 Week 12 学的六边形架构,并在 README 里写清「如果明天换成 ASP.NET Core,哪些层可以原样保留思路」**
 - 文档语言:中文 README、commit message、issue/PR;每 2 周一个可演示里程碑,写中文 dev log
 - GitHub 产出:主仓库持续提交,部署链接挂在 README
 
 ## Phase 8(Day 231–270):全栈 Capstone 项目 2 + 开源贡献
 
 - Week 31–35:第二个项目(建议含实时特性:协作编辑/通知/白板,用上 Phase 5 的 WebSocket 能力)
-- Week 36–38:开源贡献 — 给 NestJS/Prisma/Next.js/tRPC 等仓库提 PR(从 good first issue 开始;开源 PR 的标题与描述按目标仓库惯例用英文,这是极少数必须用英文的场景)
+- Week 36–38:开源贡献 — 给 NestJS/Prisma/tRPC/Fastify 等**后端**仓库提 PR(从 good first issue 开始;开源 PR 的标题与描述按目标仓库惯例用英文,这是极少数必须用英文的场景)
 - **可选支线(有余力时):用 C#/.NET 把一个已有小项目(如 Week 4 的任务管理 API)重写一遍**——这是对全年「概念可迁移性」学习策略的终极检验,也是对标欧洲 .NET 岗位的直接作品
 - GitHub 产出:开源 PR 记录、项目 2 仓库
 
@@ -150,7 +163,7 @@
 
 ## Phase 11(Day 341–365):AI 全栈 Capstone + 系统设计综合复盘
 
-- Week 47–49:AI 全栈项目 — 把 LLM 能力做进一个完整产品(如 AI 知识库问答 SaaS:Next.js + NestJS + pgvector + RAG + 流式响应 + 订阅计费),全程沿用 Capstone 1 的工程标准
+- Week 47–49:AI 全栈项目 — 把 LLM 能力做进一个完整产品(如 AI 知识库问答 SaaS:NestJS + pgvector + RAG + 流式响应 + 订阅计费,前端仍是 Next.js 薄 UI);**AI 安全必做:prompt injection 防护、RAG 检索的租户权限过滤、PII 脱敏后再发给 LLM**,全程沿用 Capstone 1 的工程标准
 - Week 50:系统设计综合周 — 每天一题,把 AI 系统纳入设计(如"设计一个支持 RAG 的企业搜索"),逐题自查 10 大概念覆盖度
 - Week 51–52:全年复盘 — 整理 GitHub 成果墙、重构最有价值的两个仓库 README、**把填满的「后端概念跨语言对照表」整理成一篇独立的可迁移性总结(求职 .NET/Java 岗位时的秘密武器)**、写一篇中文年终技术总结(此时如有余力,可把核心 README 和总结翻成英文,直接进入求职冲刺)
 - GitHub 产出:AI capstone 仓库、中文年度总结博客(可放 GitHub Pages)
