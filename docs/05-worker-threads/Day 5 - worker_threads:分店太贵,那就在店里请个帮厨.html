@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 5 - worker_threads:分店太贵,那就在店里请个帮厨</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 1</div>
+  <h1>Day 5 - worker_threads:分店太贵,那就在店里请个帮厨</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>多线程(Multi-thread)与线程池</b>——CPU 硬菜交给同一家店里的帮厨,服务员继续招呼客人 ·
+    练习语言:Node.js(它只是教具,"线程、共享内存、原子操作、线程池"这套概念在 C#/Java/Go 里一模一样)
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🍳 接上回:开分店太贵了,有没有便宜点的帮手?</a></li>
+    <li><a href="#sec2">📇 概念卡 #1:worker_threads —— 自带小灶的帮厨</a></li>
+    <li><a href="#sec3">📇 概念卡 #2:给帮厨递东西的三种方式 —— 复印 / 整箱交出去 / 共用白板</a></li>
+    <li><a href="#sec4">📇 概念卡 #3:线程池 —— 别每道菜现招一个帮厨</a></li>
+    <li><a href="#sec5">🧭 四种帮手怎么选:一张决策表</a></li>
+    <li><a href="#sec6">🌍 跨语言对照(线程池思想 everywhere)</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🍳 接上回:开分店太贵了,有没有便宜点的帮手?</h2>
+  <p>Day 4 我们学会了"开分店"(fork 子进程):CPU 硬菜外包出去,总店服务员照常巡场。但 Day 4 习题 2 最后一道思考题已经埋了个钩子:<b>开一家分店要新起一个完整的 Node(新 V8、几十 MB 内存、几百毫秒)</b>。如果硬菜只要做几毫秒,却一天要做几百万次,每次都开一家分店,开店的钱比菜钱还贵。</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    你不会为了切一盘黄瓜,专门去隔壁街租个门面开分店。你会在<b>自己店里请一个帮厨</b>:不用新门面、不用新执照,上岗快、成本低,切完黄瓜接着切土豆。今天的主角 <code>worker_threads</code> 就是这个帮厨。
+  </div>
+  <p>到今天为止,你的店里已经出现过四种"帮手"。先把地图摆出来,今天只补上第 3 格:</p>
+  <table>
+    <tr><th>#</th><th>餐厅里的角色</th><th>真实身份</th><th>谁来指挥</th><th>第几天学</th></tr>
+    <tr><td>1</td><td>服务员</td><td>主线程上的 event loop,跑你的 JS</td><td>你写的代码</td><td>Day 1–2</td></tr>
+    <tr><td>2</td><td>后厨洗碗工(你看不见)</td><td>libuv 线程池(默认 4 个),做文件读写、DNS、crypto、zlib 这类"系统活"</td><td>Node 内部自动派,你不能直接派活</td><td>Day 1</td></tr>
+    <tr><td>3</td><td><b>帮厨</b></td><td><b>worker_threads</b>:同一进程里的新线程,<b>跑你的 JS</b></td><td><b>你亲自派活</b></td><td><b>今天</b></td></tr>
+    <tr><td>4</td><td>分店</td><td>子进程(child_process / cluster)</td><td>你亲自派活</td><td>Day 4</td></tr>
+  </table>
+  <div class="warn">
+    <span class="tag">⚠️ 先补一句 Day 4 的订正:</span>
+    Day 4 习题 3 杀掉分店后"服务零中断",是因为脚本等了 800ms 才发下一批请求。真实生产中,<b>正在那家分店里处理的请求会被一起掐断</b>。所以要做"优雅关闭"(收到 SIGTERM 先停止接新单,做完手上的单再走),这一点 Week 14 Docker 周会再练。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>📇 概念卡 #1:worker_threads —— 自带小灶的帮厨</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    在同一家店里多请一个能独立做菜的人,专门做费时间的硬菜,让服务员腾出手继续招呼客人。
+  </div>
+
+  <h3>② 生活类比:自带小灶的帮厨</h3>
+  <p>这个帮厨和服务员在<b>同一个店面</b>(同一个进程,PID 相同),但他有<b>自己的一口小灶、自己的砧板、自己的待办清单</b>,不碰服务员的锅。两人之间隔着一个<b>传菜口</b>:服务员把单子从传菜口递进去,帮厨做好再从传菜口递出来。</p>
+  <pre><code>import { Worker, isMainThread, parentPort } from "node:worker_threads";
+
+if (isMainThread) {
+  // 服务员:请一个帮厨(同一个文件,换个身份运行)
+  const w = new Worker(new URL(import.meta.url));
+  w.postMessage(40);                              // 从传菜口递单
+  w.on("message", (r) => console.log("fib =", r)); // 从传菜口接菜
+} else {
+  // 帮厨:在自己的小灶上做硬菜
+  parentPort!.on("message", (n) => parentPort!.postMessage(fib(n)));
+}</code></pre>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th></tr>
+    <tr><td>同一个店面</td><td>同一个 OS 进程(<code>process.pid</code> 相同)</td></tr>
+    <tr><td>帮厨这个人</td><td>一个 OS 线程(<code>threadId</code> 不同,主线程是 0)</td></tr>
+    <tr><td>帮厨自己的小灶 / 砧板</td><td>独立的 <b>V8 isolate</b>:自己的 JS 堆、自己的全局变量</td></tr>
+    <tr><td>帮厨自己的待办清单</td><td>帮厨自己的 event loop(他里面也能 setTimeout、await)</td></tr>
+    <tr><td>传菜口</td><td>消息通道:<code>postMessage</code> / <code>on("message")</code>(<code>parentPort</code> 是帮厨那一侧的传菜口)</td></tr>
+    <tr><td>上岗时手里拿的交接单</td><td><code>workerData</code>:创建 Worker 时一次性带进去的数据</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>"同一家店的员工应该共用厨房"——在 Node 里不成立。</b>Java、C# 的线程默认共享所有对象(真的共用一个厨房,所以要处处加锁)。Node 的帮厨自带小灶,<b>服务员的变量他看不见</b>,只能靠传菜口递消息。只有一种例外:专门划出来的"共享白板"(概念卡 #2)。</li>
+      <li><b>"帮厨是独立的人,他出事不关我事"——只对了一半。</b>帮厨抛了没 catch 的异常,只要服务员这边监听了 <code>worker.on("error")</code>,就只有这一个帮厨下岗;<b>但如果服务员没监听 error,这个异常会被转抛到主线程,把整家店带崩。</b>而像底层 C++ 崩溃、整个进程内存耗尽这种"店面着火",帮厨和服务员会一起完蛋。论隔离,帮厨不如分店。</li>
+      <li><b>"请帮厨很便宜"——是相对的。</b>每个帮厨都是一个完整的 V8 isolate,也要几十 MB 内存、上百毫秒才能上岗。比开分店便宜,但绝不是免费(习题 1 你会亲手量出来)。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>worker_threads</b> 是 Node 的多线程 API:每个 <code>Worker</code> 运行在独立的 OS 线程上,拥有独立的 <b>V8 isolate</b> 和 event loop,线程之间默认<b>不共享 JS 对象</b>,通过<b>消息传递(message passing)</b>通信。它和 libuv 线程池的区别:libuv 线程池跑的是 Node 内部的 C++ 系统活,你没法往里塞 JS;worker_threads 跑的是你自己写的 JS。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>习题 1 里,你先猜"帮厨算 fib(40) 时服务员的心跳停不停"、"请帮厨和开分店的上岗成本差多少",再运行看答案。</p>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #2:给帮厨递东西的三种方式 —— 复印 / 整箱交出去 / 共用白板</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    东西要从服务员手里到帮厨手里,只有三种办法:给他一份复印件、把原件整箱交给他、或者两人在同一块白板上写字。
+  </div>
+
+  <h3>② 生活类比 + 比喻 ↔ 真实</h3>
+  <table>
+    <tr><th>方式</th><th>餐厅里</th><th>真实 API</th><th>代价</th></tr>
+    <tr>
+      <td><b>复印</b>(默认)</td>
+      <td>菜谱复印一份递进去,原件还在服务员手里,两人各改各的</td>
+      <td><code>w.postMessage(obj)</code>,底层是 <b>structured clone</b>(结构化克隆)</td>
+      <td>东西越大,复印越慢</td>
+    </tr>
+    <tr>
+      <td><b>整箱交出去</b></td>
+      <td>把一整箱食材直接推过传菜口,<b>服务员手里就没了</b></td>
+      <td><code>w.postMessage(buf, [buf])</code>:第二个参数是 <b>transferList</b></td>
+      <td>几乎零成本,但原件作废(变成 0 字节的空壳)</td>
+    </tr>
+    <tr>
+      <td><b>共用白板</b></td>
+      <td>墙上挂一块两人都能写的白板,不用递来递去</td>
+      <td><b>SharedArrayBuffer</b> + <b>Atomics</b></td>
+      <td>不用拷贝,但必须守写字规矩,否则会记乱账</td>
+    </tr>
+  </table>
+  <pre><code>// 复印:原件还在
+w.postMessage(bigBuffer);
+// 整箱交出去:原件变空壳
+w.postMessage(bigBuffer, [bigBuffer]);
+console.log(bigBuffer.byteLength); // 猜猜是多少?(习题 2 揭晓)
+
+// 共用白板
+const shared = new SharedArrayBuffer(4);
+const counter = new Int32Array(shared);
+new Worker(file, { workerData: { shared } }); // 白板的"位置"告诉帮厨,不复印
+Atomics.add(counter, 0, 1);                    // 守规矩地 +1</code></pre>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>"什么都能复印"——不能。</b>函数、class 实例上的方法、数据库连接、socket 这类"活物"复印不了,会报 <code>DataCloneError</code>,或者丢掉原型只剩一个普通对象。能复印的只有纯数据:对象、数组、Map、Date、Buffer 等。</li>
+      <li><b>"什么都能整箱交出去"——也不能。</b>只有 <code>ArrayBuffer</code>、<code>MessagePort</code> 这类特殊的"箱子"支持 transfer,普通对象只能复印。</li>
+      <li><b>"白板上写个数字只是一步"——这是最危险的错觉。</b><code>counter[0]++</code> 看起来是一步,实际是"<b>读</b>出来 → 加 1 → <b>写</b>回去"三步。两个帮厨同时读到 100,各自加 1 写回 101,两笔账只记了一笔。这就是<b>竞态条件(race condition)</b>。现实中白板上的笔迹是看得见的,内存里的"同时写"却悄无声息。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>structured clone</b>:postMessage 默认使用的深拷贝算法;<b>transferable</b>:可以转移所有权的对象,转移后原对象被 <b>detach</b>(byteLength 变成 0);<b>SharedArrayBuffer</b>:多个线程映射到同一块内存;<b>Atomics</b>:对共享内存做<b>原子操作</b>(读改写一气呵成,中间不会被别人插队)。<br>
+    <b>默认选择</b>:日常一律复印(简单,不会出错);大块二进制(图片、音视频、大数组)用 transfer;只有高性能场景(多个线程频繁更新同一批数字)才值得用共享内存 + Atomics。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>习题 2 里递一个 200MB 的箱子,比较复印和整箱交出去的耗时;再让 4 个帮厨在同一块白板上各记 100 万笔账,看最后会不会丢账。</p>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #3:线程池 —— 别每道菜现招一个帮厨</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    提前请好固定几个帮厨,菜来了先排队,哪个帮厨空了就接下一道。
+  </div>
+
+  <h3>② 生活类比:帮厨班组 + 排队单</h3>
+  <p>如果每来一道硬菜就现招一个帮厨,招人的时间比做菜还长,做完还要辞退。聪明的店长会<b>开店时就请好一个固定的帮厨班组</b>,门口挂一张排队单:菜来了写到单子上,谁空了谁接。帮厨做完一道不走人,回到待命区等下一道。</p>
+  <pre><code>class MiniPool {
+  idle: Worker[] = [];   // 待命区
+  queue: Job[] = [];     // 排队单
+
+  run(n) {               // 来了一道菜
+    this.queue.push(n);
+    this.dispatch();
+  }
+  dispatch() {           // 有空闲帮厨 + 有菜排队 → 派单
+    while (this.idle.length && this.queue.length) { ... }
+  }
+}</code></pre>
+  <p>习题 3 里有完整的 60 行实现,你会亲手看到 8 道菜由 4 个帮厨轮流接走。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th></tr>
+    <tr><td>帮厨班组</td><td>线程池(thread pool):预先创建、反复复用的固定数量线程</td></tr>
+    <tr><td>排队单</td><td>任务队列(task queue)</td></tr>
+    <tr><td>灶台数量</td><td>CPU 核数(<code>os.availableParallelism()</code>)</td></tr>
+    <tr><td>帮厨做完回待命区</td><td>线程复用:不销毁、不重建,省掉每次的启动成本</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>"帮厨越多,出菜越快"——错。</b>真正的瓶颈是<b>灶台(CPU 核)</b>。4 个灶台请 32 个帮厨,同一时刻还是只有 4 个人在炒,其余的人在抢灶台(OS 来回切换线程,即<b>上下文切换</b>),反而更慢。CPU 密集任务的池大小 ≈ 核数。习题 3 可以试试池大小 32。</li>
+      <li><b>"有了帮厨,什么活都交给他更快"——错。</b>帮厨只对<b>"算"</b>(CPU 密集)有用。查数据库、调 HTTP 这种<b>"等"</b>(I/O 密集),服务员本来就不站着等(Day 1 的黄金法则),交给帮厨等于多雇一个人陪你一起等外卖。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>thread pool</b>(线程池)+ <b>task queue</b>(任务队列);<b>CPU-bound</b>(CPU 密集:图片压缩、密码哈希、大报表、解析巨型 JSON)vs <b>I/O-bound</b>(I/O 密集:DB、HTTP、文件);<b>context switch</b>(上下文切换)。生产上不要自己手写池,Node 生态用 <b>piscina</b>,它还帮你处理了帮厨崩溃重招、队列上限、单任务超时、取消等问题。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>习题 3 里对比"服务员一个人串行做 8 道 fib(38)"和"4 人帮厨班组",先猜能快几倍、会不会正好快 4 倍。</p>
+</section>
+
+<section id="sec5">
+  <h2>🧭 四种帮手怎么选:一张决策表</h2>
+  <table>
+    <tr><th>你遇到的情况</th><th>选谁</th><th>为什么</th></tr>
+    <tr><td>查数据库、调 HTTP、读写文件(I/O 等待)</td><td><b>什么都不用加</b>,直接 async/await</td><td>服务员本来就不站着等,libuv 和操作系统已经在后台干活</td></tr>
+    <tr><td>CPU 重活,频繁、单次时间短(哈希、压缩、解析)</td><td><b>worker_threads 线程池</b>(piscina)</td><td>上岗成本低、复用、可以传大块二进制</td></tr>
+    <tr><td>要跑别的程序(ffmpeg、git、Python 脚本),或者要强隔离</td><td><b>child_process</b></td><td>帮厨只会做 JS;分店着火不烧总店</td></tr>
+    <tr><td>同一个 HTTP 服务想吃满多核</td><td><b>cluster / 多副本</b>(生产:k8s replicas)</td><td>每个副本仍是简单的单线程 event loop,状态外迁</td></tr>
+  </table>
+  <div class="concept">
+    <span class="tag">📇 Week 1 并发模型收官:</span>
+    Day 1 的"服务员不站着等"解决的是 <b>I/O 等待</b>;Day 4 的分店和 Day 5 的帮厨解决的是 <b>CPU 计算</b>。<b>先判断瓶颈是"等"还是"算",再选工具</b>:这是所有语言里做并发设计的第一步。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照(线程池思想 everywhere)</h2>
+  <table>
+    <tr><th>命题</th><th>Node.js(教具)</th><th>C# / .NET</th><th>Java</th><th>Go</th></tr>
+    <tr>
+      <td>把 CPU 活丢给别的线程</td>
+      <td><code>new Worker()</code> / piscina</td>
+      <td><code>Task.Run(() =&gt; ...)</code>(进 ThreadPool)</td>
+      <td><code>ExecutorService.submit()</code> / ForkJoinPool</td>
+      <td><code>go func() { ... }()</code></td>
+    </tr>
+    <tr>
+      <td>线程池</td>
+      <td>piscina(手动开);libuv 池(内部用)</td>
+      <td>内置全局 ThreadPool,自动伸缩</td>
+      <td><code>Executors.newFixedThreadPool(n)</code></td>
+      <td>runtime 自带调度器;需要限流时手写 worker pool 模式</td>
+    </tr>
+    <tr>
+      <td>线程间默认共享内存吗</td>
+      <td><b>不共享</b>(消息传递为主)</td>
+      <td>共享</td>
+      <td>共享</td>
+      <td>共享,但提倡"用通信来共享内存"(channel)</td>
+    </tr>
+    <tr>
+      <td>原子操作 / 防竞态</td>
+      <td><code>Atomics.add</code></td>
+      <td><code>Interlocked.Increment</code>、<code>lock</code></td>
+      <td><code>AtomicInteger</code>、<code>synchronized</code></td>
+      <td><code>sync/atomic</code>、<code>sync.Mutex</code></td>
+    </tr>
+    <tr>
+      <td>数据并行(把一批活拆开算)</td>
+      <td>池 + <code>Promise.all</code></td>
+      <td><code>Parallel.For</code> / PLINQ</td>
+      <td><code>parallelStream()</code></td>
+      <td>多个 goroutine + <code>sync.WaitGroup</code></td>
+    </tr>
+  </table>
+  <p>📌 roadmap 顶部的对照表,今天新增一行:<b>共享内存与原子操作</b>(已帮你补好)。</p>
+  <p>📌 面试翻译练习:面试官问 "Node 是单线程,CPU 密集任务怎么办?" 你可以答:<b>"I/O 不需要额外线程,event loop 加 libuv 已经解决了;CPU 密集任务用 worker_threads 线程池(比如 piscina),池大小约等于核数,数据用消息传递,大块二进制用 transfer 避免拷贝。需要强隔离或者调用外部程序时才用子进程。这和 .NET 的 Task.Run 丢 ThreadPool、Java 的 ExecutorService 是同一个思路,区别是 Node 的线程默认不共享内存,所以天然少了一大类加锁问题。"</b></p>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+  <p>习题代码在 <code>src/05-worker-threads/</code>,已写好可直接运行,每个文件顶部有<b>预测填空:先写预测,再运行</b>。运行方式:<code>npx tsx src/05-worker-threads/ex1-worker-vs-fork.ts</code></p>
+
+  <div class="task">
+    <h3>习题 1:帮厨 vs 分店 —— 上岗成本(动手,约 8 min)</h3>
+    <p>文件:<code>ex1-worker-vs-fork.ts</code></p>
+    <p>Part A 把 fib(40) 交给帮厨,数服务员的心跳;Part B 各请 5 个帮厨、开 5 家分店,比较上岗时间和内存账单。<b>先猜:差几倍?</b>思考题:帮厨抛异常时服务员会不会崩?(答案取决于一个你很容易忘写的监听器)</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:复印 / 整箱交出去 / 共用白板(动手,约 10 min)</h3>
+    <p>文件:<code>ex2-copy-transfer-shared.ts</code></p>
+    <p>递一个 200MB 的箱子,看复印和 transfer 差几个数量级、交出去后原件还剩多少字节;再让 4 个帮厨在同一块白板上各 <code>++</code> 100 万次,<b>看看 400 万笔账最后剩几笔</b>,然后换 Atomics 再跑一次。建议多跑两三遍,丢账的数量每次都不一样,这正是竞态最可怕的地方。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:手写迷你线程池(动手,约 7 min)</h3>
+    <p>文件:<code>ex3-mini-pool.ts</code></p>
+    <p>读懂 <code>MiniPool</code> 里"待命区 + 排队单 + dispatch"这三样东西,然后跑串行 vs 池。再用 <code>npx tsx src/05-worker-threads/ex3-mini-pool.ts 32</code> 把池子开到 32 个帮厨,<b>先猜会不会更快</b>。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>notes.md</code>(骨架已放好)</p>
+    <p>合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:"Node 不是单线程吗?worker_threads 又是什么?它和 Day 1 说的 libuv 线程池、Day 4 的 fork 有什么不一样?"用餐厅比喻给他讲清楚。</li>
+      <li>为什么 <code>counter[0]++</code> 在多线程下会丢账?Atomics 是怎么解决的?</li>
+      <li>为什么线程池的大小通常约等于 CPU 核数?为什么不要用 worker_threads 去"加速"数据库查询?</li>
+    </ol>
+    <p>写完后回到第 2、3、4 节对答案,把说错的地方订正。</p>
+  </div>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>worker_threads = 同一家店里自带小灶的帮厨</b>:同一进程、不同线程,各有独立的 V8 isolate 和 event loop,默认不共享变量,靠消息传递沟通;比开分店便宜,但不是免费,隔离也不如分店。</li>
+    <li><b>递东西三种方式</b>:默认复印(structured clone);大块二进制整箱交出去(transfer,原件变空壳);高性能场景共用白板(SharedArrayBuffer),但必须用 Atomics 守规矩,否则 <code>++</code> 会丢账。</li>
+    <li><b>线程池</b>:提前请好固定的帮厨班组 + 排队单,池大小 ≈ 核数;灶台才是瓶颈,人多了只会抢灶台。</li>
+    <li><b>先判断瓶颈是"等"还是"算"</b>:等(I/O)直接 async;算(CPU)用线程池;要隔离或跑外部程序用子进程;吃满多核跑服务用多副本。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>不看表,说出服务员、洗碗工、帮厨、分店分别对应 Node 里的什么,以及哪两个你能亲自派活</li>
+    <li>帮厨和服务员 PID 一样,为什么帮厨还是读不到服务员的变量?</li>
+    <li>把 <code>counter[0]++</code> 拆成三个小动作,并画出两个线程交错执行时丢账的那一刻</li>
+    <li>4 核机器上开 32 个线程算 fib,为什么不会更快?</li>
+    <li>给你三个任务:生成 PDF 报表、查 10 次数据库、调用 ffmpeg 转码,分别该用哪种帮手?</li>
+  </ul>
+</section>
+
+<footer>
+  Day 5 · Phase 1 / Week 1 · 产出:<code>docs/05-worker-threads/</code> 本文档 + <code>src/05-worker-threads/</code> 习题代码 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

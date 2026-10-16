@@ -41,6 +41,7 @@
 | 缓存客户端 | ioredis | StackExchange.Redis | Lettuce / Redisson | go-redis |
 | 消息队列 | amqplib / kafkajs | MassTransit / NServiceBus | Spring AMQP / Kafka | sarama / amqp |
 | 流式 I/O(Stream/Buffer/背压) | stream.Readable/Writable、Buffer、pipeline、write→drain 背压 | System.IO.Stream、byte[]/Span、CopyToAsync、await 隐式背压 | InputStream/OutputStream、ByteBuffer(NIO)、transferTo、Reactive Streams request(n) | io.Reader/io.Writer、[]byte、io.Copy、阻塞读写天然背压 |
+| 共享内存与原子操作(防竞态) | SharedArrayBuffer + Atomics(worker_threads 默认不共享,消息传递为主) | Interlocked / lock / Monitor | AtomicInteger / synchronized / JUC | sync/atomic / sync.Mutex(提倡 channel 通信) |
 | 数据加密 / 密钥管理 | node:crypto(AES-GCM)、pgcrypto、AWS KMS / Vault SDK | Data Protection API、SQL Server Always Encrypted / TDE、Azure Key Vault | JCE、Spring Vault、Google Tink | crypto/aes、Vault SDK、Tink |
 
 学习要求:每周后端任务产出的笔记中,**必须有「概念卡」**(这个概念的通用定义,不绑定任何语言)+ 在上述表格对应行补充一句话心得。
