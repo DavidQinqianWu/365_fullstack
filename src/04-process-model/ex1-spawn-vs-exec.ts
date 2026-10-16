@@ -9,9 +9,9 @@
  *
  * ✍️ 预测(先写再运行):
  *   1. exec 这次会成功吗?为什么?(提示:maxBuffer 默认 1MB)
- *      我的预测:
+ *      实测(参考答案):失败,报 "stdout maxBuffer length exceeded"。6MB 输出 > 默认 1MB 的攒单上限,exec 直接把子进程杀掉。
  *   2. spawn 处理同样输出时,主进程内存会涨到多少量级?
- *      我的预测:
+ *      实测(参考答案):只涨几 MB(实测 rss 82.6MB → 88.3MB,6.2MB 分成 829 块流过)。每块处理完就丢,内存和输出总量无关。
  */
 
 import { exec, spawn } from "node:child_process";
