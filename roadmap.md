@@ -34,6 +34,8 @@
 | Web 框架 | **NestJS(本课程模板)**,底层默认跑在 Express 上(可换 Fastify) | ASP.NET Core | Spring Boot | Gin / Echo |
 | 请求管线 / 中间件 | NestJS middleware → guard → interceptor → pipe → exception filter | Middleware pipeline + Filter | Filter / Interceptor (AOP) | middleware(handler 链) |
 | 依赖注入(DI) | NestJS IoC 容器 | 内置 DI(Microsoft.Extensions.DI) | Spring IoC | 手动注入 / wire |
+| AOP / 横切关注点 | Interceptor + Guard + Pipe + Filter,自定义装饰器 + `Reflector` 读元数据 | Action Filter / Middleware、Castle DynamicProxy | Spring AOP(`@Aspect` / `@Around`) | middleware 装饰 handler |
+| 声明式事务 / 事务传播 | Prisma `$transaction`、`nestjs-cls` + `@Transactional()`(AsyncLocalStorage) | EF Core `DbContext` 工作单元、`TransactionScope` | Spring `@Transactional`(传播行为 REQUIRED / REQUIRES_NEW) | `sql.Tx` 显式传递 |
 | ORM / 数据访问 | Prisma / Drizzle | EF Core(LINQ) | Hibernate / JPA | GORM / sqlx |
 | DB 迁移 | Prisma Migrate | EF Core Migrations | Flyway / Liquibase | goose / migrate |
 | 认证授权 / 安全框架 | Passport + NestJS Guard、helmet | ASP.NET Core Identity + Authorization Policy、Data Protection | Spring Security | middleware + golang-jwt / casbin |
@@ -77,8 +79,15 @@
 > 本阶段主题:任何后端语言都绕不开的底层机制——**运行时、并发模型、HTTP 协议、Web 框架解剖**。Node.js 只是第一个观察样本,每周都要回答一个问题:「这个机制在 .NET / Java / Go 里长什么样?」
 
 - Week 1:运行时与并发模型 I(以 Node.js 为例):event loop、流、Buffer、进程模型、worker_threads;**概念卡:单线程事件循环 vs 多线程线程池(.NET/Java)vs 轻量协程(Go),三种并发模型的取舍**
-- Week 2:**NestJS 入门 + Web 框架通用解剖**:`nest new nest-lab` 起项目,Module / Controller / Provider 三件套、装饰器在做什么、一个请求在 Nest 里走过的完整生命周期;(含 1 天 TypeScript 服务端类型实战:类型安全的 env 配置 / DI token / zod 推导类型——原独立的 TS 高级类型周已并入此处,语言不是重点):**请求管线(中间件 → 守卫 → 拦截器 → 管道)、依赖注入、路由、异常过滤**——这些概念逐一标注 ASP.NET Core(middleware/filter/内置 DI)与 Spring(AOP/IoC)的对应物,而不是背 NestJS 的 API
-- Week 3:API 设计(语言无关):**HTTP 语义深入(方法、状态码、幂等性、内容协商)、REST 约束、版本化、分页、统一错误格式(RFC 7807 problem+json)、OpenAPI 规范**;实战:在 `nest-lab/` 里实现完整 REST API(任务管理服务):DTO + `ValidationPipe`(或 zod pipe)做输入校验、全局 exception filter 输出 problem+json、`@nestjs/swagger` 自动生成 OpenAPI;设计文档按语言无关的方式写
+- Week 2:**NestJS 入门 + IoC/DI + AOP(框架的两大支柱)**——这两个概念是 Spring 和 ASP.NET Core 的灵魂,学透了换框架只是换语法,按天拆:
+  - D1 · `nest new nest-lab` 起项目:Module / Controller / Provider 三件套、装饰器在做什么、一个请求在 Nest 里走过的完整生命周期
+  - D2 · **依赖注入(DI)与控制反转(IoC)**:为什么不自己 `new`(可替换、可测试);IoC 容器做了什么(注册 → 解析依赖图 → 实例化 → 注入);Provider 的三种作用域(singleton 默认 / request / transient)及其性能代价;自定义 Provider(`useClass` / `useValue` / `useFactory`)与 injection token;循环依赖与 `forwardRef`;**实验:用 `reflect-metadata` 手写一个 50 行的迷你 IoC 容器**,看清 Nest 的 `@Injectable()` 背后发生了什么
+  - D3 · **面向切面编程(AOP)**:什么是横切关注点(日志、鉴权、计时、缓存、事务、异常处理——每个接口都要,但不属于任何一个接口的业务);Nest 把 AOP 拆成管线五件套:middleware → guard → interceptor → pipe → exception filter,各自在什么时机执行、能拿到什么、适合放什么;**实验:写一个计时 Interceptor + 一个统一响应包装 Interceptor,不改一行业务代码给所有接口加能力**
+  - D4 · 自定义装饰器 + 元数据(`SetMetadata` / `Reflector`):`@Public()`、`@Roles()` 这类「给方法贴标签,切面里读标签」的套路——这就是 AOP 在 Nest 里的完整闭环
+  - D5 · TypeScript 服务端类型实战:类型安全的 env 配置(`@nestjs/config` + zod 校验)、DI token 的类型安全、zod 推导类型(原独立的 TS 高级类型周已并入此处,语言不是重点)
+  - D6 · 小实战:给 `nest-lab/` 加全局日志、计时、异常过滤;D7 · 复盘
+  - **跨语言对照**:DI ↔ ASP.NET Core 内置 DI(`AddSingleton/AddScoped/AddTransient`,和 Nest 三种作用域一一对应)/ Spring IoC(`@Component` + `@Autowired`);AOP ↔ Spring `@Aspect` + `@Around` / ASP.NET Core Action Filter + Middleware。**概念卡:IoC 与 AOP 各解决什么问题,为什么企业级框架都长这样**
+- Week 3:API 设计(语言无关):**HTTP 语义深入(方法、状态码、幂等性、内容协商)、REST 约束、版本化、分页、统一错误格式(RFC 7807 problem+json)、OpenAPI 规范**;**DTO 与验证专题**:DTO 是什么(接口的「进出口报关单」,和数据库 Entity 分开的原因)、`class-validator` + `class-transformer` + 全局 `ValidationPipe`(`whitelist` 丢弃多余字段、`transform` 自动转类型、嵌套对象与数组校验、自定义校验器)、zod 方案对比;**响应 DTO**:用 `ClassSerializerInterceptor` + `@Exclude()` 防止把密码哈希等字段返回给前端;实战:在 `nest-lab/` 里实现完整 REST API(任务管理服务),全局 exception filter 输出 problem+json、`@nestjs/swagger` 从 DTO 自动生成 OpenAPI;设计文档按语言无关的方式写;对照:ASP.NET Core DataAnnotations / FluentValidation、Spring Bean Validation(`@Valid`)
 - GitHub 产出:每天提交代码或中文笔记;Week 3 项目独立仓库,中文 README;**每周一张概念卡 + 对照表更新**
 
 ## Phase 2(Day 22–63 · Week 4–9):数据层 — 数据库是后端的心脏(以 PostgreSQL 为主线)
@@ -89,14 +98,14 @@
 - Week 4:**PostgreSQL 入门 + SQL 与数据建模**:docker 起 PG、psql 基本功;关系模型与范式(1NF–3NF)以及什么时候反范式;主键选择(自增 vs UUID v7)、外键与约束(NOT NULL / UNIQUE / CHECK)当作「数据库层的最后一道校验」;SQL 深入(JOIN 全家、子查询 vs CTE、窗口函数、`UPSERT` / `ON CONFLICT`、`RETURNING`);PG 特色类型:JSONB(何时用、何时别用)、数组、`timestamptz`(时区坑);**概念卡:schema 设计是最难改的决定**
 - Week 5:**索引与查询优化(PG)**:B-tree 原理与复合索引最左前缀、覆盖索引(`INCLUDE`)、部分索引 / 表达式索引、GIN(JSONB/全文搜索)/ BRIN(时序大表)各自场景;`EXPLAIN (ANALYZE, BUFFERS)` 读执行计划(Seq Scan / Index Scan / Bitmap / Nested Loop / Hash Join)、统计信息与 `ANALYZE`、`pg_stat_statements` 找慢查询;索引的代价(写放大);**实验:百万行数据,优化前后 EXPLAIN 对比**;并把 `nest-lab/` 的慢接口抓出来,看它发给 PG 的 SQL 和执行计划
 - Week 6:**事务与并发控制(PG)**:ACID 逐个字母拆开;四种隔离级别与 PG 实际行为(Read Committed 默认、Repeatable Read 即快照、Serializable 的 SSI 与重试);**MVCC**(为什么读不阻塞写)、`VACUUM` 与表膨胀;锁:行锁 `SELECT ... FOR UPDATE / SKIP LOCKED`(用 PG 实现任务队列)、表锁、死锁复现与排查、advisory lock;乐观锁(version 字段)vs 悲观锁;连接池原理(为什么 PG 一个连接一个进程,PgBouncer 解决什么);**实验:两个 psql 窗口复现脏读/不可重复读/幻读/丢失更新**;再在 `nest-lab/` 里用并发请求复现「超卖/丢失更新」,分别用乐观锁和 `FOR UPDATE` 修好
-- Week 7:ORM 与数据访问模式(**重点学模式,不是学 Prisma**):ActiveRecord vs DataMapper、Unit of Work、Repository 模式争议、N+1 问题;在 NestJS 里落地:`PrismaService` 作为 Provider 注入、事务(`$transaction`)跨 Service 怎么传、一个请求一个事务的边界;顺带看一眼 Nest 官方另一条路 TypeORM(装饰器实体,更像 EF Core / Hibernate);对照 EF Core 的 LINQ + DbContext 写法写一页对照笔记;**何时该绕过 ORM 写原生 SQL**(报表、批量、窗口函数)
-- Week 8:Redis 与缓存通用模式(**概念 #2 Caching**:Cache Aside / Read-Through / Write-Behind、穿透/雪崩/击穿、分布式锁、会话存储)——模式全部语言无关;在 NestJS 里用 `@nestjs/cache-manager` + Redis store,再手写一个缓存 Interceptor 看清它的原理
+- Week 7:ORM 与数据访问模式(**重点学模式,不是学 Prisma**):ActiveRecord vs DataMapper、Unit of Work、Repository 模式争议、N+1 问题;在 NestJS 里落地:`PrismaService` 作为 Provider 注入、事务(`$transaction`)跨 Service 怎么传、一个请求一个事务的边界;顺带看一眼 Nest 官方另一条路 TypeORM(装饰器实体,更像 EF Core / Hibernate);对照 EF Core 的 LINQ + DbContext 写法写一页对照笔记;**何时该绕过 ORM 写原生 SQL**(报表、批量、窗口函数);**事务传播专题**:为什么事务不该写在 Controller 里;「一个业务操作跨多个 Service 时,怎么让它们共用同一个事务」——用 AsyncLocalStorage(`nestjs-cls` + `@Transactional()`)实现,对照 **Spring `@Transactional`(面试必考的传播行为 REQUIRED / REQUIRES_NEW)** 和 EF Core 的 `DbContext` 一个请求一个工作单元;事务里不要调外部 HTTP、不要做长任务(锁会被一直占着)
+- Week 8:**Redis 与缓存**(**概念 #2 Caching**):Redis 是什么(内存里的数据结构服务器)、五种常用数据结构各自的典型用法(String 缓存/计数、Hash 对象、List 队列、Set 去重、ZSet 排行榜)、TTL 与内存淘汰策略(LRU/LFU)、持久化 RDB vs AOF;缓存模式:Cache Aside / Read-Through / Write-Behind;**缓存一致性**(先更新库再删缓存、为什么不是先删缓存、延迟双删);穿透 / 雪崩 / 击穿与各自解法(空值缓存 + 布隆过滤器、TTL 加随机抖动、互斥锁重建)、热 key;分布式锁(`SET NX PX` + 过期 + 只删自己的锁)、会话存储——模式全部语言无关;在 NestJS 里用 `@nestjs/cache-manager` + Redis store,再手写一个缓存 Interceptor(呼应 Week 2 的 AOP)看清它的原理;对照:.NET `IDistributedCache` / Spring `@Cacheable`
 - Week 9:**PG 运维 + 实战**:零停机 schema 迁移(expand → migrate → contract,加列/改列/建索引 `CONCURRENTLY` 不锁表)、备份与恢复(`pg_dump` 逻辑备份 vs WAL + PITR 时间点恢复,**做一次恢复演练**)、分区表入门;实战:给 `nest-lab/` 接上 PostgreSQL(迁移脚本、种子数据)+ Redis 缓存层,写性能对比笔记;预热**概念 #4**:本地起主从两个 PG 实例观察流复制;**可选加深:NoSQL 全景认知一页纸(文档型 MongoDB / KV / 宽列 Cassandra / 图),各自解决什么问题**
 - GitHub 产出:`db-lab/`(建模 ER 图、索引优化前后 EXPLAIN 对比 markdown、四种隔离级别 + 死锁复现脚本、`SKIP LOCKED` 任务队列、零停机迁移示例、备份恢复演练记录)、cache-aside 实现代码
 
 ## Phase 3(Day 64–91 · Week 10–13):工程化 — 认证、测试、架构风格 I
 
-- Week 10:认证授权(**协议层,语言无关**):JWT 结构与签名验证原理、Refresh Token 轮换、OAuth2/OIDC 流程(授权码模式 + PKCE)、RBAC vs ABAC 权限模型;NestJS 落地:`@nestjs/passport` + JWT Strategy、`AuthGuard`、自定义 `@Roles()` 装饰器 + `RolesGuard`、`@CurrentUser()` 参数装饰器;产出物是协议时序图 + 「Guard 在请求管线里的位置」图
+- Week 10:认证授权(**协议层,语言无关**):**JWT 专题**:结构(header.payload.signature,payload 只是 Base64 不是加密)与签名验证原理、HS256(共享密钥)vs RS256(私钥签 + 公钥验,JWKS 发布公钥,适合多服务)、经典攻击(`alg: none`、算法混淆、不校验 `exp`/`aud`/`iss`);存哪里(httpOnly + Secure + SameSite Cookie vs localStorage 与 XSS);**JWT 无法主动作废的问题**与解法(短 access token + Refresh Token 轮换 + 复用检测、Redis 黑名单/版本号);Session vs JWT 的取舍、OAuth2/OIDC 流程(授权码模式 + PKCE)、RBAC vs ABAC 权限模型;NestJS 落地:`@nestjs/passport` + JWT Strategy、`AuthGuard`、自定义 `@Roles()` 装饰器 + `RolesGuard`、`@CurrentUser()` 参数装饰器;产出物是协议时序图 + 「Guard 在请求管线里的位置」图
 - Week 11:测试体系(测试金字塔是通用方法论):单元/集成/E2E 的边界划分、测试替身(mock/stub/fake)、覆盖率门禁;NestJS 测试:`Test.createTestingModule` + `overrideProvider` 做单元测试替身、supertest 打 e2e、Testcontainers 起真实 PostgreSQL 做集成测试(不 mock 数据库);对照 xUnit + WebApplicationFactory 的等价物
 - Week 12:API 安全与质量(**概念 #7 Rate Limiting**:用 Redis 手写令牌桶 + 滑动窗口限流器,封装成 NestJS Guard,再对比官方 `@nestjs/throttler`;`main.ts` 里的 helmet、CORS 配置原理;`ValidationPipe` 的 `whitelist` / `forbidNonWhitelisted` 防批量赋值;OWASP Top 10)——知识是协议与模式层面的,落地在 Nest 管线上
 - Week 13:**架构风格 I(代码级架构,新增重点)+ 实战**:分层架构 → 六边形架构(Hexagonal / Ports & Adapters)→ Clean Architecture 的演进逻辑;**DDD 战术模式入门**(实体、值对象、聚合根、仓储);NestJS 落地:Module 作为限界上下文、端口 = 接口 + injection token、适配器 = 可替换的 Provider(PG 仓储 / 内存仓储一键切换);实战:用六边形架构重构 `nest-lab/`并落地完整认证模块,测试覆盖率 ≥80%,附中文 SECURITY.md;**对照:微软官方 Clean Architecture 模板(eShop 参考应用)的目录结构**
@@ -172,8 +181,14 @@
 
 ## Phase 9(Day 274–294 · Week 40–42):高级系统设计 + 架构风格 II
 
-- Week 40:**架构风格 II(系统级架构)+ 分布式基础**:模块化单体 vs 微服务的取舍(什么时候不该拆;实验:把 `nest-lab/` 的一个 Module 拆成独立 Nest 微服务,体会拆分成本)、服务发现、API Gateway、CAP、一致性模型、分布式锁、leader election 直觉
-- Week 41:**概念 #8 Circuit Breaker** + 可靠性设计(重试、熔断、降级、超时预算、saga 分布式事务;手写一个熔断器,封装成 NestJS Provider / Interceptor 包住外部 HTTP 调用,再对比 opossum)——对照 .NET 生态的 Polly 库,你会发现设计一模一样
+- Week 40:**微服务设计模式(架构风格 II)**——先回答「该不该拆」,再学「拆了怎么活」:
+  - 拆分:模块化单体 vs 微服务的取舍(团队规模、部署独立性、什么时候不该拆)、按业务能力 / 限界上下文拆、**绞杀者模式(Strangler Fig)** 渐进迁移;实验:把 `nest-lab/` 的一个 Module 拆成独立 Nest 微服务,体会拆分成本
+  - 通信:同步(REST/gRPC)vs 异步(事件)、**API Gateway** 与 **BFF**(给不同前端各配一个后端)、服务发现、**API 组合**(跨服务查询怎么拼)
+  - 数据:**每服务独立数据库**(为什么不能共享一个 PG 库)、**CQRS**(读写分离成两个模型)、**事件溯源(Event Sourcing)入门**、回顾 Week 27 的 outbox 与幂等消费
+  - 横切:分布式追踪的 trace id 透传(接 Week 19)、服务网格 / sidecar 概念
+  - NestJS 落地:`@nestjs/microservices` 的 transport 抽象、`ClientProxy` 调用其他服务、混合应用(一个服务同时对外 HTTP 和对内消息)
+  - 对照:.NET 的 eShop 参考架构 / Dapr、Spring Cloud(Gateway、Eureka、Config)
+- Week 41:**分布式一致性与可靠性 · 概念 #8 Circuit Breaker**:CAP 与一致性模型(强一致 / 最终一致)、分布式锁的坑(Redis 锁 vs PG advisory lock)、leader election 直觉;可靠性设计(重试、熔断、降级、超时预算、**saga 分布式事务**(编排式 vs 协同式、补偿操作怎么写,为什么跨服务不能用数据库事务);手写一个熔断器,封装成 NestJS Provider / Interceptor 包住外部 HTTP 调用,再对比 opossum)——对照 .NET 生态的 Polly 库,你会发现设计一模一样
 - Week 42:经典系统设计题 II(设计 Uber/订票系统/分布式 KV/指标监控系统)—— 中文设计稿 + 容量估算
 - GitHub 产出:高级设计文档、熔断器代码
 
