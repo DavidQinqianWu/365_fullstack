@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="day" content="7">
 <meta name="phase" content="Phase 1 / Week 1">
-<meta name="summary" content="复盘日,不学新内容。画出「一个 HTTP 请求的一生」把六天串起来,默写六张概念卡,给本周代码做一次 review,自测 20 题。">
+<meta name="summary" content="复盘日,不学新内容。画出「一个 HTTP 请求的一生」把六天串起来,默写六张概念卡,给本周代码做一次 review,自测 12 题。">
 <title>Day 7 - 复盘日:把 Week 1 的六天连成一张图</title>
 <style>
   :root {
@@ -86,7 +86,7 @@
   <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 1 · 复盘日</div>
   <h1>Day 7 - 复盘日:把 Week 1 的六天连成一张图</h1>
   <div class="meta">
-    今日时长:<b>3 小时</b>(默写 60 min + code review 60 min + 补漏 60 min)·
+    今日时长:<b>1.5 小时</b>(画图 25 min + 默写 25 min + code review 15 min + 自测 25 min)·
     <b>今天不学新内容。</b>复盘日的唯一任务是:把学过的东西从「看懂了」变成「说得出、写得出」·
     产出:一张全景图 + 默写答卷 + 一次代码 review
   </div>
@@ -104,13 +104,13 @@
     <li><a href="#sec1">🗺️ 第一件事:画出「一个 HTTP 请求的一生」</a></li>
     <li><a href="#sec2">✍️ 第二件事:六张概念卡默写</a></li>
     <li><a href="#sec3">🔍 第三件事:给自己这周的代码做一次 review</a></li>
-    <li><a href="#sec4">📊 第四件事:补对照表 + 自测 20 题</a></li>
+    <li><a href="#sec4">📊 第四件事:补对照表 + 自测 12 题</a></li>
     <li><a href="#sec5">🎯 Week 1 结算与 Week 2 预告</a></li>
   </ol>
 </nav>
 
 <section id="sec1">
-  <h2>🗺️ 第一件事:画出「一个 HTTP 请求的一生」(约 40 min)</h2>
+  <h2>🗺️ 第一件事:画出「一个 HTTP 请求的一生」(约 25 min)</h2>
 
   <p>这是本周最重要的产出。<b>把六天学的东西,串成一条线。</b></p>
 
@@ -157,7 +157,7 @@
 </section>
 
 <section id="sec2">
-  <h2>✍️ 第二件事:六张概念卡默写(约 60 min)</h2>
+  <h2>✍️ 第二件事:六张概念卡默写(约 25 min)</h2>
 
   <p>写在 <code>src/07-week1-review/concept-cards.md</code>。<b>每张卡片必须包含三部分</b>:通用定义(不绑定语言)、Node 里的样子、其他语言里的样子。</p>
 
@@ -200,10 +200,10 @@
   <div class="task">
     <h3>卡片 5:线程与共享内存(Day 5)</h3>
     <ul>
-      <li>worker_threads 和 cluster 的三个区别</li>
-      <li>拷贝 / 转移 / 共享三种传数据方式,各自什么时候用</li>
-      <li>什么是竞态条件,Atomics 在防什么</li>
-      <li><b>决策表至少 5 行</b>:什么时候用 worker / cluster / child_process / 什么都不用</li>
+      <li>帮厨(worker_threads)和分店(cluster / 子进程)的三个区别:内存、上岗成本、崩溃影响</li>
+      <li>复印 / 整箱交出去 / 共用白板三种递东西方式,各自什么时候用</li>
+      <li>什么是竞态条件,<code>counter[0]++</code> 为什么会丢账,Atomics 在防什么</li>
+      <li><b>四行决策表</b>:I/O 等待、CPU 重活、要隔离或跑外部程序、吃满多核跑服务,分别选什么</li>
     </ul>
   </div>
 
@@ -219,7 +219,7 @@
 </section>
 
 <section id="sec3">
-  <h2>🔍 第三件事:给自己这周的代码做一次 review(约 40 min)</h2>
+  <h2>🔍 第三件事:给自己这周的代码做一次 review(约 15 min)</h2>
 
   <p>打开你这周写的所有代码(<code>src/01-</code> 到 <code>src/06-</code>),<b>用「别人写的代码」的眼光看一遍</b>。把发现写在 <code>src/07-week1-review/code-review.md</code>。</p>
 
@@ -251,32 +251,28 @@
 </section>
 
 <section id="sec4">
-  <h2>📊 第四件事:补对照表 + 自测 20 题(约 40 min)</h2>
+  <h2>📊 第四件事:补对照表 + 自测 12 题(约 25 min)</h2>
 
   <h3>4.1 补跨语言对照表</h3>
 
-  <p>打开 <code>roadmap.md</code>,找到顶部的「后端概念跨语言对照表」。这周学到的东西,至少补三行:</p>
+  <p>打开 <code>roadmap.md</code>,找到顶部的「后端概念跨语言对照表」。这周学到的东西,补这三处:</p>
 
   <ul>
     <li><b>运行时与并发模型</b> 行 —— 补一句你自己的理解(Day 1 / 5)</li>
     <li><b>流式 I/O</b> 行 —— 补一句(Day 3)</li>
-    <li>新增一行 <b>HTTP 服务器</b> —— 填 Node / C# / Java / Python / Go(Day 6 讲义里有)</li>
+    <li>新增一行 <b>HTTP 服务器 / 请求响应对象</b> —— 填 Node / C# / Java / Go 四列(Day 6 讲义的跨语言对照里有)</li>
   </ul>
 
   <p><b>要求:补的内容必须是你亲手验证过的</b>,不是抄讲义。抄的东西记不住。</p>
 
-  <h3>4.2 自测 20 题(闭卷,写在 <code>src/07-week1-review/self-test.md</code>)</h3>
+  <h3>4.2 自测 12 题(闭卷,写在 <code>src/07-week1-review/self-test.md</code>)</h3>
 
   <div class="task">
     <h3>基础题(每题 1 分)</h3>
     <ol>
       <li>并发和并行的区别是什么?</li>
-      <li>event loop 的六个 phase,哪三个最重要?</li>
       <li><code>process.nextTick</code> 和 <code>Promise.then</code>,谁先执行?</li>
-      <li>为什么递归调用 <code>process.nextTick</code> 会饿死 event loop?</li>
-      <li>Buffer 和 String 的区别是什么?</li>
       <li><code>write()</code> 返回 <code>false</code> 意味着什么?你该做什么?</li>
-      <li><code>pipe()</code> 和 <code>pipeline()</code> 的区别?该用哪个?</li>
       <li>进程和线程,在「内存」这个维度上有什么区别?</li>
       <li><code>exec</code> 的 <code>maxBuffer</code> 是什么?超了会怎样?</li>
       <li>cluster 的多个 worker 怎么能监听同一个端口?</li>
@@ -285,27 +281,23 @@
 
   <div class="task">
     <h3>理解题(每题 2 分)</h3>
-    <ol start="11">
-      <li>为什么说 worker_threads 不是 cluster 的升级版?</li>
+    <ol start="7">
       <li>postMessage 的「转移」和「共享」有什么区别?各自什么时候用?</li>
       <li>什么是竞态条件?用一个具体例子说明。</li>
       <li>HTTP 请求报文的四个部分是什么?那个空行为什么必须有?</li>
       <li>401 和 403 的区别?</li>
-      <li>为什么表单校验失败不该返回 500?</li>
-      <li>什么是幂等?POST 和 PUT 哪个幂等?</li>
-      <li>什么时候必须用 chunked 而不是 Content-Length?</li>
     </ol>
   </div>
 
   <div class="task">
     <h3>综合题(每题 5 分)</h3>
-    <ol start="19">
+    <ol start="11">
       <li><b>场景题:</b>你的 API 有一个 <code>/report</code> 接口,要生成一个 PDF,耗时约 3 秒(纯 CPU)。上线后用户反馈「点了报表,整个网站都卡住了」。<b>用这周学的知识完整解释原因,并给出两个不同层次的解决方案。</b></li>
       <li><b>场景题:</b>你的 API 有一个 <code>/export</code> 接口,要导出一个 2GB 的 CSV。目前的实现是先在内存里拼好字符串再返回。<b>说出至少三个问题,并给出改法。</b>改完之后,响应头会有什么变化?</li>
     </ol>
   </div>
 
-  <p><b>评分:</b>满分 36。<b>低于 25 分,下周开始前先把错题对应的那天重看一遍。</b></p>
+  <p><b>评分:</b>基础题 1 分 × 6 + 理解题 2 分 × 4 + 综合题 5 分 × 2,满分 24。<b>低于 17 分,开始 Week 2 前先把错题对应的那天重看一遍。</b>另外 8 道题留在 <code>self-test.md</code> 末尾,作为下周碎片时间的选做题。</p>
 </section>
 
 <section id="sec5">
@@ -329,14 +321,15 @@
     <p>这是所有后端知识的地基。接下来学的东西(框架、数据库、缓存、部署)都是盖在这上面的。</p>
   </div>
 
-  <h3>Week 2 预告(Day 8–14):服务端 TypeScript + HTTP 语义深入</h3>
+  <h3>Week 2 预告(Day 8–14):NestJS 入门 + IoC/DI + AOP</h3>
 
   <ul>
-    <li>TypeScript 在服务端真正有用的部分:泛型、<b>discriminated union 与类型收窄</b>(你的水平测试 G2 题)、<code>unknown</code> vs <code>any</code></li>
-    <li>用 <b>zod</b> 做运行时校验——为什么「类型」和「校验」是两件不同的事</li>
-    <li>HTTP 语义深入:幂等、内容协商、缓存头</li>
-    <li>统一错误格式 RFC 9457 problem+json 正式落地</li>
-    <li><b>产出:</b>把 Day 6 的裸 http API 加上 zod 校验和统一错误体</li>
+    <li><b>Day 8</b>:<code>nest new nest-lab</code> 起项目 —— Module / Controller / Provider 三件套,一个请求在 Nest 里的一生(Day 6 手写的路由、状态码、解析 body,框架替你做了哪些)</li>
+    <li><b>Day 9</b>:依赖注入(DI)与控制反转(IoC),手写一个迷你 IoC 容器</li>
+    <li><b>Day 10–11</b>:面向切面(AOP):middleware → guard → interceptor → pipe → exception filter,自定义装饰器 + 元数据</li>
+    <li><b>Day 12</b>:服务端 TypeScript 实战(类型安全的配置、zod)</li>
+    <li><b>Day 13–14</b>:给 <code>nest-lab/</code> 加全局日志、计时、异常过滤 + 复盘</li>
+    <li><b>从这周起,所有后端习题都写进同一个持续生长的 NestJS 项目 <code>nest-lab/</code></b></li>
   </ul>
 
   <h3>提交今天的产出</h3>
@@ -350,9 +343,9 @@ git commit -m "docs: week 1 review"</code></pre>
   <ul class="check">
     <li>画出了「一个 HTTP 请求的一生」,九个环节都标了 Day 编号</li>
     <li>六张概念卡全部默写完,每张都有「通用定义 + Node + 其他语言」三部分</li>
-    <li>对本周代码做了 review,至少找出 3 个问题并写清了改法和当时的想法</li>
-    <li>roadmap 对照表补了至少 3 行,内容是自己验证过的</li>
-    <li>自测 20 题做完并打分,低于 25 分的部分已经安排重看</li>
+    <li>对本周代码做了 review,至少找出 2 个问题并写清了改法和当时的想法</li>
+    <li>roadmap 对照表补了 3 处,内容是自己验证过的</li>
+    <li>自测 12 题做完并打分,低于 17 分的部分已经安排重看</li>
     <li>今天的产出已经 commit</li>
   </ul>
 </section>
