@@ -1,7 +1,7 @@
 # 365 天全栈成长 · 进度记录
 
 - 计数方式:**只按 Day N 计数,不写具体日期**——不要求每天连续学习,完成一天才算一天,Day N 永远 = 已完成天数 + 1。
-- 当前进度:Day 5(进行中;Day 6–7 材料已备)
+- 当前进度:Day 5(进行中;Day 6–8 材料已备)
 - 时间标准:按 `roadmap.md` 每天 1.5 小时。注:另一仓库的路线图 v2(3 小时/天、Hetzner 部署、365 平台主线项目)在合并时被覆盖,已确认**以当前 `roadmap.md` 为准**;v2 原文可在提交 `8ac8470` 中查看,Day 6–7 讲义按 v2 节奏编写,使用时酌情删减。⚠️ `hetzner` 主机是公司测试环境(Coolify + Traefik),不要部署学习项目,需要服务器时另租独立 VPS。
 - 水平测试(Day 4 完成):**1 / 46**,全部 7 个领域从零起步,React/TS 深层知识为真实缺口。每个 Phase 结束重答对应题目,见 `docs/00-level-check/level-check.md`。
 - 说明:第一轮(Day 1–8)的旧文件已归档至 `archive/round-1/`,供对照参考。
@@ -15,3 +15,4 @@
 | Day 5 | Phase 1 / Week 1 | 多线程:worker_threads(自带小灶的帮厨:同进程、独立 V8 isolate + event loop、默认不共享变量)+ 四种帮手地图(服务员 / libuv 洗碗工 / 帮厨 / 分店)+ 递东西三方式(structured clone 复印 / transfer 整箱交出去 / SharedArrayBuffer + Atomics 共用白板,竞态丢账)+ 线程池(池大小 ≈ 核数,CPU-bound vs I/O-bound,piscina);概念卡:先判断瓶颈是"等"还是"算" | `docs/05-worker-threads/Day 5 - worker_threads:分店太贵,那就在店里请个帮厨.html` + `src/05-worker-threads/` 练习代码与笔记 | 进行中 |
 | Day 6 | Phase 1 / Week 1 | 裸写 HTTP 服务器(ELI5 · 1.5h 版):HTTP 报文 = 有固定格式的点菜单(请求行 / 头 / 空行 / 体,用 node:net 看原话)+ 回执单与状态码五个家族、401 vs 403、幂等 + node:http 前台拆单、req/res 就是 Day 3 的流(Content-Length vs chunked、keep-alive、中文字节陷阱)+ 🧩 这在 NestJS 里对应什么 | `docs/06-http-server/Day 6 - 裸写 HTTP 服务器:客人到底是怎么跟你说话的?.html` + `src/06-http-server/` 练习代码与笔记 | 待开始 |
 | Day 7 | Phase 1 / Week 1 | **复盘日(1.5h,不学新内容)**:画出「一个 HTTP 请求的一生」把 Day 1–6 串成一张图(25 min)+ 六张概念卡闭卷默写(25 min)+ 本周代码 self-review(15 min)+ 补对照表 3 处 + 自测 12 题(满分 24,低于 17 分重看;另 8 题选做) | `docs/07-week1-review/Day 7 - 复盘日:把 Week 1 的六天连成一张图.html` + `src/07-week1-review/`(request-lifecycle / concept-cards / code-review / self-test 四份模板) | 待开始 |
+| Day 8 | Phase 1 / Week 2 | NestJS 入门:`nest new nest-lab` 起项目(从此所有后端习题写进它)+ 连锁加盟体系比喻:Module 部门编制表 / Controller 前台 / Provider 后厨 + 装饰器 = 岗位便利贴(开业时读标签排路由表)+ 一个请求在 Nest 里的一生(生命周期图,标出 middleware/guard/interceptor/pipe/filter 位置,后几天展开)+ 掀开盖子:Day 6 手写的杂活 Nest 替你做了哪些;实战:tasks 模块(GET 列表 / GET :id 404 / POST)+ 进出门日志 middleware | `docs/08-nestjs-intro/Day 8 - NestJS 入门:从街边小店到连锁餐厅.html` + `nest-lab/`(tasks 模块、单元与 e2e 测试、`npm run day08` 观察脚本)+ `src/08-nestjs-intro/notes.md` | 待开始 |

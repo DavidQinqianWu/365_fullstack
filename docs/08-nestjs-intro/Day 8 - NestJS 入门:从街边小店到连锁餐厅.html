@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 8 - NestJS 入门:从街边小店到连锁餐厅</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 2</div>
+  <h1>Day 8 - NestJS 入门:从街边小店到连锁餐厅</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>Web 框架是什么 · Module / Controller / Provider 三件套 · 装饰器 · 一个请求在 Nest 里的一生</b> ·
+    项目:从今天起,所有后端习题都写进持续生长的 <code>nest-lab/</code>(NestJS 12)·
+    预告:Day 9 DI/IoC,Day 10 AOP 管线,今天只<b>点到为止</b>
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🏪 接上回:Day 6 的街边小店,累在哪?</a></li>
+    <li><a href="#sec2">🚀 先跑起来:nest-lab 开张(今天新增 / 修改了哪些文件)</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:框架与三件套 —— 连锁店的编制表、前台、后厨</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:装饰器 —— 贴在员工身上的岗位便利贴</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:一个请求在 Nest 里的一生 —— 连锁店的标准接待流程</a></li>
+    <li><a href="#sec6">🔍 掀开盖子:Nest 替你做掉了 Day 6 的哪些活</a></li>
+    <li><a href="#sec7">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec8">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec9">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🏪 接上回:Day 6 的街边小店,累在哪?</h2>
+  <p>Day 6 你用 <code>node:http</code> 裸写了一个任务 API(<code>src/06-http-server/ex2-http-api.ts</code>)。回头数一数,真正和「任务」有关的业务代码只有几行(<code>tasks.find(...)</code>、<code>tasks.push(...)</code>),其余全是<b>每家店都要重复做的杂活</b>:</p>
+  <table>
+    <tr><th>杂活</th><th>Day 6 你是怎么做的</th></tr>
+    <tr><td>认路(路由)</td><td>手写正则 <code>/^\/tasks(?:\/([^/]+))?$/</code>,再用一串 <code>if (method === "GET")</code> 分流</td></tr>
+    <tr><td>拆包裹(解析 body)</td><td><code>for await (const c of req)</code> 攒 chunk → <code>Buffer.concat</code> → <code>JSON.parse</code>,还要自己设 1MB 上限</td></tr>
+    <tr><td>装盘(写响应)</td><td>自己写 <code>sendJson</code>:<code>JSON.stringify</code>、算 <code>Content-Length</code>(中文按字节!)、设 <code>Content-Type</code></td></tr>
+    <tr><td>报错</td><td>每个出错分支都手写 <code>sendProblem(res, 404, ...)</code>,忘写一个客户端就挂着</td></tr>
+    <tr><td>组织代码</td><td>一个文件从头写到尾;接口一多,<code>route()</code> 函数会长成几百行</td></tr>
+  </table>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    Day 6 你开的是一家<b>街边小店</b>:老板一个人认路、拆包裹、装盘、赔笑脸,还要做菜。开一家没问题,开到第十家、招到第二十个员工时,每家店的做法都不一样,新人来了不知道去哪找东西。于是有了<b>连锁餐厅的加盟体系</b>:总部给你一本<b>标准运营手册</b>和一套现成的流水线,你只需要按格式填两样东西:<b>菜单(哪道菜归谁接)</b>和<b>菜谱(菜怎么做)</b>。今天的 NestJS,就是这本手册。
+  </div>
+  <p>今天的地图(Day 1–5 的老角色都还在,只是多了几个「岗位」):</p>
+  <table>
+    <tr><th>餐厅里的角色</th><th>真实身份</th><th>第几天</th></tr>
+    <tr><td>服务员</td><td>event loop(主线程)—— <b>Nest 的所有代码仍然是他一个人在跑</b></td><td>Day 1–2</td></tr>
+    <tr><td>传送带</td><td>Stream —— <code>req</code> / <code>res</code> 依然是流</td><td>Day 3、6</td></tr>
+    <tr><td>帮厨 / 分店</td><td>worker_threads / 子进程</td><td>Day 4–5</td></tr>
+    <tr><td><b>加盟总部的运营手册</b></td><td><b>NestJS 框架</b>(底层默认是 Express,Express 底层又是 <code>node:http</code>)</td><td><b>今天</b></td></tr>
+    <tr><td><b>部门编制表 / 前台 / 后厨</b></td><td><b>Module / Controller / Provider(Service)</b></td><td><b>今天</b></td></tr>
+  </table>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:nest-lab 开张</h2>
+  <p>按「三步走」,先在 Nest 里写出来、跑起来,原理后面再讲。项目已经生成好了,你在自己电脑上重做一遍只需要:</p>
+  <pre><code># 在仓库根目录(已生成好的话跳过这一步)
+npx @nestjs/cli@latest new nest-lab --package-manager npm --skip-git --strict
+
+cd nest-lab
+npm install          # clone 下来后第一次要装依赖(node_modules 不进 git)
+npm run start:dev    # 开店,默认 http://localhost:3000,改代码自动重启
+curl localhost:3000/tasks</code></pre>
+  <div class="warn">
+    <span class="tag">⚠️ 两个生成时的小坑(已处理好,知道就行):</span>
+    <ol>
+      <li><code>--skip-git</code> 不会生成 <code>.gitignore</code>,所以手动补了 <code>nest-lab/.gitignore</code>(忽略 <code>node_modules/</code>、<code>dist/</code>、<code>coverage/</code>、<code>*.tsbuildinfo</code>)。根目录 <code>tsconfig.json</code> 的 <code>exclude</code> 加了 <code>"nest-lab"</code>,因为 nest-lab 有自己的 tsconfig(要开装饰器),不归根目录 <code>npm run typecheck</code> 管。</li>
+      <li>NestJS 12 的模板里有一个依赖(<code>vite-tsconfig-paths → tsconfck</code>)声明 peer <code>typescript@^5</code>,而项目用的是 TypeScript 6,npm 10 解析这组 peer 时会直接崩溃(<code>Cannot read properties of null (reading 'edgesOut')</code>)。<code>nest-lab/.npmrc</code> 里加了 <code>legacy-peer-deps=true</code> 绕过,原因写在文件注释里。</li>
+    </ol>
+  </div>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用(餐厅版)</th></tr>
+    <tr><td><code>nest-lab/</code> 整个目录</td><td>由 <code>nest new</code> 生成</td><td>加盟店的毛坯房:<code>main.ts</code>、<code>app.module.ts</code>、<code>app.controller.ts</code>、<code>app.service.ts</code>、测试配置(vitest)、lint 配置(oxlint)</td></tr>
+    <tr><td><code>src/tasks/task.ts</code></td><td>新增</td><td>一条任务长什么样(普通 TS 类型;Week 3 拆 DTO,Week 4 变数据库表)</td></tr>
+    <tr><td><code>src/tasks/tasks.service.ts</code></td><td>新增</td><td><b>后厨</b>:内存数组 + <code>findAll / findOne / create</code>;找不到抛 <code>NotFoundException</code></td></tr>
+    <tr><td><code>src/tasks/tasks.controller.ts</code></td><td>新增</td><td><b>前台</b>:<code>GET /tasks</code>、<code>GET /tasks/:id</code>、<code>POST /tasks</code></td></tr>
+    <tr><td><code>src/tasks/tasks.module.ts</code></td><td>新增</td><td><b>任务部门编制表</b>:登记一个前台、一个后厨</td></tr>
+    <tr><td><code>src/common/request-logger.middleware.ts</code></td><td>新增</td><td><b>门口登记员</b>:请求进门、响应出门各打一行</td></tr>
+    <tr><td><code>src/app.module.ts</code></td><td>修改</td><td>总部编制表里 <code>imports: [TasksModule]</code>,把任务部门挂上来</td></tr>
+    <tr><td><code>src/main.ts</code></td><td>修改</td><td><code>app.use(requestLogger)</code>:全局挂上门口登记员</td></tr>
+    <tr><td><code>src/tasks/tasks.service.spec.ts</code></td><td>新增</td><td>单元测试:不起 HTTP,直接测后厨</td></tr>
+    <tr><td><code>test/tasks.e2e-spec.ts</code></td><td>新增</td><td>e2e 测试:用 supertest 发真实 HTTP 请求测三个接口 + 404</td></tr>
+    <tr><td><code>scripts/day08-try.mjs</code> + <code>package.json</code> 的 <code>day08</code> 脚本</td><td>新增</td><td>观察脚本:开店 → 偷看标签 → 发 6 个请求 → 关店</td></tr>
+    <tr><td><code>.gitignore</code>、<code>.npmrc</code>、<code>README.md</code></td><td>新增 / 改写</td><td>忽略产物、绕过 npm peer 崩溃、中文 README + 成长日志</td></tr>
+    <tr><td><code>test/*.e2e-spec.ts</code> 的 <code>supertest/types</code> 导入</td><td>修改</td><td>模板写的 <code>'supertest/types'</code> 在 nodenext 下 tsc 找不到类型,改成 <code>'supertest/types.js'</code>(vitest 不做类型检查所以测试照样过,但编辑器会标红)</td></tr>
+  </table>
+
+  <p>核心代码只有三段,先扫一眼,下面三张卡片逐行拆:</p>
+  <pre><code>// src/tasks/tasks.module.ts —— 部门编制表
+@Module({
+  controllers: [TasksController],   // 这个部门的前台
+  providers: [TasksService],         // 这个部门的后厨
+})
+export class TasksModule {}
+
+// src/tasks/tasks.controller.ts —— 前台:只管「哪张单子交给谁」
+@Controller('tasks')
+export class TasksController {
+  constructor(private readonly tasksService: TasksService) {}   // 只声明「我需要后厨」,不自己 new
+
+  @Get()          findAll()                        { return this.tasksService.findAll(); }
+  @Get(':id')     findOne(@Param('id') id: string) { return this.tasksService.findOne(Number(id)); }
+  @Post()         create(@Body() body: { title: string }) { return this.tasksService.create(body.title); }
+}
+
+// src/tasks/tasks.service.ts —— 后厨:只管「菜怎么做」,不知道 HTTP 的存在
+@Injectable()
+export class TasksService {
+  private readonly tasks: Task[] = [ /* 两条初始任务 */ ];
+  findOne(id: number): Task {
+    const task = this.tasks.find((t) =&gt; t.id === id);
+    if (!task) throw new NotFoundException(`没有 id 为 ${id} 的任务`);   // 抛异常,不写 res.writeHead(404)
+    return task;
+  }
+  // findAll / create 略
+}</code></pre>
+  <p>(为了排版,上面把 Controller 的方法压成了一行,真实文件里有注释和观察用的 <code>console.log</code>。)</p>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:框架与三件套 —— 连锁店的编制表、前台、后厨</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    框架 = 别人替你写好的那 80% 杂活 + 一套「代码该放哪」的规矩;你只写跟自己业务有关的那 20%,<b>框架来调用你</b>。
+  </div>
+
+  <h3>② 生活类比:连锁餐厅的加盟体系</h3>
+  <p>加盟一家连锁店,总部不会让你自己琢磨怎么排班、怎么接单。总部发给你一张<b>编制表</b>,上面按部门写好:「任务部门:前台 1 名(TasksController),后厨 1 名(TasksService)」。开业那天(<code>NestFactory.create(AppModule)</code>),总部照着<b>总部编制表(AppModule)</b>顺藤摸瓜,把每个部门的人招齐、把「前台找哪个后厨」接好线,然后开门营业。</p>
+  <ul>
+    <li><b>前台(Controller)</b>:接单,看清「哪桌、点什么」,把单子递给后厨,再把菜端出去。<b>不做菜。</b></li>
+    <li><b>后厨(Provider / Service)</b>:只管做菜,<b>从来不见客人</b>,不知道客人是从门口进来的、还是外卖平台下的单。</li>
+    <li><b>部门编制表(Module)</b>:写清这个部门有谁。没写进编制表的人,开业时不会被招进来。</li>
+  </ul>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>nest-lab 里</th></tr>
+    <tr><td>加盟总部的运营手册</td><td>NestJS 框架(<code>@nestjs/core</code> + <code>@nestjs/common</code>)</td><td><code>package.json</code> 的依赖</td></tr>
+    <tr><td>开业当天照表招人、接线</td><td><code>NestFactory.create(AppModule)</code>:扫描模块 → 创建实例 → 注册路由</td><td><code>src/main.ts</code></td></tr>
+    <tr><td>总部编制表</td><td>根模块 <code>AppModule</code></td><td><code>src/app.module.ts</code></td></tr>
+    <tr><td>部门编制表</td><td>功能模块 <code>@Module({ controllers, providers, imports })</code></td><td><code>src/tasks/tasks.module.ts</code></td></tr>
+    <tr><td>前台接待</td><td><b>Controller</b>:路由 + 取参数 + 返回结果(HTTP 层)</td><td><code>src/tasks/tasks.controller.ts</code></td></tr>
+    <tr><td>后厨</td><td><b>Provider</b>(最常见的一种叫 Service):业务逻辑 + 数据访问</td><td><code>src/tasks/tasks.service.ts</code></td></tr>
+    <tr><td>前台和后厨之间的传菜线</td><td>构造函数参数 <code>constructor(private tasksService: TasksService)</code>,由 Nest 自动塞进来</td><td>原理 <b>Day 9 拆开讲</b></td></tr>
+  </table>
+
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    如果你写过 <b>Angular</b>:Nest 的设计几乎是照着它抄的,<code>@Module</code> ≈ <code>@NgModule</code>,<code>@Injectable</code> 一字不差。如果你主要写 <b>Next.js</b>:Controller ≈ <code>app/api/tasks/route.ts</code> 里的 <code>GET / POST</code> 函数,Service ≈ 你抽到 <code>lib/</code> 里的业务函数;区别是 Next.js 靠<b>文件放在哪</b>决定路由,Nest 靠<b>装饰器标签</b>决定路由(下一张卡),而且 Service 不用你 <code>import</code> 了自己调,由 Nest 送到 Controller 手里。
+  </div>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「前台和后厨是两个人,可以同时干活」——错。</b>Controller 和 Service 只是<b>两段代码</b>,不是两个线程。真正跑它们的,还是 Day 1 那个唯一的<b>服务员(event loop 主线程)</b>:他先站到前台岗位执行 Controller,再走进后厨执行 Service。如果你在 Service 里写一个同步死循环或者算 <code>fib(45)</code>,<b>整家店照样卡死</b>,Day 1 和 Day 5 的规矩一条都没变。</li>
+      <li><b>「Provider = 后厨厨师」只说对了一半。</b>Provider 指<b>任何交给 Nest 管理、可以被送到别人手里的东西</b>:业务 Service、数据库连接、配置对象、日志器都是 Provider。「后厨」只是最常见的那一种。</li>
+      <li><b>「部门之间有墙」——没有物理的墙。</b>所有 Module 都在同一个进程、同一块内存里,Module 只是<b>逻辑上的分组和可见性规则</b>(一个部门的后厨默认不借给别的部门,要 <code>exports</code> 才行,Day 9 讲)。它不是微服务,也不是 Day 4 的分店。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>framework vs library</b>:库(library)是<b>你调用它</b>(<code>JSON.parse</code>、lodash);框架(framework)是<b>它调用你</b>(你写 <code>findAll()</code>,但从来不自己调用它,请求来了 Nest 调)。这种「控制权反过来」叫 <b>Inversion of Control(控制反转)</b>,俗称好莱坞原则:「别打给我们,我们会打给你」——<b>明天 Day 9 的主角</b>,今天只记住这个名字。<br>
+    <b>Module</b>:组织代码的单元;<b>Controller</b>:处理 HTTP 请求的类;<b>Provider</b>:被 Nest 管理、可被注入的类或值;<b>Service</b>:放业务逻辑的 Provider(只是命名惯例,不是特殊语法)。<br>
+    分层的意义:<b>Controller 只认 HTTP,Service 只认业务</b>。所以你能脱离 HTTP 直接 <code>new TasksService()</code> 做单元测试,将来把内存数组换成 PostgreSQL 时 Controller 一行不用改。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:Controller 里一个状态码都没写。那么 <code>POST /tasks</code> 成功时,客户端收到的是 200 还是 201?<code>GET /tasks/999</code> 呢?</p>
+  <pre><code>cd nest-lab
+npm test                                                  # 单元测试:后厨单独测
+npx vitest run --config ./vitest.config.e2e.ts --reporter=verbose   # e2e:真发 HTTP 请求</code></pre>
+  <p>真实运行结果(e2e,耗时每次不同):</p>
+  <pre><code> ✓ test/app.e2e-spec.ts &gt; AppController (e2e) &gt; / (GET) 120ms
+ ✓ test/tasks.e2e-spec.ts &gt; Tasks (e2e) &gt; GET /tasks → 200 + 任务数组 165ms
+ ✓ test/tasks.e2e-spec.ts &gt; Tasks (e2e) &gt; GET /tasks/1 → 200 + 单个任务 13ms
+ ✓ test/tasks.e2e-spec.ts &gt; Tasks (e2e) &gt; GET /tasks/999 → 404(NotFoundException 被翻译成 JSON) 12ms
+ ✓ test/tasks.e2e-spec.ts &gt; Tasks (e2e) &gt; POST /tasks → 201 + 新任务,之后能 GET 到 19ms
+      Tests  5 passed (5)</code></pre>
+  <p>答案:Nest 的默认规则是 <b>POST 回 201,其他方法回 200</b>;后厨抛 <code>NotFoundException</code> 就变成 404。这些都是「手册里的默认值」,不是你写的。</p>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:装饰器 —— 贴在员工身上的岗位便利贴</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    装饰器就是贴在类、方法、参数上的<b>便利贴</b>。贴的时候几乎什么都不做;开店时总部挨个读便利贴,照着上面写的把店组装起来。
+  </div>
+
+  <h3>② 生活类比:岗位便利贴 + 开业排班</h3>
+  <p>新员工入职,总部给他身上贴几张便利贴:</p>
+  <ul>
+    <li>胸口(类上):<code>@Controller('tasks')</code> —— 「我是前台,负责 <b>/tasks</b> 这一片」</li>
+    <li>左手(方法上):<code>@Get(':id')</code> —— 「<b>GET /tasks/某个号</b> 的单子归这只手」</li>
+    <li>手里的小本(参数上):<code>@Param('id')</code> —— 「接单时把单子上的<b>桌号</b>抄给我」</li>
+    <li>后厨工牌:<code>@Injectable()</code> —— 「此人归总部统一调配,谁需要就派过去」</li>
+  </ul>
+  <p>开业那天,总部的排班员(Nest 的 <code>RoutesResolver</code> / <code>RouterExplorer</code>)拿着编制表挨个看人身上的便利贴,排出一张<b>路由表</b>:「GET /tasks → 前台的 findAll 手;GET /tasks/:id → findOne 手……」。你在启动日志里能看到这张表被一行行排出来。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>便利贴</th><th>真实发生的事(nest-lab 里亲眼看得到)</th></tr>
+    <tr><td><code>@Controller('tasks')</code></td><td>在 <code>TasksController</code> 这个类上记一条元数据:<code>path = "tasks"</code></td></tr>
+    <tr><td><code>@Get(':id')</code></td><td>在 <code>findOne</code> 方法上记两条:<code>path = ":id"</code>、<code>method = 0</code>(0 是 GET 的枚举值)</td></tr>
+    <tr><td><code>@Param('id')</code> / <code>@Body()</code></td><td>在方法上记「第 0 个参数要路径里的 id / 要请求体」</td></tr>
+    <tr><td><code>@Injectable()</code> / <code>@Module({...})</code></td><td>标记「这个类归 Nest 管」/ 记下部门编制</td></tr>
+    <tr><td>(没贴,但 tsc 自动写的)</td><td><code>design:paramtypes = [TasksService]</code>:构造函数要什么类型 —— <b>Day 9 自动注入就靠它</b></td></tr>
+    <tr><td>开业排班员</td><td><code>NestFactory.create</code> 里读元数据、注册路由的代码(启动日志 <code>Mapped {/tasks/:id, GET} route</code>)</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「贴了便利贴,事情就成了」——错。</b>装饰器只负责<b>贴</b>,真正干活的是<b>读</b>便利贴的人。如果 <code>TasksController</code> 没写进任何 Module 的 <code>controllers</code>,标签照样贴在类上,但总部开业时根本不看他 —— 路由一条都不会注册,请求全是 404(习题 2 亲手撕一次)。</li>
+      <li><b>「每来一个客人,便利贴就被执行一次」——错。</b>装饰器函数在<b>类定义的那一刻</b>(文件被 import 时)只跑一次;请求来了以后查的是<b>已经排好的路由表</b>,不会再读一遍便利贴。所以装饰器不会让请求变慢。</li>
+      <li><b>现实里便利贴看得见,代码里的标签看不见。</b>它们存在 <code>reflect-metadata</code> 维护的一张<b>隐形表</b>里,要用 <code>Reflect.getMetadata(...)</code> 才能读出来。而且 Nest 用的是 TypeScript 的<b>旧版实验装饰器</b>(<code>nest-lab/tsconfig.json</code> 里的 <code>experimentalDecorators</code> + <code>emitDecoratorMetadata</code>),和 JS 标准(TC39)装饰器不是同一套;<code>design:paramtypes</code> 只有 <code>tsc</code> 会生成,用 tsx / esbuild 直接跑 Nest 源码,构造函数注入会拿到 <code>undefined</code>。这就是观察脚本先 <code>nest build</code> 再读 <code>dist/</code> 的原因。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>decorator</b>(装饰器):一个在类 / 方法 / 参数定义时被调用的函数;<b>metadata</b>(元数据):「关于代码的数据」,这里指贴在类和方法上的标签;<b>reflect-metadata</b>:提供 <code>Reflect.defineMetadata / getMetadata</code> 的库;<b>reflection</b>(反射):程序在运行时查看自己的结构。<br>
+    更重要的是一种思维:<b>声明式(declarative)vs 命令式(imperative)</b>。Day 6 你是命令式地写「如果方法是 GET 且路径匹配这个正则,就调用这个函数」;今天是声明式地说「<b>这个方法负责 GET /tasks/:id</b>」,怎么匹配交给框架。C# 的 Attribute(<code>[HttpGet]</code>)、Java 的 Annotation(<code>@GetMapping</code>)是同一个思路,而且它们比 TS 更早就这么干了。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:观察脚本第 2 幕会读出 <code>findOne</code> 方法上的 <code>method</code> 标签,它打印出来是字符串 <code>"GET"</code> 吗?构造函数需要的类型会打印出什么?</p>
+  <pre><code>cd nest-lab
+npm run day08      # = nest build && node scripts/day08-try.mjs</code></pre>
+  <p>真实运行结果(第 1、2 幕;已去掉终端颜色,PID、时间、<code>+Nms</code> 每次不同):</p>
+  <pre><code>========== 第 1 幕:开店 NestFactory.create(AppModule) ==========
+[Nest] 1943  - 11/03/2026, 9:09:55 PM     LOG [NestFactory] Starting Nest application...
+[Nest] 1943  - 11/03/2026, 9:09:55 PM     LOG [InstanceLoader] AppModule dependencies initialized +10ms
+[Nest] 1943  - 11/03/2026, 9:09:55 PM     LOG [InstanceLoader] TasksModule dependencies initialized +1ms
+[Nest] 1943  - 11/03/2026, 9:09:55 PM     LOG [RoutesResolver] AppController {/}: +5ms
+[Nest] 1943  - 11/03/2026, 9:09:55 PM     LOG [RouterExplorer] Mapped {/, GET} route +3ms
+[Nest] 1943  - 11/03/2026, 9:09:55 PM     LOG [RoutesResolver] TasksController {/tasks}: +0ms
+[Nest] 1943  - 11/03/2026, 9:09:55 PM     LOG [RouterExplorer] Mapped {/tasks, GET} route +1ms
+[Nest] 1943  - 11/03/2026, 9:09:55 PM     LOG [RouterExplorer] Mapped {/tasks/:id, GET} route +1ms
+[Nest] 1943  - 11/03/2026, 9:09:55 PM     LOG [RouterExplorer] Mapped {/tasks, POST} route +0ms
+[Nest] 1943  - 11/03/2026, 9:09:55 PM     LOG [NestApplication] Nest application successfully started +2ms
+
+========== 第 2 幕:装饰器贴了哪些标签? ==========
+类上的 path 标签        : tasks
+findOne 的 path 标签    : :id
+findOne 的 method 标签  : 0 (0 = GET)
+create  的 method 标签  : 1 (1 = POST)
+构造函数需要的类型      : [ 'TasksService' ]</code></pre>
+  <p>看到了吗:第 1 幕的 <code>Mapped {...} route</code> 就是「排班员读便利贴、排出路由表」;第 2 幕是你绕过排班员,自己去隐形表里把便利贴读出来。<code>method</code> 存的是数字 <code>0</code> 而不是 <code>"GET"</code>,说明它就是给机器读的数据,不是给人看的注释。</p>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:一个请求在 Nest 里的一生 —— 连锁店的标准接待流程</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    请求进门后不是直接到你的方法,而是走一条<b>固定顺序的流水线</b>,每一站都可以插手;今天你只写了中间两站(前台和后厨),其余的站要么空着,要么用的是总部的默认版。
+  </div>
+
+  <h3>② 生活类比:连锁店的标准接待流程</h3>
+  <p>连锁店接待每位客人都走同一套流程:门口<b>登记员</b>记下谁进来了 → <b>保安</b>查会员卡,没卡不让进 → <b>领班</b>掐表开始计时 → <b>核单员</b>检查单子格式、把「三」改写成「3」 → <b>前台</b>接单 → <b>后厨</b>做菜 → 领班把菜装盘、记下用了多久 → 端出门。任何一站出了事(没这道菜、厨房着火),都直接转到<b>投诉处理台</b>,由它给客人一个<b>体面的、格式统一的答复</b>,而不是让后厨冲出来对客人吼。</p>
+
+  <figure style="margin:20px 0;">
+  <svg viewBox="0 0 680 600" width="100%" role="img" aria-label="一个请求在 NestJS 里的生命周期" style="background:#fff;border:1px solid #e5e1d8;border-radius:12px;">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/>
+      </marker>
+      <marker id="arrRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#b03030"/>
+      </marker>
+    </defs>
+    <g font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14">
+      <!-- 0 客户端 -->
+      <rect x="40" y="16" width="380" height="42" rx="8" fill="#f0ede6" stroke="#6b7280"/>
+      <text x="230" y="42" text-anchor="middle" fill="#1f2430">客户端发来 HTTP 请求(Day 6 的报文)</text>
+      <line x1="230" y1="58" x2="230" y2="74" stroke="#6b7280" stroke-width="2" marker-end="url(#arr)"/>
+      <!-- 1 middleware -->
+      <rect x="40" y="76" width="380" height="42" rx="8" fill="#fff3ec" stroke="#c2410c" stroke-width="2"/>
+      <text x="230" y="102" text-anchor="middle" fill="#1f2430">① Middleware 门口登记员 · <tspan font-weight="700" fill="#c2410c">今天写了</tspan></text>
+      <line x1="230" y1="118" x2="230" y2="134" stroke="#6b7280" stroke-width="2" marker-end="url(#arr)"/>
+      <!-- 2 guard -->
+      <rect x="40" y="136" width="380" height="42" rx="8" fill="#fafafa" stroke="#9ca3af" stroke-dasharray="6 4"/>
+      <text x="230" y="162" text-anchor="middle" fill="#6b7280">② Guard 保安(能不能进?)· Day 10</text>
+      <line x1="230" y1="178" x2="230" y2="194" stroke="#6b7280" stroke-width="2" marker-end="url(#arr)"/>
+      <!-- 2 interceptor before -->
+      <rect x="40" y="196" width="380" height="42" rx="8" fill="#fafafa" stroke="#9ca3af" stroke-dasharray="6 4"/>
+      <text x="230" y="222" text-anchor="middle" fill="#6b7280">② Interceptor(去程)领班掐表 · Day 10</text>
+      <line x1="230" y1="238" x2="230" y2="254" stroke="#6b7280" stroke-width="2" marker-end="url(#arr)"/>
+      <!-- 2 pipe -->
+      <rect x="40" y="256" width="380" height="42" rx="8" fill="#fafafa" stroke="#9ca3af" stroke-dasharray="6 4"/>
+      <text x="230" y="282" text-anchor="middle" fill="#6b7280">② Pipe 核单员(校验 / 转类型)· Day 10、Week 3</text>
+      <line x1="230" y1="298" x2="230" y2="314" stroke="#6b7280" stroke-width="2" marker-end="url(#arr)"/>
+      <!-- 3 controller -->
+      <rect x="40" y="316" width="380" height="42" rx="8" fill="#fff3ec" stroke="#c2410c" stroke-width="2"/>
+      <text x="230" y="342" text-anchor="middle" fill="#1f2430">③ Controller 前台接单 · <tspan font-weight="700" fill="#c2410c">今天写了</tspan></text>
+      <line x1="230" y1="358" x2="230" y2="374" stroke="#6b7280" stroke-width="2" marker-end="url(#arr)"/>
+      <!-- 4 service -->
+      <rect x="40" y="376" width="380" height="42" rx="8" fill="#fff3ec" stroke="#c2410c" stroke-width="2"/>
+      <text x="230" y="402" text-anchor="middle" fill="#1f2430">④ Service 后厨做菜 · <tspan font-weight="700" fill="#c2410c">今天写了</tspan></text>
+      <line x1="230" y1="418" x2="230" y2="434" stroke="#6b7280" stroke-width="2" marker-end="url(#arr)"/>
+      <!-- 5 interceptor after -->
+      <rect x="40" y="436" width="380" height="42" rx="8" fill="#fafafa" stroke="#9ca3af" stroke-dasharray="6 4"/>
+      <text x="230" y="462" text-anchor="middle" fill="#6b7280">⑤ Interceptor(回程)领班装盘 · Day 10</text>
+      <line x1="230" y1="478" x2="230" y2="494" stroke="#6b7280" stroke-width="2" marker-end="url(#arr)"/>
+      <!-- 6 response -->
+      <rect x="40" y="496" width="380" height="42" rx="8" fill="#fff3ec" stroke="#c2410c" stroke-width="2"/>
+      <text x="230" y="522" text-anchor="middle" fill="#1f2430">⑥ 响应发出(登记员的 'finish' 回调打「出门」)</text>
+      <!-- exception filter -->
+      <rect x="470" y="256" width="190" height="162" rx="10" fill="#fdf2f2" stroke="#b03030" stroke-width="2"/>
+      <text x="565" y="286" text-anchor="middle" fill="#b03030" font-weight="700">⑤ Exception Filter</text>
+      <text x="565" y="310" text-anchor="middle" fill="#1f2430">投诉处理台</text>
+      <text x="565" y="338" text-anchor="middle" fill="#6b7280" font-size="12">任何一站 throw</text>
+      <text x="565" y="356" text-anchor="middle" fill="#6b7280" font-size="12">都跳到这里</text>
+      <text x="565" y="384" text-anchor="middle" fill="#6b7280" font-size="12">今天用的是 Nest 内置版</text>
+      <text x="565" y="402" text-anchor="middle" fill="#6b7280" font-size="12">自定义 · Day 10 / Day 13</text>
+      <!-- throw arrows -->
+      <line x1="420" y1="337" x2="468" y2="320" stroke="#b03030" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrRed)"/>
+      <line x1="420" y1="397" x2="468" y2="380" stroke="#b03030" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrRed)"/>
+      <text x="444" y="372" text-anchor="middle" fill="#b03030" font-size="11">throw</text>
+      <line x1="565" y1="418" x2="430" y2="512" stroke="#b03030" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrRed)"/>
+      <text x="540" y="478" fill="#b03030" font-size="12">404 + JSON</text>
+      <!-- legend -->
+      <rect x="40" y="556" width="16" height="12" fill="#fff3ec" stroke="#c2410c" stroke-width="2"/>
+      <text x="62" y="567" fill="#1f2430" font-size="12">今天亲手写了 / 看到了</text>
+      <rect x="220" y="556" width="16" height="12" fill="#fafafa" stroke="#9ca3af" stroke-dasharray="4 3"/>
+      <text x="242" y="567" fill="#1f2430" font-size="12">空站:没注册就直接跳过,Day 10 展开</text>
+    </g>
+  </svg>
+  <figcaption style="color:#6b7280;font-size:14px;text-align:center;">图:一个请求在 Nest 里的一生。编号和观察脚本打印的 ①③④⑥ 一一对应,② 和 ⑤ 是今天还空着的站。</figcaption>
+  </figure>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>站</th><th>比喻</th><th>真实组件</th><th>今天的状态</th></tr>
+    <tr><td>①</td><td>门口登记员</td><td><b>Middleware</b>:最早执行,拿到原始 <code>req/res</code>(就是 Express 的那种中间件)</td><td><code>requestLogger</code>,在 <code>main.ts</code> 里 <code>app.use</code></td></tr>
+    <tr><td>②</td><td>保安 / 领班(去程)/ 核单员</td><td><b>Guard</b>(鉴权)/ <b>Interceptor</b>(前后包一层)/ <b>Pipe</b>(校验、转换参数)</td><td>空着,Day 10 一站站拆</td></tr>
+    <tr><td>③</td><td>前台</td><td>Controller 的路由方法(<b>route handler</b>)</td><td><code>TasksController</code></td></tr>
+    <tr><td>④</td><td>后厨</td><td>Service(Provider)</td><td><code>TasksService</code></td></tr>
+    <tr><td>⑤</td><td>领班(回程)/ 投诉处理台</td><td>Interceptor 的回程 / <b>Exception Filter</b></td><td>Filter 用的是 Nest 内置的全局版:把 <code>HttpException</code> 翻译成 <code>{ message, error, statusCode }</code></td></tr>
+    <tr><td>⑥</td><td>端出门</td><td>响应写完,<code>res</code> 这条可写流(Day 3)触发 <code>'finish'</code></td><td>登记员打印「出门」</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「流水线上每一站都站着人」——不是。</b>没注册 Guard / Interceptor / Pipe 时,这几站<b>根本不存在</b>,请求直接跳过,没有任何开销。今天的观察输出里只有 ①③④⑥,就是这个原因。</li>
+      <li><b>「一个客人走完整条流水线,下一个客人才能进门」——错。</b>真实系统里只有一个服务员(event loop),但他在任何一个 <code>await</code> 处都可以放下这位客人去接待下一位(Day 1–2)。几个请求的流水线是<b>交错</b>进行的:A 还在后厨等数据库,B 可能已经走到前台了。</li>
+      <li><b>「投诉处理台是流水线的最后一站」——不是。</b>Exception Filter 是一条<b>旁路</b>:哪一站 <code>throw</code>,就从哪一站直接跳过去,后面的站一概跳过。另外,如果根本<b>没有匹配的路由</b>(<code>GET /nope</code>),请求连前台都到不了,Nest 直接回 404 —— 格式和你自己抛的 <code>NotFoundException</code> 一模一样,因为走的是同一套异常处理。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>request lifecycle</b>(请求生命周期):Nest 官方文档里固定的顺序是 <b>Middleware → Guard → Interceptor(前)→ Pipe → Controller → Service → Interceptor(后)→ Exception Filter(出错时)→ 响应</b>。这条管线就是 Day 10 要讲的 <b>AOP(面向切面)</b> 在 Nest 里的落地形式,今天只需要记住<b>站的顺序</b>。<br>
+    <b>HttpException</b>:Nest 里「带 HTTP 状态码的异常」的基类,<code>NotFoundException</code>(404)、<code>BadRequestException</code>(400)、<code>ForbiddenException</code>(403)都是它的子类。思维转变:<b>业务代码只管 throw,状态码和响应格式交给统一的那一站</b>,不再像 Day 6 那样每个分支自己 <code>sendProblem(res, 404, ...)</code>。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>,把答案写在 <code>notes.md</code> 的笔记区:</p>
+  <ol>
+    <li><code>GET /tasks/999</code>:Controller 和 Service 都会打印吗?「出门」那一行还会打印吗?状态码是多少?</li>
+    <li><code>POST /tasks</code> 发一个空对象 <code>{}</code>(没有 title):会被拒绝吗?返回的 JSON 长什么样?</li>
+    <li><code>GET /nope</code>(不存在的路由):会经过 Middleware 吗?会经过 Controller 吗?</li>
+  </ol>
+  <p>还是 <code>npm run day08</code>,看第 3 幕。真实运行结果(<code>ms</code> 每次不同):</p>
+  <pre><code>========== 第 3 幕:GET /tasks ==========
+→ ① Middleware 进门:GET /tasks
+  ③ Controller 前台接单:GET /tasks
+   ④ Service    后厨做菜:findAll
+← ⑥ Middleware 出门:200(5.7 ms)
+   客户端收到:200 [{"id":1,"title":"跑通 nest new","done":true},{"id":2,"title":"看懂 Module / Controller / Provider","done":false}]
+
+========== 第 3 幕:GET /tasks/2 ==========
+→ ① Middleware 进门:GET /tasks/2
+  ③ Controller 前台接单:GET /tasks/2
+   ④ Service    后厨做菜:findOne(2)
+← ⑥ Middleware 出门:200(1.4 ms)
+   客户端收到:200 {"id":2,"title":"看懂 Module / Controller / Provider","done":false}
+
+========== 第 3 幕:GET /tasks/999 ==========
+→ ① Middleware 进门:GET /tasks/999
+  ③ Controller 前台接单:GET /tasks/999
+   ④ Service    后厨做菜:findOne(999)
+← ⑥ Middleware 出门:404(1.6 ms)
+   客户端收到:404 {"message":"没有 id 为 999 的任务","error":"Not Found","statusCode":404}
+
+========== 第 3 幕:POST /tasks {"title":"学 NestJS"} ==========
+→ ① Middleware 进门:POST /tasks
+  ③ Controller 前台接单:POST /tasks
+   ④ Service    后厨做菜:create("学 NestJS")
+← ⑥ Middleware 出门:201(7.8 ms)
+   客户端收到:201 {"id":3,"title":"学 NestJS","done":false}
+
+========== 第 3 幕:POST /tasks {} ==========
+→ ① Middleware 进门:POST /tasks
+  ③ Controller 前台接单:POST /tasks
+   ④ Service    后厨做菜:create("undefined")
+← ⑥ Middleware 出门:201(1.1 ms)
+   客户端收到:201 {"id":4,"done":false}
+
+========== 第 3 幕:GET /nope ==========
+→ ① Middleware 进门:GET /nope
+← ⑥ Middleware 出门:404(0.8 ms)
+   客户端收到:404 {"message":"Cannot GET /nope","error":"Not Found","statusCode":404}
+
+========== 第 4 幕:关店 app.close() ==========
+店已关,进程退出</code></pre>
+  <p>三个值得停下来想的地方:</p>
+  <ul>
+    <li><b>404 也会「出门」</b>:异常被投诉处理台接住、翻译成 JSON 后,响应照常发出,所以登记员的 <code>'finish'</code> 照样触发。</li>
+    <li><b><code>POST {}</code> 被收下了,还回了 201</b>:<code>title</code> 是 <code>undefined</code>,<code>JSON.stringify</code> 直接把它扔掉,于是响应里干脆没有 <code>title</code> 字段。Day 6 你手写了「title 为空回 422」,今天的 Nest 版<b>反而退步了</b>:框架不会自动替你校验,校验要靠 Pipe(Day 10)+ DTO(Week 3)主动开启。</li>
+    <li><b><code>/nope</code> 只经过了 ① 和 ⑥</b>:没有路由,就没有前台可去。</li>
+  </ul>
+</section>
+
+<section id="sec6">
+  <h2>🔍 掀开盖子:Nest 替你做掉了 Day 6 的哪些活</h2>
+  <p>「三步走」的第 2 步:框架不是魔法,它做的每件事你在 Day 6 都亲手做过。Nest 默认跑在 <b>Express</b> 上(响应头里能看到 <code>X-Powered-By: Express</code>),Express 底层又是你 Day 6 用过的 <code>node:http</code>。下面这张表左边是 Day 6,右边是今天:</p>
+  <table>
+    <tr><th>杂活</th><th>Day 6 裸写 <code>node:http</code></th><th>Nest 里谁替你做了</th><th>不用框架时你要自己做</th></tr>
+    <tr><td>路由匹配</td><td>正则 + <code>if (method === ...)</code></td><td>启动时读 <code>@Controller / @Get</code> 标签,注册到 Express 路由表</td><td>维护一张「方法 + 路径 → 函数」的表,按顺序匹配</td></tr>
+    <tr><td>路径参数</td><td><code>m[1]</code></td><td><code>@Param('id')</code>(取出来<b>永远是字符串</b>)</td><td>从匹配结果里抠</td></tr>
+    <tr><td>解析 JSON body</td><td>攒 chunk + <code>JSON.parse</code> + 1MB 上限 + 坏 JSON 回 400</td><td>内置 body parser:坏 JSON 自动 400,默认也有大小上限</td><td>Day 6 的 <code>readJson</code></td></tr>
+    <tr><td>写响应</td><td><code>sendJson</code>:stringify + Content-Type + Content-Length</td><td>方法 <code>return</code> 一个对象就行,自动序列化 + <code>application/json; charset=utf-8</code></td><td>Day 6 的 <code>sendJson</code></td></tr>
+    <tr><td>默认状态码</td><td>每个分支自己写</td><td>POST 默认 201,其他 200</td><td>每个分支自己写</td></tr>
+    <tr><td>错误响应</td><td>每个出错分支 <code>sendProblem(res, 404, ...)</code></td><td><code>throw new NotFoundException()</code> → 内置 Exception Filter 统一翻译</td><td>try/catch 包住路由,集中翻译</td></tr>
+    <tr><td>对象创建与接线</td><td>全局变量 <code>tasks</code>,函数直接互相调用</td><td>按 Module 编制表创建 Controller、Service,并把 Service 塞进 Controller 的构造函数</td><td>在入口手动 <code>new</code> 好、一层层传下去(Day 9 讲为什么不这么干)</td></tr>
+  </table>
+  <div class="warn">
+    <span class="tag">⚠️ 框架也有「没替你做」的事:</span>
+    Day 6 你对 <code>DELETE /tasks</code> 回了 <b>405 Method Not Allowed</b>,201 还带了 <code>Location</code> 头。今天的 nest-lab:<code>DELETE /tasks/1</code> 回的是 <code>404 Cannot DELETE /tasks/1</code>,<code>POST</code> 的 201 也<b>没有</b> <code>Location</code> 头。框架给的是「够用的默认值」,HTTP 语义做到多讲究,仍然是你的责任(Week 3 API 设计周补齐)。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p>Module / Controller / Service 三层 + 装饰器(注解)+ 容器自动接线,是企业级后端框架的<b>通用骨架</b>。Nest 正是照着 Spring 和 ASP.NET Core 的样子设计的,所以今天学的东西换门语言只是换语法:</p>
+  <table>
+    <tr><th>命题</th><th>NestJS(教具)</th><th>C# / ASP.NET Core</th><th>Java / Spring Boot</th><th>Go / Gin</th></tr>
+    <tr>
+      <td>入口:开店</td>
+      <td><code>main.ts</code>:<code>NestFactory.create(AppModule)</code> → <code>app.listen()</code></td>
+      <td><code>Program.cs</code>:<code>WebApplication.CreateBuilder()</code> → <code>builder.Services.Add...()</code> → <code>app.MapControllers()</code> → <code>app.Run()</code></td>
+      <td><code>@SpringBootApplication</code> + <code>SpringApplication.run(App.class)</code></td>
+      <td><code>main()</code>:<code>r := gin.Default()</code> → <code>r.Run()</code></td>
+    </tr>
+    <tr>
+      <td>编制表:怎么组织模块</td>
+      <td><code>@Module({ controllers, providers, imports })</code></td>
+      <td>没有 Module 这个词;按惯例写扩展方法分组,如 <code>services.AddTasks()</code></td>
+      <td><code>@Configuration</code> + 按包自动扫描(<code>@ComponentScan</code>)</td>
+      <td>没有;在 <code>main</code> 里手动拼装</td>
+    </tr>
+    <tr>
+      <td>前台:Controller</td>
+      <td><code>@Controller('tasks')</code> + <code>@Get(':id')</code></td>
+      <td><code>[ApiController] [Route("tasks")]</code> + <code>[HttpGet("{id}")]</code></td>
+      <td><code>@RestController @RequestMapping("/tasks")</code> + <code>@GetMapping("/{id}")</code></td>
+      <td><code>r.GET("/tasks/:id", handler)</code>(普通函数注册,没有标签)</td>
+    </tr>
+    <tr>
+      <td>后厨:Service</td>
+      <td><code>@Injectable() class TasksService</code></td>
+      <td>普通类 + <code>builder.Services.AddScoped&lt;TasksService&gt;()</code></td>
+      <td><code>@Service class TasksService</code></td>
+      <td>普通 struct,手动传给 handler</td>
+    </tr>
+    <tr>
+      <td>取参数</td>
+      <td><code>@Param('id')</code> / <code>@Body()</code></td>
+      <td><code>[FromRoute] int id</code> / <code>[FromBody]</code></td>
+      <td><code>@PathVariable</code> / <code>@RequestBody</code></td>
+      <td><code>c.Param("id")</code> / <code>c.ShouldBindJSON(&amp;body)</code></td>
+    </tr>
+    <tr>
+      <td>找不到 → 404</td>
+      <td><code>throw new NotFoundException()</code></td>
+      <td><code>return NotFound();</code></td>
+      <td><code>throw new ResponseStatusException(HttpStatus.NOT_FOUND)</code></td>
+      <td><code>c.JSON(404, gin.H{...}); return</code></td>
+    </tr>
+    <tr>
+      <td>「标签」机制</td>
+      <td>TS 装饰器 + reflect-metadata</td>
+      <td>Attribute + 反射(.NET 原生支持,比 TS 早得多)</td>
+      <td>Annotation + 反射</td>
+      <td>没有注解(struct tag 只用于序列化),一切显式调用</td>
+    </tr>
+    <tr>
+      <td>IoC 容器(自动接线)</td>
+      <td>有(Day 9)</td>
+      <td>有,内置 <code>Microsoft.Extensions.DependencyInjection</code></td>
+      <td>有,Spring 的核心</td>
+      <td><b>没有</b>:手动注入,或用 wire 在编译期生成接线代码</td>
+    </tr>
+  </table>
+  <p>📌 roadmap 顶部的对照表里「Web 框架」「请求管线」两行已经有了;建议你在 Day 14 复盘时自己补一行<b>「声明式路由 / 注解 + 元数据」</b>(TS 装饰器 ↔ C# Attribute ↔ Java Annotation ↔ Go 无),亲手补的比现成的记得牢。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"What is NestJS, and how is it different from Express?"</b>(或者中文:「Nest 和 Express 是什么关系?」)你可以答:<br>
+    <b>"Express 是一个很薄的 HTTP 库,只给你路由和中间件,代码怎么组织全靠自觉。NestJS 是建在 Express(或 Fastify)之上的框架,它规定了代码结构:Module 负责组织,Controller 只处理 HTTP,Provider/Service 放业务逻辑;用装饰器声明路由和依赖,启动时框架读取这些元数据,自动注册路由、创建对象并注入依赖。请求会经过固定的管线:middleware、guard、interceptor、pipe,再到 controller,出错时由 exception filter 统一处理。这套结构和 Spring Boot、ASP.NET Core 几乎一一对应,所以团队变大时更好维护。"</b><br>
+    自己练一遍:合上文档,用 30 秒说出来;卡壳的地方就是要回去重看的地方。
+  </div>
+</section>
+
+<section id="sec8">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+  <p>所有习题都在 <code>nest-lab/</code> 里做(Week 2 起不再写一次性脚本)。每一题都先在 <code>src/08-nestjs-intro/notes.md</code> 的笔记区写下预测,再运行。</p>
+
+  <div class="task">
+    <h3>习题 1:跑观察脚本,核对你的预测(动手,约 7 min)</h3>
+    <p>✍️ <b>预测(先写再运行)</b>:把第 5 节「⑤ 动手验证」里的三个问题写下答案,再加一题:<b>为什么输出里只有 ①③④⑥,没有 ② 和 ⑤?</b></p>
+    <pre><code>cd nest-lab
+npm run day08</code></pre>
+    <p>对照输出逐条批改自己的预测。然后打开 <code>test/tasks.e2e-spec.ts</code>,把 <code>beforeEach</code> 里 <code>vi.spyOn(console, 'log')...</code> 那一行注释掉,跑 <code>npm run test:e2e</code>,看同样的足迹是不是也出现在测试输出里。看完记得改回来。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:撕掉一张编制表(动手,约 8 min)</h3>
+    <p>打开 <code>src/tasks/tasks.module.ts</code>,把 <code>controllers: [TasksController]</code> 改成 <code>controllers: []</code>。</p>
+    <p>✍️ <b>预测(先写再运行)</b>:(a) <code>npm run day08</code> 第 1 幕的启动日志会少哪几行?(b) 第 2 幕还能读到 <code>path: tasks</code> 这张便利贴吗?(c) <code>GET /tasks</code> 会回什么?会经过 ③ 吗?</p>
+    <p>运行后,用一句话解释「<b>贴了标签</b>」和「<b>被框架读到</b>」的区别。<b>做完把 <code>TasksController</code> 加回去</b>,再跑一次 <code>npm run test:e2e</code> 确认 5 个测试全绿。</p>
+    <p>进阶(可选):不动 <code>tasks.module.ts</code>,改成把 <code>app.module.ts</code> 里的 <code>imports: [TasksModule]</code> 删掉,结果和上面一样吗?为什么?</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:加一个 <code>GET /tasks/count</code>,踩一次路由顺序的坑(动手,约 10 min)</h3>
+    <p>在 <code>TasksController</code> <b>最后面</b>(<code>create</code> 方法下面)加一个方法:</p>
+    <pre><code>@Get('count')
+count(): { count: number } {
+  return { count: this.tasksService.findAll().length };
+}</code></pre>
+    <p>✍️ <b>预测(先写再运行)</b>:<code>npm run start:dev</code> 后 <code>curl localhost:3000/tasks/count</code>,会返回 <code>{"count":2}</code> 吗?</p>
+    <p>运行后看启动日志里 <code>Mapped {...}</code> 的顺序,和终端里 ①③④ 的足迹,解释发生了什么。提示:便利贴是按<b>方法在类里出现的顺序</b>被读的,Express 按<b>注册顺序</b>匹配,<code>:id</code> 能匹配任何一段字符串。然后把 <code>count</code> 挪到 <code>findOne</code> <b>上面</b>,再试一次。最后在 <code>test/tasks.e2e-spec.ts</code> 里给它补一个测试用例(断言 200 和 <code>{ count: 2 }</code>),跑 <code>npm run test:e2e</code>。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/08-nestjs-intro/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「NestJS 里的 Module、Controller、Provider 分别是干嘛的?为什么不像 Day 6 那样全写在一个文件里?」用餐厅比喻给他讲清楚,并说出这个比喻在哪里会骗人。</li>
+      <li><code>@Get(':id')</code> 这一行到底做了什么?它在什么时候运行?如果 Controller 没写进任何 Module,会怎样、为什么?</li>
+      <li>按顺序写出 <code>GET /tasks/999</code> 在 nest-lab 里经过的每一站;为什么 Service 里 <code>throw new NotFoundException()</code>,客户端就收到了 404 JSON?图上空着的 ② 和 ⑤ 号站分别留给谁?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里补上你自己做的改动(比如 <code>/tasks/count</code>),确认 <code>git status</code> 里没有 <code>node_modules/</code>、<code>dist/</code>,然后提交今天的产出。</p>
+</section>
+
+<section id="sec9">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>框架 = 替你写好的杂活 + 代码该放哪的规矩,而且是它调用你</b>。Nest 跑在 Express 上,Express 跑在 <code>node:http</code> 上,Day 6 你做的每件杂活 Nest 都在替你做,只是换成了默认值。</li>
+    <li><b>三件套 = 编制表(Module)+ 前台(Controller,只认 HTTP)+ 后厨(Provider/Service,只认业务)</b>。它们都是同一个服务员(event loop)在跑的代码,不是三个线程。</li>
+    <li><b>装饰器 = 便利贴,只负责贴;读便利贴的是启动时的 Nest</b>。标签存在 reflect-metadata 的隐形表里;没被 Module 登记的类,贴了也白贴。</li>
+    <li><b>请求的一生 = Middleware → Guard → Interceptor → Pipe → Controller → Service → Interceptor → (出错时 Exception Filter)→ 响应</b>。今天写了 ①③④,用了内置的 Filter;业务代码只管 throw,状态码交给统一的那一站。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>不看代码,说出 nest-lab 里 <code>GET /tasks/1</code> 从进门到出门经过的文件和函数名</li>
+    <li>Controller 里一个状态码都没写,为什么 <code>POST /tasks</code> 回 201、找不到任务回 404?这两个数字分别是谁决定的?</li>
+    <li>为什么观察脚本要先 <code>nest build</code> 再读 <code>dist/</code>,不直接 <code>tsx</code> 跑源码?(提示:有一份元数据只有 tsc 会写)</li>
+    <li>在 Service 里写一个同步死循环,其他请求还能被处理吗?这和「前台、后厨是两个人」的比喻冲突在哪?</li>
+    <li>把今天的 <code>TasksController</code> 翻译成 ASP.NET Core 或 Spring Boot 的写法,至少说出类上和方法上各贴什么标签</li>
+  </ul>
+  <p>🔮 明天 Day 9:构造函数里那句 <code>constructor(private readonly tasksService: TasksService)</code>,你从来没 <code>new</code> 过 <code>TasksService</code>,它是怎么来的?我们会用 <code>reflect-metadata</code> 手写一个 50 行的迷你 IoC 容器,把今天第 2 幕读到的 <code>design:paramtypes</code> 用起来。</p>
+</section>
+
+<footer>
+  Day 8 · Phase 1 / Week 2 · 产出:<code>docs/08-nestjs-intro/</code> 本文档 + <code>nest-lab/</code>(NestJS 项目,tasks 模块 + 观察脚本 + e2e 测试)+ <code>src/08-nestjs-intro/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

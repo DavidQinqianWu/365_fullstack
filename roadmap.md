@@ -33,6 +33,7 @@
 | 运行时与并发模型 | event loop + libuv 线程池 + worker_threads | 线程池 + async/await (Task) | 线程池 / virtual threads (Loom) | goroutine + channel |
 | Web 框架 | **NestJS(本课程模板)**,底层默认跑在 Express 上(可换 Fastify) | ASP.NET Core | Spring Boot | Gin / Echo |
 | 请求管线 / 中间件 | NestJS middleware → guard → interceptor → pipe → exception filter | Middleware pipeline + Filter | Filter / Interceptor (AOP) | middleware(handler 链) |
+| 声明式路由 / 注解 + 元数据 | TS 装饰器 + `reflect-metadata`(`@Controller`、`@Get`) | Attribute(`[ApiController]`、`[HttpGet]`) | Annotation(`@RestController`、`@GetMapping`) | 无注解,手动注册路由(`r.GET(...)`) |
 | 依赖注入(DI) | NestJS IoC 容器 | 内置 DI(Microsoft.Extensions.DI) | Spring IoC | 手动注入 / wire |
 | AOP / 横切关注点 | Interceptor + Guard + Pipe + Filter,自定义装饰器 + `Reflector` 读元数据 | Action Filter / Middleware、Castle DynamicProxy | Spring AOP(`@Aspect` / `@Around`) | middleware 装饰 handler |
 | 声明式事务 / 事务传播 | Prisma `$transaction`、`nestjs-cls` + `@Transactional()`(AsyncLocalStorage) | EF Core `DbContext` 工作单元、`TransactionScope` | Spring `@Transactional`(传播行为 REQUIRED / REQUIRES_NEW) | `sql.Tx` 显式传递 |
