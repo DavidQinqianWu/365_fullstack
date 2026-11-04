@@ -1,16 +1,13 @@
 import { ConfigService } from '@nestjs/config';
-import { NestFactory } from '@nestjs/core';
 import type { AddressInfo } from 'node:net';
-import { AppModule } from './app.module.js';
-import { configureApp } from './app.setup.js';
+import { createApp } from './app.factory.js';
 import type { Env } from './config/env.schema.js';
 
 async function bootstrap() {
   // 开店:Nest 读 AppModule 这张总编制表,招人、接线、登记路由。
   // Day 12:开店前先过「开店检查单」(ConfigModule + zod),环境变量不合格,这一步就直接抛错退出
-  const app = await NestFactory.create(AppModule);
-  // 挂上全局店规:middleware + 计时 interceptor + 异常 filter(Day 10)
-  configureApp(app);
+  // Day 19:统一走 createApp(内部调用 configureApp,开启 URI 版本化)
+  const app = await createApp();
 
   const config = app.get(ConfigService<Env, true>);
   const port = config.get('PORT', { infer: true }); // number,不是字符串

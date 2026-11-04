@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
+import { configureApp } from './../src/app.setup.js';
 
 // Day 16:DTO + 全局 ValidationPipe(APP_PIPE)—— 报关单的每一条规则
 const KEY = { 'x-demo-key': 'let-me-in' };
@@ -14,6 +15,7 @@ describe('DTO 校验 (e2e)', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
+    configureApp(app); // Day 19:开启 URI 版本化(和 main.ts 一样)
     await app.init();
   });
 

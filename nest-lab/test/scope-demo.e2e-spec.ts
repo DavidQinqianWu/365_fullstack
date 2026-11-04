@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { ScopeDemoModule } from './../src/scope-demo/scope-demo.module.js';
+import { configureApp } from './../src/app.setup.js';
 
 // Day 9:用测试把三种作用域的规律钉死
 describe('Provider 作用域 (e2e)', () => {
@@ -12,6 +13,7 @@ describe('Provider 作用域 (e2e)', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     const moduleRef = await Test.createTestingModule({ imports: [ScopeDemoModule] }).compile();
     app = moduleRef.createNestApplication();
+    configureApp(app); // Day 19:开启 URI 版本化(和 main.ts 一样)
     await app.init();
   });
 

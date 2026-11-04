@@ -26,11 +26,16 @@ npm run day15          # Day 15 观察脚本:每个 HTTP 方法的状态码与�
 npm run day16          # Day 16 观察脚本:DTO 校验的合法 / 非法请求、transform、whitelist、class-validator vs zod
 npm run day17          # Day 17 观察脚本:12 种错误统一成 problem+json,自动校验结构
 npm run day18          # Day 18 观察脚本:内部对象 / 黑名单 / 白名单 / 显式映射,新增敏感字段后谁泄露
+npm run day19          # Day 19 观察脚本:offset vs cursor 翻页、过滤排序与非法参数、v1 vs v2、忘了 configureApp
 ```
 
 ## 响应格式
 
 成功响应的响应体就是资源本身(Day 18 起去掉了 `{ data, timestamp }` 包装),字段由各模块 `dto/*-response.ts` 里的显式映射函数决定;错误响应见下一节。
+
+集合响应(Day 19)是一页资源 `{ items, nextCursor }`:cursor 分页,`limit` 默认 20、最大 100(超过回 422),`sort` / 过滤字段有白名单,不返回 total。
+
+版本化(Day 19):URI 版本 `/v2/tasks`;不带版本的 `/tasks` 指向 v2;`/v1/tasks` 是 Day 10–17 的旧格式,已弃用(响应头 `Deprecation` / `Sunset` / `Link`),计划 2027-05-01 下线。
 
 ## 错误格式
 
@@ -50,3 +55,4 @@ npm run day18          # Day 18 观察脚本:内部对象 / 黑名单 / 白名�
 | Day 16 | 依赖 `class-validator` / `class-transformer` / `@nestjs/mapped-types`;`src/tasks/dto/`(`ReplaceTaskDto` + `CreateTaskDto = PickType` + `UpdateTaskDto = PartialType` + 嵌套 `ChecklistItemDto`;zod 对照版 `task.zod.ts`);`src/common/validation/`(`@IsNotBlank` 自定义校验器、全局选项、`ZodValidationPipe`);全局 `ValidationPipe` 用 `APP_PIPE` 注册(whitelist + forbidNonWhitelisted + transform,校验失败 422);`Task` 加 `checklist`;删除 Day 15 的 `task-input.ts`;filter 透出字段错误列表;`test/validation.e2e-spec.ts`;`scripts/day16-try.mjs` | `docs/16-dto-validation/` |
 | Day 17 | `src/common/problems/`(错误类型目录 `ProblemTypes`、`ProblemException`、ValidationPipe 的 `exceptionFactory` 输出 JSON Pointer 字段级 `errors`);`AllExceptionsFilter` 改写为 `application/problem+json`(500 不泄露细节,真实原因进日志);JSON 语法错误时 filter 兜底补发 requestId;409 改用 `ProblemTypes.taskCompleted`;zod 对照 pipe 同步输出 problem;`docs/problems.md` 错误目录;`src/problem-demo/`(500 演示);`test/problem.e2e-spec.ts`;`scripts/day17-try.mjs` | `docs/17-problem-json/` |
 | Day 18 | 新增 `src/users/`(内存仓储 + token,`passwordHash` 用 scrypt,`CreateUserDto`,显式映射 `toUserResponse`:email 打码、admin 视图多 `internalNote`);任务也改为 `toTaskResponse` 映射;删除 `WrapResponseInterceptor`,成功响应不再包装;`src/serialization-demo/`(`ClassSerializerInterceptor` 黑名单 / 白名单 / groups / 普通对象失效对照);`test/users.e2e-spec.ts`;`scripts/day18-try.mjs` | `docs/18-response-dto/` |
+| Day 19 | 任务列表改为 cursor 分页 `{ items, nextCursor }`(`ListTasksQueryDto`:limit 1–100、`done` / `q` 过滤、`sort` 白名单;`cursor.ts` 不透明书签;仓储 `findPage()` 对应 WHERE / ORDER BY / LIMIT / keyset);offset 分页只在仓储层实现做对比;URI 版本化(`configureApp` 里 `enableVersioning`,`src/app.factory.ts` 的 `createApp()` 统一入口,所有 e2e 调用 `configureApp`);`TasksV1Controller`(旧格式 + `@DeprecatedApi` 的 Deprecation / Sunset / Link 头);新增 `invalid-cursor` 错误类型;`test/pagination.e2e-spec.ts`;`scripts/day19-try.mjs` | `docs/19-pagination-versioning/` |

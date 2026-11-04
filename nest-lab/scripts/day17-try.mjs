@@ -7,13 +7,14 @@ const out = (...a) => process.stdout.write(a.join(' ') + '\n');
 const line = (t) => out(`\n========== ${t} ==========`);
 
 const { Module } = await import('@nestjs/common');
-const { NestFactory } = await import('@nestjs/core');
+// Day 19:统一用 createApp()(= NestFactory.create + configureApp,开启 URI 版本化)
+const { createApp } = await import('../dist/app.factory.js');
 const { AppModule } = await import('../dist/app.module.js');
 const { ProblemDemoModule } = await import('../dist/problem-demo/problem-demo.module.js');
 
 class Day17Module {}
 Module({ imports: [AppModule, ProblemDemoModule] })(Day17Module);
-const app = await NestFactory.create(Day17Module, { logger: false });
+const app = await createApp(Day17Module, { logger: false });
 await app.listen(0, '127.0.0.1');
 const { port } = app.getHttpServer().address();
 const base = `http://127.0.0.1:${port}`;

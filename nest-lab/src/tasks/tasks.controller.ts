@@ -10,6 +10,8 @@ import {
   Patch,
   Post,
   Put,
+  Query,
+  VERSION_NEUTRAL,
   Req,
   Res,
 } from '@nestjs/common';
@@ -26,6 +28,8 @@ import { TracedParseIntPipe } from '../common/traced-parse-int.pipe.js';
 import { CreateTaskDto } from './dto/create-task.dto.js';
 import { ReplaceTaskDto } from './dto/replace-task.dto.js';
 import { UpdateTaskDto } from './dto/update-task.dto.js';
+import { ListTasksQueryDto } from './dto/list-tasks-query.dto.js';
+import type { TaskPage } from './dto/task-page.js';
 import { toTaskResponse, type TaskResponse } from './dto/task-response.js';
 import { TasksService } from './tasks.service.js';
 
@@ -38,16 +42,20 @@ const ITEM_ALLOW = 'GET, HEAD, PUT, PATCH, DELETE, OPTIONS';
 // Day 18:去掉包装 —— 资源本身就是响应体(理由见 Day 18 讲义),每个方法返回 toTaskResponse() 映射后的出口报关单
 // Day 11:全局保安(APP_GUARD)默认要钥匙;读接口贴 @Public() 免检,写接口不贴 = 要钥匙
 // Day 15:按 REST 规范整理 —— 资源是 /tasks(集合)和 /tasks/:id(单个),动作用 HTTP 方法表达
-@Controller('tasks')
+// Day 19:这是 v2。URI 版本化:/v2/tasks;VERSION_NEUTRAL 让不带版本号的 /tasks 也指向它(理由与代价见讲义)
+//         v1(Day 10–17 的旧格式,已弃用)在 ./v1/tasks-v1.controller.ts
+@Controller({ path: 'tasks', version: ['2', VERSION_NEUTRAL] })
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
   // GET /tasks —— 安全、幂等
   @Public()
   @Get()
-  findAll(): TaskResponse[] {
+  findAll(@Query() query: ListTasksQueryDto): TaskPage {
     ctxLog('  ③ Controller 前台接单:GET /tasks');
-    return this.tasksService.findAll().map(toTaskResponse);
+    // Day 19:分页 + 过滤 + 排序。query 已经被 ValidationPipe 校验、转换过(limit 是数字,done 是布尔)
+    const page = this.tasksService.listPage(query);
+    return { items: page.items.map(toTaskResponse), nextCursor: page.nextCursor };
   }
 
   // GET /tasks/:id —— 安全、幂等

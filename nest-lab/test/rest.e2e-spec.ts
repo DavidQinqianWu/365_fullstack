@@ -4,6 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
 import { CLOCK } from './../src/common/clock.js';
+import { configureApp } from './../src/app.setup.js';
 
 // Day 15:HTTP 语义与 REST —— 方法、状态码、响应头、内容协商
 const FIXED = '2026-01-01T00:00:00.000Z';
@@ -19,6 +20,7 @@ describe('REST 语义 (e2e)', () => {
       .useValue({ now: () => new Date(FIXED) })
       .compile();
     app = moduleRef.createNestApplication();
+    configureApp(app); // Day 19:开启 URI 版本化(和 main.ts 一样)
     await app.init();
   });
 
@@ -39,7 +41,7 @@ describe('REST 语义 (e2e)', () => {
     const a = await request(server).post('/tasks').set(KEY).send({ title: '买牛奶' }).expect(201);
     const b = await request(server).post('/tasks').set(KEY).send({ title: '买牛奶' }).expect(201);
     expect(a.body.id).not.toBe(b.body.id);
-    expect((await request(server).get('/tasks')).body).toHaveLength(4);
+    expect((await request(server).get('/tasks')).body.items).toHaveLength(4); // Day 19:集合响应是 { items, nextCursor }
   });
 
   it('PUT 是整体替换:缺字段 422(Day 16 起);完整表示 200;同一请求重复发结果不变(幂等)', async () => {

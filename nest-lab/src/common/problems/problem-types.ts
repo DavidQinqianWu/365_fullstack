@@ -23,6 +23,7 @@ const define = (slug: string, title: string, status: number): ProblemType => ({
 
 export const ProblemTypes = {
   badRequest: define('bad-request', '请求格式错误', HttpStatus.BAD_REQUEST),
+  invalidCursor: define('invalid-cursor', '分页 cursor 无效', HttpStatus.BAD_REQUEST), // Day 19
   forbidden: define('forbidden', '没有权限执行此操作', HttpStatus.FORBIDDEN),
   notFound: define('not-found', '资源不存在', HttpStatus.NOT_FOUND),
   methodNotAllowed: define('method-not-allowed', '该资源不支持此 HTTP 方法', HttpStatus.METHOD_NOT_ALLOWED),
@@ -35,7 +36,11 @@ export const ProblemTypes = {
 
 // 没有专门指定 type 的 HttpException,按状态码找一个默认类别;目录里没有的状态码用 about:blank
 // (RFC 9457:about:blank 表示「除了状态码本身,没有更多语义」,此时 title 应该就是状态码的标准名称)
-const BY_STATUS = new Map<number, ProblemType>(Object.values(ProblemTypes).map((p) => [p.status, p]));
+const BY_STATUS = new Map<number, ProblemType>(
+  Object.values(ProblemTypes)
+    .filter((p) => p !== ProblemTypes.invalidCursor) // 400 的默认类别仍是 bad-request
+    .map((p) => [p.status, p]),
+);
 BY_STATUS.set(HttpStatus.CONFLICT, define('conflict', '与资源当前状态冲突', HttpStatus.CONFLICT));
 
 export function problemTypeForStatus(status: number): ProblemType {

@@ -2,14 +2,13 @@
 //
 // 跑:npm run day10   (= nest build + node scripts/day10-try.mjs)
 // 五种情况:正常 GET / 被 Guard 拦下 / 带钥匙的 POST / Service 抛 404 / Pipe 转换失败
-import { NestFactory } from '@nestjs/core';
+// Day 19:统一用 createApp()(= NestFactory.create + configureApp,开启 URI 版本化)
+import { createApp } from '../dist/app.factory.js';
 import { AppModule } from '../dist/app.module.js';
-import { configureApp } from '../dist/app.setup.js';
 
 const line = (title) => console.log(`\n========== ${title} ==========`);
 
-const app = await NestFactory.create(AppModule, { logger: false });
-configureApp(app); // 和 main.ts 一样:全局 middleware + 计时 interceptor + 异常 filter
+const app = await createApp(AppModule, { logger: false });
 await app.listen(0, '127.0.0.1');
 const { port } = app.getHttpServer().address();
 const base = `http://127.0.0.1:${port}`;

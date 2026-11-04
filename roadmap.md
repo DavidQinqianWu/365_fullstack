@@ -47,6 +47,7 @@
 | 输入校验 | zod / class-validator | DataAnnotations / FluentValidation | Bean Validation | validator |
 | 配置与环境(类型安全 + 启动即校验) | `@nestjs/config` + zod `validate`(fail fast)、`ConfigService<Env, true>` | appsettings.json + Options 模式(`ValidateDataAnnotations().ValidateOnStart()`,不加则懒校验) | application.yml + `@ConfigurationProperties` + `@Validated` | envconfig / viper |
 | 统一错误格式(RFC 9457) | 自写 filter 输出 `application/problem+json` + `exceptionFactory` 字段级 errors | 内置 `ProblemDetails` / `ValidationProblemDetails`、`AddProblemDetails()`、`IExceptionHandler` | Spring 6 `ProblemDetail` + `@ControllerAdvice` | 手写或用库 |
+| 分页 / API 版本化 | cursor 分页 `{items, nextCursor}` 手写;`enableVersioning` + `@Version()` / `VERSION_NEUTRAL` | `Asp.Versioning`(`[ApiVersion]`);分页手写或 OData `$top/$skip` | Spring Data `Pageable` / `Slice` / `ScrollPosition`;Spring Framework 7 内置 `@RequestMapping(version = ...)` + `ApiVersionConfigurer` | 手写;路由分组 `/v1`、`/v2` |
 | 结构化日志 | pino / winston | Serilog / ILogger | SLF4J + Logback | slog / zap |
 | 测试 | Vitest / Jest / supertest | xUnit + WebApplicationFactory | JUnit + MockMvc | testing + httptest |
 | API 文档 | OpenAPI/Swagger(语言无关标准) | Swashbuckle / Scalar | springdoc | swag |
@@ -120,7 +121,7 @@
 
 - Week 10:认证授权(**协议层,语言无关**):**JWT 专题**:结构(header.payload.signature,payload 只是 Base64 不是加密)与签名验证原理、HS256(共享密钥)vs RS256(私钥签 + 公钥验,JWKS 发布公钥,适合多服务)、经典攻击(`alg: none`、算法混淆、不校验 `exp`/`aud`/`iss`);存哪里(httpOnly + Secure + SameSite Cookie vs localStorage 与 XSS);**JWT 无法主动作废的问题**与解法(短 access token + Refresh Token 轮换 + 复用检测、Redis 黑名单/版本号);Session vs JWT 的取舍、OAuth2/OIDC 流程(授权码模式 + PKCE)、RBAC vs ABAC 权限模型;NestJS 落地:`@nestjs/passport` + JWT Strategy、`AuthGuard`、自定义 `@Roles()` 装饰器 + `RolesGuard`、`@CurrentUser()` 参数装饰器;产出物是协议时序图 + 「Guard 在请求管线里的位置」图
 - Week 11:测试体系(测试金字塔是通用方法论):单元/集成/E2E 的边界划分、测试替身(mock/stub/fake)、覆盖率门禁;NestJS 测试:`Test.createTestingModule` + `overrideProvider` 做单元测试替身、supertest 打 e2e、Testcontainers 起真实 PostgreSQL 做集成测试(不 mock 数据库);对照 xUnit + WebApplicationFactory 的等价物
-- Week 12:API 安全与质量(**概念 #7 Rate Limiting**:用 Redis 手写令牌桶 + 滑动窗口限流器,封装成 NestJS Guard,再对比官方 `@nestjs/throttler`;`main.ts` 里的 helmet、CORS 配置原理;`ValidationPipe` 的 `whitelist` / `forbidNonWhitelisted` 防批量赋值;OWASP Top 10)——知识是协议与模式层面的,落地在 Nest 管线上
+- Week 12:API 安全与质量(**概念 #7 Rate Limiting**:用 Redis 手写令牌桶 + 滑动窗口限流器,封装成 NestJS Guard,再对比官方 `@nestjs/throttler`;`main.ts` 里的 helmet、CORS 配置原理;`ValidationPipe` 的 `whitelist` / `forbidNonWhitelisted` 防批量赋值;**幂等与并发控制**:`Idempotency-Key` 防重复提交(接 Day 15 的 POST 不幂等)、`ETag` + `If-Match` / 412 乐观并发(接 Day 15 的预告);OWASP Top 10)——知识是协议与模式层面的,落地在 Nest 管线上
 - Week 13:**架构风格 I(代码级架构,新增重点)+ 实战**:分层架构 → 六边形架构(Hexagonal / Ports & Adapters)→ Clean Architecture 的演进逻辑;**DDD 战术模式入门**(实体、值对象、聚合根、仓储);NestJS 落地:Module 作为限界上下文、端口 = 接口 + injection token、适配器 = 可替换的 Provider(PG 仓储 / 内存仓储一键切换);实战:用六边形架构重构 `nest-lab/`并落地完整认证模块,测试覆盖率 ≥80%,附中文 SECURITY.md;**对照:微软官方 Clean Architecture 模板(eShop 参考应用)的目录结构**
 - GitHub 产出:测试 PR、限流器代码、架构重构前后对比笔记(为什么端口-适配器模式让你换数据库/换框架时业务代码不动)
 

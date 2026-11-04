@@ -9,6 +9,7 @@ import { DemoKeyGuard } from './../src/common/demo-key.guard.js';
 import { RequestContextMiddleware } from './../src/common/request-context/request-context.middleware.js';
 import { RequestContextModule } from './../src/common/request-context/request-context.module.js';
 import { DecoratorDemoModule } from './../src/decorator-demo/decorator-demo.module.js';
+import { configureApp } from './../src/app.setup.js';
 
 // Day 13:@RequestId() 改为读 ALS 里的桌号牌,所以测试模块也要挂上 RequestContextMiddleware
 @Module({
@@ -35,6 +36,7 @@ describe('自定义装饰器 (e2e)', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     const moduleRef = await Test.createTestingModule({ imports: [DecoratorTestModule] }).compile();
     app = moduleRef.createNestApplication();
+    configureApp(app); // Day 19:开启 URI 版本化(和 main.ts 一样)
     await app.init();
   });
 

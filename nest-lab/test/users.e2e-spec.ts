@@ -5,6 +5,7 @@ import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
 import { SerializationDemoModule } from './../src/serialization-demo/serialization-demo.module.js';
+import { configureApp } from './../src/app.setup.js';
 
 // Day 18:响应 DTO —— 不该出门的字段,任何接口、任何视图都不能出门
 @Module({ imports: [AppModule, SerializationDemoModule] })
@@ -19,6 +20,7 @@ describe('响应 DTO (e2e)', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     const moduleRef = await Test.createTestingModule({ imports: [UsersTestModule] }).compile();
     app = moduleRef.createNestApplication();
+    configureApp(app); // Day 19:开启 URI 版本化(和 main.ts 一样)
     await app.init();
   });
 

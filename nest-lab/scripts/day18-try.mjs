@@ -6,7 +6,8 @@ const out = (...a) => process.stdout.write(a.join(' ') + '\n');
 const line = (t) => out(`\n========== ${t} ==========`);
 
 const { Module } = await import('@nestjs/common');
-const { NestFactory } = await import('@nestjs/core');
+// Day 19:统一用 createApp()(= NestFactory.create + configureApp,开启 URI 版本化)
+const { createApp } = await import('../dist/app.factory.js');
 const { instanceToPlain } = await import('class-transformer');
 const { AppModule } = await import('../dist/app.module.js');
 const { SerializationDemoModule } = await import('../dist/serialization-demo/serialization-demo.module.js');
@@ -15,7 +16,7 @@ const { toUserResponse } = await import('../dist/users/dto/user-response.js');
 
 class Day18Module {}
 Module({ imports: [AppModule, SerializationDemoModule] })(Day18Module);
-const app = await NestFactory.create(Day18Module, { logger: false });
+const app = await createApp(Day18Module, { logger: false });
 await app.listen(0, '127.0.0.1');
 const { port } = app.getHttpServer().address();
 const base = `http://127.0.0.1:${port}`;

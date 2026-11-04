@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 19 - 分页、过滤、排序与版本化:叫号要「从 37 号之后继续叫」,换菜单要先贴停售通知</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 3</div>
+  <h1>Day 19 - 分页、过滤、排序与版本化:叫号要「从 37 号之后继续叫」,换菜单要先贴停售通知</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>offset vs cursor 分页 · 集合响应结构 · 过滤 / 排序白名单 · URI 版本化 · Deprecation / Sunset</b> ·
+    项目:<code>nest-lab/</code> 任务列表改为 cursor 分页;新增 <code>/v1</code>(旧格式,已弃用)与 <code>/v2</code> ·
+    今天没有新依赖
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:一口气端出所有菜,以及 Day 18 那次「悄悄改菜单」</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:分页 —— 「跳过前 36 人」vs「从 37 号之后继续叫」</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:过滤与排序 —— 只能按菜单上提供的方式挑</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:版本化与弃用 —— 新菜单上线,旧套餐先贴停售通知</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:一口气端出所有菜,以及 Day 18 那次「悄悄改菜单」</h2>
+  <p>到 Day 18 为止,<code>GET /tasks</code> 一次返回<b>全部</b>任务。2 条的时候没问题;如果有 5 万条,服务器要把 5 万条一起序列化、一起塞进内存(还记得 Day 3 的直觉吗:一次性装进内存的东西越大越危险),网络慢慢传,前端一次渲染 5 万行直接卡死。更糟的是,任何人都可以写一个脚本反复拉全量,把服务拖垮。</p>
+  <p>另一笔账来自 Day 18:我们去掉了 <code>{ data, timestamp }</code> 包装,所有调用方都必须从 <code>.data</code> 改成直接读。当时 nest-lab 没有外部调用方,所以直接改了;如果有一个已经上线的手机 App 在用旧格式,它会在我们部署的那一刻崩掉。</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    人多的餐厅不会让 200 位客人同时进门点菜,而是<b>发号排队,一批一批叫</b>。叫号也有两种叫法:「跳过前 36 位,请接下来 10 位」,或者「<b>37 号之后的 10 位</b>请进」。如果排队时有人插队或者离开,这两种叫法的结果会不一样(第 3 节实测)。点菜时客人可以说「只要不辣的」「按价格从低到高」,但只能按菜单上提供的方式挑。而当餐厅要换新菜单时,好的做法是<b>新旧菜单并行一段时间,旧套餐提前贴出「X 月停售」</b>,而不是某天早上突然撤掉。
+  </div>
+  <p>今天做三件事:分页、过滤与排序、版本化与弃用。swagger 和 API 设计文档是明天 Day 20 的事。</p>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+npm test             # 单元测试:cursor 编解码、排序比较
+npm run test:e2e     # e2e:新增 test/pagination.e2e-spec.ts(16 个用例)
+npm run day19        # 观察脚本:offset vs cursor、过滤排序、非法参数、v1 vs v2、忘了 configureApp
+
+# 手动试
+curl -s 'localhost:3000/v2/tasks?limit=1'
+curl -si localhost:3000/v1/tasks/1 | head -8     # 看 Deprecation / Sunset 头</code></pre>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用</th></tr>
+    <tr><td><code>src/tasks/task-query.ts</code></td><td>新增</td><td>内部的查询描述:过滤、排序键、keyset 书签;排序字段白名单 <code>SORTABLE_FIELDS</code>;自动补 id 作为 tie-breaker</td></tr>
+    <tr><td><code>src/tasks/cursor.ts</code></td><td>新增</td><td>不透明 cursor 的编码 / 解码(base64url),排序或过滤条件变了就拒绝</td></tr>
+    <tr><td><code>src/tasks/dto/list-tasks-query.dto.ts</code></td><td>新增</td><td>查询参数的报关单:<code>done</code>、<code>q</code>、<code>sort</code>、<code>limit</code>(1–100,默认 20)、<code>cursor</code></td></tr>
+    <tr><td><code>src/tasks/dto/task-page.ts</code></td><td>新增</td><td>集合响应 <code>{ items, nextCursor }</code></td></tr>
+    <tr><td><code>src/tasks/tasks.repository.ts</code>、<code>in-memory-tasks.repository.ts</code></td><td>修改</td><td>新增 <code>findPage(query)</code>:内存版的 <code>WHERE / ORDER BY / LIMIT / OFFSET</code> 和 keyset 条件,注释里写着对应的 SQL</td></tr>
+    <tr><td><code>src/tasks/tasks.service.ts</code></td><td>修改</td><td><code>listPage()</code>(cursor 分页,对外唯一方式)、<code>listByOffset()</code>(只给脚本做对比)</td></tr>
+    <tr><td><code>src/tasks/tasks.controller.ts</code></td><td>修改</td><td>变成 v2:<code>@Controller({ path: 'tasks', version: ['2', VERSION_NEUTRAL] })</code>;列表接收 <code>@Query() query: ListTasksQueryDto</code></td></tr>
+    <tr><td><code>src/tasks/v1/tasks-v1.controller.ts</code></td><td>新增</td><td>v1:Day 10–17 的旧格式(<code>{ data, timestamp }</code>、不分页),只读,带弃用头</td></tr>
+    <tr><td><code>src/common/decorators/deprecated-api.decorator.ts</code></td><td>新增</td><td><code>@DeprecatedApi()</code>:一次贴上 <code>Deprecation</code> / <code>Sunset</code> / <code>Link</code> 三个头(Day 11 的组合装饰器)</td></tr>
+    <tr><td><code>src/app.setup.ts</code></td><td>修改</td><td><code>configureApp()</code> 里 <code>app.enableVersioning({ type: VersioningType.URI })</code></td></tr>
+    <tr><td><code>src/app.factory.ts</code></td><td>新增</td><td><code>createApp()</code> = <code>NestFactory.create</code> + <code>configureApp</code>,创建 app 的统一入口</td></tr>
+    <tr><td><code>src/main.ts</code></td><td>修改</td><td>改用 <code>createApp()</code></td></tr>
+    <tr><td><code>src/common/problems/problem-types.ts</code>、<code>docs/problems.md</code></td><td>修改</td><td>新增错误类别 <code>invalid-cursor</code>(400)</td></tr>
+    <tr><td><code>src/tasks/cursor.spec.ts</code>、<code>test/pagination.e2e-spec.ts</code></td><td>新增</td><td>cursor 与排序的单测;分页 / 过滤 / 版本化的 e2e</td></tr>
+    <tr><td>其余 8 个 e2e 文件、<code>tasks.service.spec.ts</code></td><td>修改</td><td>在 <code>createNestApplication()</code> 之后加 <code>configureApp(app)</code>;列表断言改成 <code>.items</code>;假仓储补 <code>findPage</code></td></tr>
+    <tr><td><code>scripts/day08</code>–<code>day18-try.mjs</code>(9 个)</td><td>修改(小)</td><td><code>NestFactory.create</code> 换成 <code>createApp</code>;<code>day15</code> 的列表计数改读 <code>.items</code></td></tr>
+    <tr><td><code>scripts/day19-try.mjs</code> + <code>package.json</code> 的 <code>day19</code>、<code>README.md</code></td><td>新增 / 修改</td><td>观察脚本;README 的「响应格式」写上分页与版本化约定</td></tr>
+  </table>
+  <p>(<code>npm run day08</code>–<code>day18</code> 都照样能跑。变化:启动日志里 tasks 的路由后面多了 <code>(version: 2,Neutral)</code> 和两条 <code>(version: 1)</code>;不带版本的 <code>GET /tasks</code> 现在返回 <code>{ items, nextCursor }</code> 而不是数组。)</p>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:分页 —— 「跳过前 36 人」vs「从 37 号之后继续叫」</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    列表一次只给一页。<b>offset 分页</b>说「跳过前 N 条,给我接下来的 M 条」;<b>cursor 分页</b>说「从我上次看到的那一条之后,给我 M 条」。前者能跳页,但数据一变就会重复或漏掉;后者不重不漏,但不能跳页。
+  </div>
+
+  <h3>② 生活类比:排号叫号的两种叫法</h3>
+  <p>offset:「请跳过前 10 位,第 11–20 位请进」。如果在这期间队伍前面有人插队,原来的第 10 位就变成了第 11 位,<b>被叫了两次</b>;如果前面有人离开,原来的第 11 位变成了第 10 位,<b>两次都没被叫到</b>。cursor:「<b>41 号之后</b>的 10 位请进」。不管前面有人插队还是离开,41 号之后是谁都不会变。代价是:你没法说「直接叫第 5 批」,只能一批接一批地叫。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>nest-lab 里</th></tr>
+    <tr><td>「跳过前 N 位」</td><td><b>offset / limit</b> 分页(或 page / pageSize):<code>OFFSET 10 LIMIT 10</code></td><td><code>TasksService.listByOffset()</code>(不对外开放,只做对比)</td></tr>
+    <tr><td>「41 号之后的 10 位」</td><td><b>cursor / keyset</b> 分页:<code>WHERE (sortKey, id) &gt; (…) ORDER BY … LIMIT 10</code></td><td><code>GET /v2/tasks?cursor=…&amp;limit=10</code></td></tr>
+    <tr><td>手里那张写着「41 号」的小纸条</td><td><b>nextCursor</b>:不透明的位置书签(排序键 + id,base64url)</td><td><code>src/tasks/cursor.ts</code></td></tr>
+    <tr><td>号码牌不重复</td><td><b>tie-breaker</b>:排序键最后必须有一个唯一列</td><td><code>withTieBreaker()</code> 自动补 <code>id</code></td></tr>
+    <tr><td>一批叫几位</td><td><b>limit</b>:默认 20,最大 100</td><td>超过上限回 422</td></tr>
+  </table>
+  <p><b>今天的三个决定:</b></p>
+  <ul>
+    <li><b>集合响应是 <code>{ items, nextCursor }</code></b>:<code>nextCursor</code> 为 <code>null</code> 表示到底了。它和 Day 18 的决定一致:这不是一个通用的 <code>{ data }</code> 外壳,而是「一页任务」这个资源本身的表示。另一种做法是把下一页地址放进 RFC 8288 的 <code>Link: &lt;…&gt;; rel="next"</code> 响应头(GitHub 的 API 就这样做),body 仍然是纯数组;我们选 body,因为前端读起来最直接。</li>
+    <li><b>不返回 total</b>:「一共多少条」在数据库里是一个 <code>COUNT(*)</code>,要扫描满足条件的所有行,大表上很贵;无限滚动根本用不到它。真的需要时,可以单独做一个接口,或者给一个估算值。</li>
+    <li><b><code>limit</code> 超过 100 回 422,而不是悄悄截断成 100</b>:截断会让调用方以为「一共就 100 条」,而且 bug 很难发现;明确报错能让他第一次调用就看到规则。</li>
+  </ul>
+  <pre><code>// src/tasks/tasks.service.ts —— cursor 分页的核心
+listPage(query: ListTasksQueryDto): TaskListPage {
+  const sort = parseSort(query.sort);                     // '-createdAt' → [{createdAt desc}, {id asc}]
+  const filter = toFilter(query);
+  const limit = query.limit ?? DEFAULT_LIMIT;
+  const after = query.cursor ? decodeCursor(query.cursor, sort, filter) : undefined;
+  const rows = this.repo.findPage({ filter, sort, limit: limit + 1, ...(after ? { after } : {}) });   // 多取 1 条
+  const items = rows.slice(0, limit);
+  const last = items.at(-1);
+  const nextCursor = rows.length &gt; limit &amp;&amp; last
+    ? encodeCursor(sort, filter, { values: sortTuple(last, sort), id: last.id })   // 取到了第 limit+1 条 → 还有下一页
+    : null;
+  return { items, nextCursor };
+}</code></pre>
+
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    React Query 的 <code>useInfiniteQuery</code> 就是为 cursor 分页设计的:<code>getNextPageParam: (lastPage) =&gt; lastPage.nextCursor ?? undefined</code>,返回 <code>undefined</code> 时 <code>hasNextPage</code> 自动变成 <code>false</code>。今天的响应结构可以原样接上去。带页码的表格(「第 5 页 / 共 37 页」)才需要 offset 和 total,那是另一种 UI。
+  </div>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「拿着号码纸条,看到的就是领号那一刻的队伍」——cursor 只是位置书签,不是快照。</b>书签之后的位置上如果新插进来一条(比如按标题排序时新建了一个「第 45 条任务(副本)」),你翻到那里时<b>会看到它</b>;如果某条任务的排序字段被修改了(标题改了),它可能「跳」到你已经翻过的位置,这一轮你就看不到它了。cursor 保证的是「按这个顺序,不重复、不因前面的增删而漏掉」,不是「冻结整个列表」。真正的快照要靠数据库的事务隔离(Week 7)。</li>
+      <li><b>「offset 重复 / 漏项是 bug,修一修就好」——这是方法本身的性质。</b>「跳过前 10 条」的「前 10 条」每次都按<b>当前</b>数据重新数,数据变了结果就变,没法修。offset 仍然有它的位置:数据基本不变、需要跳到第 N 页的后台表格。另外它在数据库里越往后越慢:<code>OFFSET 100000</code> 意味着数据库要先找出并扔掉前 10 万行,Week 5 看 <code>EXPLAIN</code> 时会看到真实代价。</li>
+      <li><b>「小纸条上的内容是保密的」——不透明不等于加密。</b>nextCursor 只是 base64url,任何人都能解开(第 3 节有原文)。「不透明」是一个<b>约定</b>:调用方不该解析、不该自己拼,服务器可以随时换内部格式。所以 cursor 里不能放任何敏感信息;被篡改时服务器要能识别(nest-lab 回 400 <code>invalid-cursor</code>)。cursor 还和「当时的排序与过滤条件」绑定:换了条件还拿旧 cursor,位置就没有意义了,也会被拒绝。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>offset pagination</b>(<code>LIMIT … OFFSET …</code>);<b>keyset / cursor / seek pagination</b>(<code>WHERE (a, id) &gt; ($1, $2) ORDER BY a, id LIMIT n</code>,PostgreSQL 支持这种「行值比较」);<b>tie-breaker</b>(唯一的最后一个排序列);<b>opaque cursor</b>;<b>RFC 8288 Web Linking</b>(<code>Link</code> 头,<code>rel="next"</code>);<b>limit + 1 技巧</b>(多取一条判断有没有下一页,省掉 <code>COUNT(*)</code>)。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>50 条任务,按 <code>-id</code>(最新的在前)每页 10 条。✍️ <b>预测(先写再运行)</b>:看第 1 页时别人<b>新建</b>了一条,offset 的第 2 页会重复哪一条?看第 1 页时别人<b>删掉</b>了第 1 页的第一条,offset 的第 2 页会漏掉哪一条?换成 cursor 呢?</p>
+  <pre><code>cd nest-lab
+npm run day19</code></pre>
+  <p>真实运行结果(第 1、2 幕):</p>
+  <pre><code>========== 第 1 幕:offset 分页(sort=-id,最新的在前,每页 10 条) ==========
+第 1 页(offset=0) :50, 49, 48, 47, 46, 45, 44, 43, 42, 41
+…用户看第 1 页时,别人新建了一条 id=51
+第 2 页(offset=10):41, 40, 39, 38, 37, 36, 35, 34, 33, 32
+→ 重复出现:41
+
+第 1 页(offset=0) :51, 50, 49, 48, 47, 46, 45, 44, 43, 42
+…用户看第 1 页时,别人删掉了 id=51
+第 2 页(offset=10):40, 39, 38, 37, 36, 35, 34, 33, 32, 31
+→ 两页都没看到:41
+
+========== 第 2 幕:cursor 分页(同样 sort=-id,每页 10 条) ==========
+第 1 页:50, 49, 48, 47, 46, 45, 44, 43, 42, 41
+nextCursor = eyJ2IjoxLCJzIjoiLWlkIiwiZiI6e30sImsiOls0MV0sImlkIjo0MX0
+  解开看看(只是 base64url,不是加密):{"v":1,"s":"-id","f":{},"k":[41],"id":41}
+…别人新建了一条 id=52
+第 2 页:40, 39, 38, 37, 36, 35, 34, 33, 32, 31
+→ 重复出现:(没有);和新增之前算好的第 2 页完全一致:是
+
+第 1 页:52, 50, 49, 48, 47, 46, 45, 44, 43, 42
+…别人删掉了 id=52
+第 2 页:41, 40, 39, 38, 37, 36, 35, 34, 33, 32
+→ 漏掉的:(没有)
+
+sort=-createdAt、每页 7 条一路翻到底:8 页,共 50 条,去重后 50 条,当前总数 50</code></pre>
+  <p>最后一行很关键:50 条任务是脚本在同一瞬间批量建的,<code>createdAt</code> 有大量相同的值。如果排序只有 <code>createdAt</code>,相同时间的那几条谁先谁后是不确定的,翻页时就会时而重复、时而漏掉。<code>withTieBreaker()</code> 自动补上的 <code>id</code> 让顺序唯一确定,所以 8 页翻下来每条恰好一次。</p>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:过滤与排序 —— 只能按菜单上提供的方式挑</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    列表接口通过查询参数支持过滤(<code>?done=false&amp;q=关键字</code>)和排序(<code>?sort=-createdAt,title</code>,<code>-</code> 表示倒序);<b>能按哪些字段过滤、排序,由服务器列一张白名单</b>,用 Day 16 的 DTO 校验,不合格回 Day 17 的 problem+json。
+  </div>
+
+  <h3>② 生活类比:按菜单提供的方式挑菜</h3>
+  <p>菜单上写着「可选:辣度、价格排序、只看素菜」。客人可以说「只要不辣的,按价格从低到高」;但他不能说「按厨师的工资排序」,那不是对外提供的选项,厨房也不会告诉他。</p>
+  <pre><code>// src/tasks/dto/list-tasks-query.dto.ts(节选)
+export class ListTasksQueryDto {
+  // ⚠️ 不能用 @Type(() =&gt; Boolean):Boolean('false') 是 true。只认 'true' / 'false' 两个字面值
+  @IsOptional()
+  @Transform(({ value }) =&gt; (value === 'true' ? true : value === 'false' ? false : value))
+  @IsBoolean()
+  done?: boolean;
+
+  @IsOptional() @IsString() @MaxLength(100) q?: string;
+
+  // 'createdAt,-title' → ['createdAt', '-title'],每一项都必须在白名单里
+  @IsOptional()
+  @Transform(({ value }) =&gt; (typeof value === 'string' ? value.split(',').map((s) =&gt; s.trim()) : value))
+  @IsArray() @ArrayMaxSize(3)
+  @IsIn(['id', '-id', 'createdAt', '-createdAt', 'title', '-title'], { each: true })
+  sort?: string[];
+
+  @IsOptional() @Type(() =&gt; Number) @IsInt() @Min(1) @Max(100) limit?: number;
+  @IsOptional() @IsString() @MaxLength(500) cursor?: string;
+}
+
+// src/tasks/in-memory-tasks.repository.ts —— 内存版,注释里是 Week 4 换 PostgreSQL 后的 SQL
+rows = rows.filter((t) =&gt; (done === undefined || t.done === done)          // WHERE done = $1
+                     &amp;&amp; (q === undefined || t.title.toLowerCase().includes(q)));  //   AND title ILIKE '%' || $2 || '%'
+rows.sort(compareBySort);                                                      // ORDER BY title DESC, id ASC
+if (after) rows = rows.filter((t) =&gt; compareBySort(sortTuple(t), after.values) &gt; 0);
+    // ↑ keyset 条件:各列同向时可写成 AND (a, id) &gt; ($3, $4);方向不同(如 title DESC, id ASC)时要展开成 OR
+return rows.slice(offset ?? 0, (offset ?? 0) + limit);                        // LIMIT $5</code></pre>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th></tr>
+    <tr><td>「只要不辣的」</td><td>过滤参数 → <code>WHERE</code></td></tr>
+    <tr><td>「按价格从低到高」</td><td>排序参数 → <code>ORDER BY</code></td></tr>
+    <tr><td>菜单上提供的选项</td><td><b>字段白名单</b>:<code>SORTABLE_FIELDS</code> + DTO 里的 <code>@IsIn</code></td></tr>
+    <tr><td>点了菜单上没有的 → 服务员说不行</td><td>422 <code>validation-error</code>(未登记的参数如 <code>?page=2</code> 也会被 <code>forbidNonWhitelisted</code> 拒绝)</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「白名单只是为了规矩好看」——到了数据库里它是安全边界。</b>SQL 里的<b>值</b>可以用参数(<code>$1</code>)安全传入,但<b>列名和排序方向不能参数化</b>,只能拼进 SQL 字符串。如果直接把 <code>?sort=</code> 的内容拼进 <code>ORDER BY</code>,就是一个 SQL 注入口。白名单(把用户输入映射到你预先写好的列名)是唯一可靠的办法。Week 4 接 PostgreSQL 时会再强调一次。</li>
+      <li><b>「查询参数会按我声明的类型送来」——永远是字符串。</b><code>?limit=20</code> 送来的是 <code>'20'</code>,要 <code>@Type(() =&gt; Number)</code> 转换;<code>?done=false</code> 送来的是 <code>'false'</code>,而 <code>@Type(() =&gt; Boolean)</code> 等于 <code>Boolean('false')</code>,结果是 <b><code>true</code></b>(和 Day 12 的 <code>z.coerce.boolean()</code> 是同一个坑),所以要像上面那样只认两个字面值。</li>
+      <li><b>「错误里的 <code>#/limit</code> 指向请求体」——这里它指的是查询参数。</b>Day 17 的 JSON Pointer 本来是为请求体设计的,nest-lab 对查询参数也沿用了 <code>pointer</code>;有些 API 会改用 <code>"parameter": "limit"</code> 这样的字段来区分。约定写进文档(Day 20)就行。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>filtering / sorting parameters</b>;<b>allowlist</b>(白名单,Day 18 也用过这个词);<b>ORDER BY injection</b>;<b>stable sort</b>(稳定排序:同值元素的相对顺序确定);常见的排序参数写法:<code>sort=-createdAt</code>(JSON:API 风格)、<code>sort=createdAt:desc</code>、<code>orderBy=createdAt&amp;order=desc</code>,选一种保持一致。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:<code>?done=false&amp;q=任务&amp;sort=-title&amp;limit=5</code> 返回哪 5 条?(每 3 条里有 1 条已完成。)下面 7 个非法请求各回几?</p>
+  <p>真实运行结果(第 3 幕):</p>
+  <pre><code>========== 第 3 幕:过滤 + 排序 ==========
+GET /v2/tasks?done=false&amp;q=任务&amp;sort=-title&amp;limit=5
+  id=50  done=false  第 50 条任务
+  id=49  done=false  第 49 条任务
+  id=47  done=false  第 47 条任务
+  id=46  done=false  第 46 条任务
+  id=44  done=false  第 44 条任务
+  nextCursor:有(还有下一页)
+
+========== 第 3 幕-B:非法参数 → problem+json ==========
+limit=500(上限 100)                        → 422 …/validation-error  [{"pointer":"#/limit","detail":"limit must not be greater than 100"}]
+limit=0                                  → 422 …/validation-error  [{"pointer":"#/limit","detail":"limit must not be less than 1"}]
+sort=passwordHash(不在白名单)                 → 422 …/validation-error  [{"pointer":"#/sort","detail":"each value in sort must be one of the following values: id, -id, createdAt, -createdAt, title, -title"}]
+done=yes(只认 true / false)                → 422 …/validation-error  [{"pointer":"#/done","detail":"done must be a boolean value"}]
+page=2(没有这个参数)                           → 422 …/validation-error  [{"pointer":"#/page","detail":"property page should not exist"}]
+换了 sort 还用旧 cursor                       → 400 …/invalid-cursor  "cursor 与当前的 sort / 过滤条件不匹配,请从第一页重新开始"
+cursor=abc(篡改)                           → 400 …/invalid-cursor  "cursor 无法解析,请使用上一页响应里的 nextCursor 原样传回"</code></pre>
+  <p>48、45 这些是 3 的倍数,已完成,被 <code>done=false</code> 过滤掉了。注意两类错误的状态码不同:参数不合规则是 422(Day 16 的决定);cursor 坏了是 400 —— 它是服务器发出去的书签,被改坏了属于「请求本身坏了」。</p>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:版本化与弃用 —— 新菜单上线,旧套餐先贴停售通知</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    接口要做<b>破坏性变更</b>时,不直接改,而是开一个新版本(<code>/v2</code>),旧版本(<code>/v1</code>)继续工作一段时间,并在响应头里告诉调用方「已弃用、哪天下线、去哪里迁移」。
+  </div>
+
+  <h3>② 生活类比:新旧菜单并行 + 停售通知</h3>
+  <p>换新菜单那天,老顾客照样能点旧版套餐(v1 还在),桌上贴着一张卡:「旧版套餐自 11 月 4 日起不再推荐,2027 年 5 月 1 日停售,新套餐见第 2 页」(<code>Deprecation</code> / <code>Sunset</code> / <code>Link</code>)。厨房是同一个(同一个 <code>TasksService</code>),只是装盘方式不同(两个映射:v1 包 <code>{ data, timestamp }</code>,v2 直接给资源)。</p>
+  <pre><code>// v2(当前版本):/v2/tasks;VERSION_NEUTRAL 让不带版本号的 /tasks 也指向它
+@Controller({ path: 'tasks', version: ['2', VERSION_NEUTRAL] })
+export class TasksController { … }
+
+// v1(已弃用):Day 10–17 的旧格式,只保留读接口
+@Public()
+@Controller({ path: 'tasks', version: '1' })
+export class TasksV1Controller {
+  @DeprecatedApi(V1_DEPRECATION)      // = Header('Deprecation') + Header('Sunset') + Header('Link')
+  @Get(':id')
+  findOne(@Param('id', TracedParseIntPipe) id: number) {
+    return this.wrap(toTaskResponse(this.tasksService.findOne(id)));   // 同一个 Service,不同的出口映射
+  }
+}
+
+// src/app.setup.ts —— 版本化只能在 app 实例上开
+export function configureApp(app: INestApplication) {
+  app.enableVersioning({ type: VersioningType.URI });
+  return app;
+}
+// src/app.factory.ts —— main.ts 和所有观察脚本都用它;e2e 在 createNestApplication() 之后调用 configureApp
+export async function createApp(rootModule = AppModule, options?) {
+  return configureApp(await NestFactory.create(rootModule, options));
+}</code></pre>
+
+  <h3>比喻 ↔ 真实 对照:版本放在哪里</h3>
+  <table>
+    <tr><th>方式</th><th>例子</th><th>优点</th><th>缺点</th></tr>
+    <tr><td><b>URI</b>(nest-lab 的选择)</td><td><code>/v2/tasks</code></td><td>一眼可见;curl、浏览器、日志、缓存都天然区分;最常见</td><td>同一个资源有多个 URL;「版本」混进了资源标识</td></tr>
+    <tr><td>请求头</td><td><code>X-API-Version: 2</code>(GitHub:<code>X-GitHub-Api-Version: 2022-11-28</code>)</td><td>URL 干净</td><td>不显眼,浏览器里直接点不了;缓存要配 <code>Vary</code></td></tr>
+    <tr><td>媒体类型</td><td><code>Accept: application/vnd.nestlab.v2+json</code></td><td>最「REST 正统」,和 Day 15 的内容协商一致</td><td>最难用、最难调试</td></tr>
+    <tr><td>查询参数</td><td><code>/tasks?version=2</code></td><td>简单</td><td>容易和过滤参数混在一起,缓存键也混乱</td></tr>
+  </table>
+  <p><b>弃用三件套</b>(<code>@DeprecatedApi()</code> 贴在 v1 上):<code>Deprecation: @1793750400</code>(RFC 9745,<code>@</code> + Unix 秒数,这里是 2026-11-04)、<code>Sunset: Sat, 01 May 2027 00:00:00 GMT</code>(RFC 8594,计划下线时间)、<code>Link: &lt;迁移文档&gt;; rel="deprecation", &lt;/v2/tasks&gt;; rel="successor-version"</code>。下线流程:贴出弃用头 → 文档、邮件通知 → 按版本统计调用量(日志、监控)→ 到 Sunset 日期后先返回 <code>410 Gone</code> 一段时间 → 删除 v1 的代码。</p>
+  <p><b>什么时候需要新版本?</b></p>
+  <table>
+    <tr><th>变更</th><th>兼容吗</th><th>需要新版本吗</th></tr>
+    <tr><td>新增一个接口</td><td>✅ 兼容</td><td>不需要</td></tr>
+    <tr><td>响应里新增一个字段</td><td>✅ 兼容(前提:调用方会忽略不认识的字段)</td><td>不需要</td></tr>
+    <tr><td>请求里新增一个<b>可选</b>参数</td><td>✅ 兼容</td><td>不需要</td></tr>
+    <tr><td>请求里新增一个<b>必填</b>参数</td><td>❌ 破坏性</td><td>需要</td></tr>
+    <tr><td>删除 / 改名一个字段(包括 Day 18 去掉 <code>data</code> 包装)</td><td>❌ 破坏性</td><td>需要</td></tr>
+    <tr><td>改字段类型(<code>id</code> 从数字变字符串)</td><td>❌ 破坏性</td><td>需要</td></tr>
+    <tr><td>改状态码语义(校验失败从 400 改成 422,Day 16)</td><td>❌ 破坏性</td><td>需要(调用方可能写了 <code>if (status === 400)</code>)</td></tr>
+    <tr><td>列表从「全部」改成「分页」(今天)</td><td>❌ 破坏性</td><td>需要 —— 所以今天的分页只在 v2 里</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「菜单版本越多,顾客越满意」——每个版本都是要维护的代码。</b>v1 还在,就要为它跑测试、修安全漏洞、在每次改 Service 时确认它没被打坏。所以新版本要少开,旧版本要按计划下线;能用兼容变更解决的(加字段、加接口),就不要升版本。</li>
+      <li><b>「停售通知贴出去,到日子就自动停售」——<code>Sunset</code> 只是通知。</b>它不会让任何东西自动下线,到期时还得有人真的去改代码、发布。而且 <code>@Header()</code> 只作用于<b>成功</b>响应:v1 返回 404 时,problem+json 错误响应上没有这些头。另外留意:<code>POST /v2/tasks</code> 返回的 <code>Location</code> 是 <code>/tasks/31</code>,不带版本前缀,它会落到「不带版本 = v2」上。</li>
+      <li><b>「不写版本号,自动给最新菜单,最方便」——方便的代价是顾客在不知情的情况下被换了菜单。</b>nest-lab 让不带版本的 <code>/tasks</code> 指向 v2(<code>VERSION_NEUTRAL</code>),主要是为了 Day 8–18 的脚本和测试不用全改;但这意味着下次出 v3 时,所有「不写版本」的调用方会被悄悄升级,正是 Day 18 那种破坏性变更。对外的正式 API 更稳妥的做法是要求显式版本,或者像 GitHub 那样:不写版本时固定使用一个<b>默认的旧版本</b>,而不是最新版本。另一个坑:<code>enableVersioning</code> 只能在 app 实例上开,忘了调用会怎样,第 5 幕实测。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>API versioning</b>(URI / header / media type / query);Nest:<code>app.enableVersioning({ type: VersioningType.URI | HEADER | MEDIA_TYPE | CUSTOM })</code>、<code>@Controller({ version })</code>、<code>@Version()</code>(方法级)、<code>VERSION_NEUTRAL</code>、<code>defaultVersion</code>;<b>Deprecation</b> 头(RFC 9745,2025)、<b>Sunset</b> 头(RFC 8594)、<code>Link</code> 的 <code>rel="deprecation"</code> / <code>rel="successor-version"</code>;<b>410 Gone</b>;<b>breaking vs non-breaking change</b>;Postel 法则(对接收的宽容:调用方应忽略不认识的字段,这是「加字段算兼容」的前提)。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:<code>/v1/tasks/1</code>、<code>/v2/tasks/1</code>、<code>/tasks/1</code> 三个响应有什么不同?如果创建 app 时<b>忘了调用 <code>configureApp</code></b>,这三个地址分别会怎样?</p>
+  <p>真实运行结果(第 4、5 幕和自动校验):</p>
+  <pre><code>========== 第 4 幕:同一个资源,v1(已弃用)vs v2 ==========
+GET /v1/tasks/1 → 200
+  deprecation: @1793750400
+  sunset: Sat, 01 May 2027 00:00:00 GMT
+  link: &lt;https://nest-lab.example/docs/migrations/tasks-v2&gt;; rel="deprecation"; type="text/html", &lt;/v2/tasks&gt;; rel="successor-version"
+  {"data":{"id":1,"title":"跑通 nest new","done":true,"checklist":[],"createdAt":"2026-11-04T11:40:51.991Z"},"timestamp":"2026-11-04T11:40:52.205Z"}
+GET /v2/tasks/1 → 200
+  {"id":1,"title":"跑通 nest new","done":true,"checklist":[],"createdAt":"2026-11-04T11:40:51.991Z"}
+GET /tasks/1 → 200
+  {"id":1,"title":"跑通 nest new","done":true,"checklist":[],"createdAt":"2026-11-04T11:40:51.991Z"}
+
+GET /v1/tasks → 顶层字段 data, timestamp;data 里 50 条(一次全给)
+GET /v2/tasks → 顶层字段 items, nextCursor;items 里 20 条(默认 limit=20)
+
+========== 第 5 幕:直接 NestFactory.create,没有调用 configureApp ==========
+GET /v1/tasks/1  → 404  Cannot GET /v1/tasks/1
+GET /v2/tasks/1  → 404  Cannot GET /v2/tasks/1
+GET /tasks/1     → 200  顶层字段 id, title, done, checklist, createdAt
+
+========== 自动校验 ==========
+✅ offset:中途新增导致重复
+✅ offset:中途删除导致漏项
+✅ cursor:中途新增也不重复
+✅ cursor:中途删除也不漏项
+✅ cursor:按 createdAt(有大量相同值)翻到底不重不漏
+✅ 过滤 + 排序:全部未完成且按标题倒序
+✅ limit=500 → 422
+✅ limit=0 → 422
+✅ sort=passwordHash → 422
+✅ done=yes → 422
+✅ 未登记的参数 page → 422
+✅ 换了 sort 还用旧 cursor → 400
+✅ 篡改的 cursor → 400
+✅ v1 带 Deprecation / Sunset 头
+✅ v2 不带 Deprecation 头
+结论:✅ 全部符合预期</code></pre>
+  <p>第 5 幕是今天最阴险的坑:<b>没开版本化时,版本号被整个忽略</b>,v1 和 v2 两个 Controller 都注册到了同一个 <code>/tasks</code> 上,先注册的那个(v2)赢,<code>/v1/...</code> 和 <code>/v2/...</code> 全部 404;而不带版本的 <code>/tasks/1</code> 照样 200,很容易让人以为一切正常。这就是 Day 10 / 13 那条经验的又一次应验:<b>只能在 app 实例上做的配置,要有一个所有人都走的统一入口</b>(<code>createApp()</code> / <code>configureApp()</code>),并且用测试钉住(<code>pagination.e2e-spec.ts</code> 会请求 <code>/v1</code> 和 <code>/v2</code>)。</p>
+  <p>测试的真实结果:<code>npm test</code> 42 个通过(含 <code>cursor.spec.ts</code> 5 个),<code>npm run test:e2e</code> 78 个通过(含新增的 <code>pagination.e2e-spec.ts</code> 16 个用例)。</p>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <table>
+    <tr><th>命题</th><th>NestJS(教具)</th><th>C# / ASP.NET Core</th><th>Java / Spring</th><th>Go</th></tr>
+    <tr>
+      <td>分页参数</td>
+      <td>自己写查询 DTO(<code>limit</code> / <code>cursor</code>)</td>
+      <td>自己写;OData 风格 <code>$top</code> / <code>$skip</code> / <code>$orderby</code> / <code>$filter</code></td>
+      <td>Spring Data <b><code>Pageable</code></b>(<code>?page=0&amp;size=20&amp;sort=createdAt,desc</code>)</td>
+      <td>手写 <code>r.URL.Query().Get("limit")</code> + <code>strconv</code></td>
+    </tr>
+    <tr>
+      <td>offset 分页结果</td>
+      <td>(nest-lab 不对外开放)</td>
+      <td>EF Core <code>.Skip(n).Take(m)</code></td>
+      <td><b><code>Page&lt;T&gt;</code></b>(带 total,要额外执行 count 查询)/ <b><code>Slice&lt;T&gt;</code></b>(只知道有没有下一页,不 count)</td>
+      <td>手写 <code>LIMIT/OFFSET</code></td>
+    </tr>
+    <tr>
+      <td>keyset 分页</td>
+      <td>自己实现(今天)</td>
+      <td>手写 <code>.Where(x =&gt; x.Id &gt; lastId)</code></td>
+      <td>Spring Data 3.1+ 的 <b><code>ScrollPosition.keyset()</code> + <code>Window&lt;T&gt;</code></b></td>
+      <td>手写 <code>WHERE (a, id) &gt; ($1, $2)</code></td>
+    </tr>
+    <tr>
+      <td>版本化</td>
+      <td><code>app.enableVersioning()</code> + <code>@Controller({ version })</code> / <code>@Version()</code></td>
+      <td><b><code>Asp.Versioning</code></b> 包:<code>[ApiVersion("2.0")]</code>、<code>[MapToApiVersion]</code>,URL / 请求头 / 媒体类型都支持;<code>[ApiVersion("1.0", Deprecated = true)]</code> 在开启 <code>ReportApiVersions</code> 后会出现在响应头 <code>api-deprecated-versions</code> 里</td>
+      <td><b>Spring Framework 7</b>(2025 年 11 月发布,对应 Spring Boot 4)起内置 API 版本化:<code>@GetMapping(version = "2")</code> + <code>ApiVersionConfigurer</code>;之前只能靠路径前缀或自定义条件</td>
+      <td>路由前缀分组:<code>v1 := r.Group("/v1")</code>;Go 1.22 <code>ServeMux</code> 写 <code>"GET /v2/tasks/{id}"</code></td>
+    </tr>
+  </table>
+  <p>📌 <b>两家知名 API 的版本化实践</b>:<b>Stripe</b> 用<b>日期</b>当版本号(如 <code>Stripe-Version: 2024-06-20</code>),每个账号固定在首次调用时的版本,升级要显式操作,不会被悄悄换掉;<b>GitHub</b> 用请求头 <code>X-GitHub-Api-Version: 2022-11-28</code>,不写时使用一个固定的默认版本,而不是最新版本。两者都在回避第 5 节边界 3 的问题。</p>
+  <p>📌 roadmap 顶部对照表建议你在 Day 21 复盘时补一行<b>「分页 / 版本化」</b>(cursor 分页 + <code>enableVersioning</code> ↔ <code>Asp.Versioning</code> / <code>$top $skip</code> ↔ <code>Pageable</code> / <code>Slice</code> / <code>ScrollPosition</code> / Spring 7 版本化 ↔ Go 路由分组)。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"Offset or cursor pagination — which would you use, and why? How do you version a public API?"</b>(或者:「分页怎么设计?接口要做不兼容的修改怎么办?」)你可以答:<br>
+    <b>"默认我用 cursor,也就是 keyset 分页:按排序键加一个唯一的 tie-breaker,比如 id,把上一页最后一条的位置编码成不透明的 cursor 返回,下一页用 WHERE (排序键, id) 大于这个位置来查。它在翻页过程中有新增或删除时不会重复也不会漏项,而且在数据库里性能不随页数变差。offset 实现简单、能跳页,但数据变化时会重复或漏项,深分页也越来越慢,所以只用在小而稳定的后台表格。limit 有默认值和上限,超过上限直接报错;排序和过滤字段都有白名单,这也是防 SQL 注入的必要条件;响应里不返回 total,因为 count 在大表上很贵。版本化方面,兼容变更比如新增字段、新增接口不需要新版本;删字段、改名、改类型、改状态码语义才需要。我倾向于 URI 版本,直观、好调试;旧版本保留一段时间,在响应头里加 Deprecation、Sunset 和指向迁移文档的 Link,按版本统计调用量,到期后先返回 410 再删除代码。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+  <p>预测都写进 <code>src/19-pagination-versioning/notes.md</code> 的预测区,先写,再运行,再批改。</p>
+
+  <div class="task">
+    <h3>习题 1:叫号现场(动手,约 8 min)</h3>
+    <p>✍️ <b>预测(先写再运行)</b>:第 3、4、5 节「⑤」里的所有问题。然后:</p>
+    <pre><code>cd nest-lab
+npm run day19</code></pre>
+    <p>逐条批改。再用 curl 自己翻两页:<code>curl -s 'localhost:3000/v2/tasks?limit=1'</code>,把返回的 <code>nextCursor</code> 原样贴进 <code>?limit=1&amp;cursor=…</code>;然后故意把 cursor 改掉一个字符,先预测状态码。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:新增一个排序字段(动手,约 10 min)</h3>
+    <p>需求:允许 <code>?sort=done</code>(未完成的排前面)。</p>
+    <ol>
+      <li>✍️ <b>预测</b>:要改哪几个文件、哪几行?(提示:白名单、<code>sortValue()</code>、布尔值怎么比较大小、cursor 里能不能放布尔值。)</li>
+      <li>动手改,并在 <code>test/pagination.e2e-spec.ts</code> 里加一个「<code>sort=done</code> 一路翻到底不重不漏」的用例。</li>
+      <li>这次改动需要发 v3 吗?对照第 5 节的表格回答。</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:变更分类与下线计划(思考,约 7 min)</h3>
+    <ol>
+      <li>判断下面 6 个变更是否需要新版本:① 任务响应加 <code>updatedAt</code>;② <code>title</code> 改名 <code>name</code>;③ <code>limit</code> 上限从 100 降到 50;④ 新增 <code>GET /v2/tasks/stats</code>;⑤ <code>POST /tasks</code> 新增必填字段 <code>projectId</code>;⑥ <code>nextCursor</code> 的内部编码从 JSON 换成 protobuf。</li>
+      <li>写出 v1 从今天到 2027-05-01 之后的下线计划:每一步做什么、怎么知道还有谁在用 v1。</li>
+      <li>如果某个大客户到了 Sunset 日期还在大量调用 v1,你会怎么办?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/19-pagination-versioning/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「我用 React Query 的 <code>useInfiniteQuery</code> 做无限滚动,<code>getNextPageParam</code> 该返回什么?为什么后端给 <code>nextCursor</code> 而不是页码?」用叫号的比喻讲清楚,并说出这个比喻在哪里会骗人。</li>
+      <li>offset 分页为什么会重复或漏项?cursor 为什么不会?为什么排序键最后要补一个 id?</li>
+      <li>哪些变更需要新版本、哪些不需要?nest-lab 选了哪种版本化方式,忘了 <code>configureApp</code> 会怎样?<code>Deprecation</code> 和 <code>Sunset</code> 分别是什么意思?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里补上你自己做的改动;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>列表要分页</b>:offset 简单能跳页,但数据变化时重复 / 漏项(方法本身的性质),深分页慢;cursor(keyset)不重不漏、性能稳定,但不能跳页。cursor 是位置书签不是快照,不透明不等于加密,排序键最后要有唯一的 tie-breaker。</li>
+    <li><b>nest-lab 的约定</b>:集合响应 <code>{ items, nextCursor }</code>,不给 total;<code>limit</code> 默认 20、最大 100,超过回 422;cursor 坏了或条件变了回 400 <code>invalid-cursor</code>。</li>
+    <li><b>过滤与排序走白名单</b>:查询参数永远是字符串,用 DTO 转换和校验;排序字段白名单在 SQL 里是防注入的必要条件。</li>
+    <li><b>破坏性变更开新版本</b>:URI 版本 <code>/v2</code>,旧版 <code>/v1</code> 贴 <code>Deprecation</code> / <code>Sunset</code> / <code>Link</code>,按计划下线;加字段、加接口不需要新版本。<code>enableVersioning</code> 必须在每个创建 app 的地方生效,用 <code>createApp()</code> / <code>configureApp()</code> 统一入口加测试保证。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>画出 offset 分页「中途新增一条导致重复」的过程:第 1 页、新增、第 2 页各是哪些 id</li>
+    <li>把 nest-lab 的 keyset 条件写成 SQL:<code>sort=-createdAt</code> 时,第 2 页的 <code>WHERE</code> 和 <code>ORDER BY</code> 长什么样?</li>
+    <li>为什么 <code>@Type(() =&gt; Boolean)</code> 不能用来解析 <code>?done=false</code>?</li>
+    <li>忘了调用 <code>configureApp</code> 时,为什么 <code>/tasks/1</code> 还能 200,而 <code>/v1</code>、<code>/v2</code> 都 404?</li>
+    <li>Stripe 和 GitHub 各自怎么做版本化?它们为什么都不让「不写版本」等于「最新版本」?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 20</b>:OpenAPI 与实战收口。用 <code>@nestjs/swagger</code> 从 DTO 生成文档(装进 <code>configureApp</code> 这个统一装配点),把今天的分页参数、Day 17 的 problem+json、Day 18 的响应 DTO、v1 的弃用都写进文档;再写一份语言无关的 API 设计文档,补齐 e2e,任务管理 REST API 完成。</p>
+</section>
+
+<footer>
+  Day 19 · Phase 1 / Week 3 · 产出:<code>docs/19-pagination-versioning/</code> 本文档 + <code>nest-lab/</code>(cursor 分页 <code>{ items, nextCursor }</code>、过滤 / 排序白名单、URI 版本化 <code>/v1</code> 与 <code>/v2</code>、<code>@DeprecatedApi</code>、<code>createApp()</code> 统一入口、<code>npm run day19</code>)+ <code>src/19-pagination-versioning/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

@@ -6,7 +6,8 @@ const out = (...a) => process.stdout.write(a.join(' ') + '\n');
 const line = (t) => out(`\n========== ${t} ==========`);
 
 const { ValidationPipe } = await import('@nestjs/common');
-const { NestFactory } = await import('@nestjs/core');
+// Day 19:统一用 createApp()(= NestFactory.create + configureApp,开启 URI 版本化)
+const { createApp } = await import('../dist/app.factory.js');
 const { IsString } = await import('class-validator');
 const { AppModule } = await import('../dist/app.module.js');
 const { validationPipeOptions } = await import('../dist/common/validation/validation.options.js');
@@ -14,7 +15,7 @@ const { ZodValidationPipe } = await import('../dist/common/validation/zod-valida
 const { CreateTaskDto } = await import('../dist/tasks/dto/create-task.dto.js');
 const { createTaskSchema } = await import('../dist/tasks/dto/task.zod.js');
 
-const app = await NestFactory.create(AppModule, { logger: false });
+const app = await createApp(AppModule, { logger: false });
 await app.listen(0, '127.0.0.1');
 const { port } = app.getHttpServer().address();
 const base = `http://127.0.0.1:${port}`;

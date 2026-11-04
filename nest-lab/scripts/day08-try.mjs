@@ -4,7 +4,8 @@
 // 为什么读 dist/ 而不是直接 tsx 跑 src/?
 //   Nest 依赖 tsc 的 emitDecoratorMetadata 把「构造函数需要什么类型」写进产物,
 //   tsx(esbuild)不生成这份元数据,Controller 就拿不到 Service(Day 9 细讲)。
-import { NestFactory } from '@nestjs/core';
+// Day 19:统一用 createApp()(= NestFactory.create + configureApp,开启 URI 版本化)
+import { createApp } from '../dist/app.factory.js';
 import { AppModule } from '../dist/app.module.js';
 import { TasksController } from '../dist/tasks/tasks.controller.js';
 import { requestLogger } from '../dist/common/request-logger.middleware.js';
@@ -13,7 +14,7 @@ const line = (title) => console.log(`\n========== ${title} ==========`);
 
 // ---------- 第 1 幕:开店(注意 Nest 自己打印的启动日志) ----------
 line('第 1 幕:开店 NestFactory.create(AppModule)');
-const app = await NestFactory.create(AppModule);
+const app = await createApp(AppModule);
 app.use(requestLogger); // 和 main.ts 一样挂上「门口登记员」
 await app.listen(0, '127.0.0.1'); // 端口 0 = 让操作系统随便挑一个空闲端口,不和别的项目抢 3000
 const { port } = app.getHttpServer().address();

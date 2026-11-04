@@ -8,6 +8,30 @@ import type { CreateTaskDto } from './dto/create-task.dto.js';
 import type { ReplaceTaskDto } from './dto/replace-task.dto.js';
 import type { UpdateTaskDto } from './dto/update-task.dto.js';
 import { TASKS_REPOSITORY, type TasksRepository } from './tasks.repository.js';
+import { decodeCursor, encodeCursor } from './cursor.js';
+import { DEFAULT_LIMIT, type ListTasksQueryDto } from './dto/list-tasks-query.dto.js';
+import { type SortKey, type TaskFilter, sortTuple, withTieBreaker } from './task-query.js';
+
+// Day 19:'-createdAt' → { field: 'createdAt', dir: 'desc' };没给 sort 时默认按 id 升序
+function parseSort(tokens: string[] | undefined): SortKey[] {
+  const keys = (tokens ?? []).map((t) =>
+    t.startsWith('-') ? { field: t.slice(1), dir: 'desc' as const } : { field: t, dir: 'asc' as const },
+  ) as SortKey[];
+  return withTieBreaker(keys);
+}
+
+// 过滤条件按固定顺序组装(cursor 里会比较它,顺序不同就会被当成「条件变了」)
+function toFilter(query: { done?: boolean; q?: string }): TaskFilter {
+  const filter: TaskFilter = {};
+  if (query.done !== undefined) filter.done = query.done;
+  if (query.q !== undefined && query.q !== '') filter.q = query.q;
+  return filter;
+}
+
+export interface TaskListPage {
+  items: Task[];
+  nextCursor: string | null;
+}
 
 // Provider / Service = 后厨:只管「把菜做出来」(业务逻辑),不关心 HTTP。
 // Day 9 起:数据存哪、现在几点,都不自己决定,而是在构造函数里「声明我需要什么」,由 Nest 的 IoC 容器送来。
@@ -19,6 +43,28 @@ export class TasksService {
     @Inject(CLOCK) private readonly clock: Clock,
   ) {}
 
+  // Day 19:cursor(keyset)分页 —— nest-lab 对外唯一的分页方式
+  listPage(query: ListTasksQueryDto): TaskListPage {
+    const sort = parseSort(query.sort);
+    const filter = toFilter(query);
+    const limit = query.limit ?? DEFAULT_LIMIT;
+    const after = query.cursor ? decodeCursor(query.cursor, sort, filter) : undefined;
+    ctxLog(`   ④ Service    后厨做菜:listPage(limit=${limit}${after ? `, after id=${after.id}` : ''})`);
+    // 多取一条:取到了说明还有下一页,不用 COUNT(*)
+    const rows = this.repo.findPage({ filter, sort, limit: limit + 1, ...(after ? { after } : {}) });
+    const items = rows.slice(0, limit);
+    const last = items.at(-1);
+    const nextCursor =
+      rows.length > limit && last ? encodeCursor(sort, filter, { values: sortTuple(last, sort), id: last.id }) : null;
+    return { items, nextCursor };
+  }
+
+  // Day 19:offset 分页 —— 仓储层也实现了,但不对外开放;只给观察脚本做对比(翻页时会重复 / 漏项)
+  listByOffset(query: { done?: boolean; q?: string; sort?: string[]; offset: number; limit: number }): Task[] {
+    return this.repo.findPage({ filter: toFilter(query), sort: parseSort(query.sort), limit: query.limit, offset: query.offset });
+  }
+
+  // v1 兼容:不分页,一次返回全部(Day 8–17 的老行为)
   findAll(): Task[] {
     ctxLog('   ④ Service    后厨做菜:findAll');
     return this.repo.findAll();

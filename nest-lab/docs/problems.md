@@ -21,6 +21,7 @@
 | type(省略前缀 `https://nest-lab.example/problems/`) | status | title | 什么时候出现 | 调用方该怎么做 |
 |---|---|---|---|---|
 | `bad-request` | 400 | 请求格式错误 | 请求体不是合法 JSON;路径参数格式不对(如 `/tasks/abc`) | 修正请求的拼装代码;不要原样重试 |
+| `invalid-cursor` | 400 | 分页 cursor 无效 | cursor 被篡改 / 无法解析,或者和当前的 `sort`、过滤条件不匹配(Day 19) | 丢掉旧 cursor,从第一页重新开始 |
 | `forbidden` | 403 | 没有权限执行此操作 | 缺少或错误的 `x-demo-key`;角色不够(`x-demo-role`) | 检查凭证 / 角色(Week 10 换成 JWT 后会区分 401) |
 | `not-found` | 404 | 资源不存在 | 任务 id 不存在;路由不存在 | 刷新列表;检查 URL |
 | `method-not-allowed` | 405 | 该资源不支持此 HTTP 方法 | 例如 `PATCH /tasks`;响应头 `Allow` 列出了支持的方法 | 按 `Allow` 改用正确的方法 |

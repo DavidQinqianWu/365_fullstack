@@ -6,10 +6,11 @@ console.log = () => {};
 const print = process.stdout.write.bind(process.stdout);
 const out = (...a) => print(a.join(' ') + '\n');
 
-const { NestFactory } = await import('@nestjs/core');
+// Day 19:统一用 createApp()(= NestFactory.create + configureApp,开启 URI 版本化)
+const { createApp } = await import('../dist/app.factory.js');
 const { AppModule } = await import('../dist/app.module.js');
 
-const app = await NestFactory.create(AppModule, { logger: false });
+const app = await createApp(AppModule, { logger: false });
 await app.listen(0, '127.0.0.1');
 const { port } = app.getHttpServer().address();
 const base = `http://127.0.0.1:${port}`;
@@ -56,11 +57,11 @@ await call('PUT    /tasks/1 同一请求再发一次', 'PUT', '/tasks/1', { head
 await call('PUT    /tasks/999(不存在)', 'PUT', '/tasks/999', { headers: { ...KEY, ...JSON_BODY }, body: { title: 'x', done: false } });
 
 line('第 3 幕:POST 不幂等 —— 同一个请求发两次');
-// Day 18 起成功响应不再包装 { data, timestamp },响应体就是资源本身
-const before = (await (await fetch(`${base}/tasks`)).json()).length;
+// Day 18 起成功响应不再包装 { data, timestamp };Day 19 起列表是一页 { items, nextCursor }
+const before = (await (await fetch(`${base}/tasks`)).json()).items.length;
 const a = await call('POST   /tasks {title:"买牛奶"} 第 1 次', 'POST', '/tasks', { headers: { ...KEY, ...JSON_BODY }, body: { title: '买牛奶' } });
 const b = await call('POST   /tasks {title:"买牛奶"} 第 2 次', 'POST', '/tasks', { headers: { ...KEY, ...JSON_BODY }, body: { title: '买牛奶' } });
-const after = (await (await fetch(`${base}/tasks`)).json()).length;
+const after = (await (await fetch(`${base}/tasks`)).json()).items.length;
 out(`任务数:${before} → ${after};两次拿到的 id:${a.id} 和 ${b.id}(用户手一抖点了两下,就多了一条)`);
 
 line('第 4 幕:405 / 406 / 415 / 400');

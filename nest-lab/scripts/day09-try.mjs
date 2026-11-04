@@ -3,7 +3,8 @@
 // 跑:npm run day09   (= nest build + node scripts/day09-try.mjs)
 // 和 day08 一样读 dist/:design:paramtypes 只有 tsc 会生成。
 import { Module } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
+// Day 19:统一用 createApp()(= NestFactory.create + configureApp,开启 URI 版本化)
+import { createApp } from '../dist/app.factory.js';
 import { AppModule } from '../dist/app.module.js';
 import { CLOCK } from '../dist/common/clock.js';
 import { created } from '../dist/scope-demo/counters.js';
@@ -22,7 +23,7 @@ Module({ imports: [AppModule, ScopeDemoModule] })(Day09Module);
 
 // ---------- 第 1 幕:开店。注意哪些 🆕 在任何请求到来之前就出现了 ----------
 line('第 1 幕:开店(请求还没来)');
-const app = await NestFactory.create(Day09Module, {
+const app = await createApp(Day09Module, {
   logger: false, // 关掉 Nest 自己的日志,只看我们的 🆕
   abortOnError: false, // 默认 app.get() 出错会直接结束进程,这里改成抛异常让我们 catch
 });

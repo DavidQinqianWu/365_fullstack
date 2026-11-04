@@ -5,6 +5,7 @@ import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
 import { KitchenModule } from './../src/request-context-demo/kitchen.module.js';
+import { configureApp } from './../src/app.setup.js';
 
 // Day 13:请求上下文(ALS)—— 并发请求各拿各的 requestId,不串号
 @Module({ imports: [AppModule, KitchenModule] })
@@ -17,6 +18,7 @@ describe('请求上下文 (e2e)', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     const moduleRef = await Test.createTestingModule({ imports: [KitchenTestModule] }).compile();
     app = moduleRef.createNestApplication();
+    configureApp(app); // Day 19:开启 URI 版本化(和 main.ts 一样)
     await app.init();
   });
 

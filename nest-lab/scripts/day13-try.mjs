@@ -6,7 +6,8 @@ const captured = [];
 console.log = (...args) => captured.push(args.join(' ')); // 先把服务端日志收起来,稍后两种方式展示
 
 const { Module } = await import('@nestjs/common');
-const { NestFactory } = await import('@nestjs/core');
+// Day 19:统一用 createApp()(= NestFactory.create + configureApp,开启 URI 版本化)
+const { createApp } = await import('../dist/app.factory.js');
 const { AppModule } = await import('../dist/app.module.js');
 const { KitchenModule } = await import('../dist/request-context-demo/kitchen.module.js');
 
@@ -14,7 +15,7 @@ const line = (title) => print(`\n========== ${title} ==========`);
 class Day13Module {}
 Module({ imports: [AppModule, KitchenModule] })(Day13Module);
 
-const app = await NestFactory.create(Day13Module, { logger: false });
+const app = await createApp(Day13Module, { logger: false });
 await app.listen(0, '127.0.0.1');
 const { port } = app.getHttpServer().address();
 const base = `http://127.0.0.1:${port}`;

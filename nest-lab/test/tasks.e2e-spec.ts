@@ -35,10 +35,11 @@ describe('Tasks (e2e)', () => {
     vi.restoreAllMocks();
   });
 
-  it('GET /tasks → 200 + 任务数组本身(Day 18 起不再包装)', async () => {
+  it('GET /tasks → 200 + 一页任务 { items, nextCursor }(Day 18 起不再包装,Day 19 起分页)', async () => {
     const res = await request(app.getHttpServer()).get('/tasks').expect(200);
     expect(res.headers['content-type']).toMatch(/application\/json/);
-    expect(res.body).toHaveLength(2);
+    expect(res.body.items).toHaveLength(2);
+    expect(res.body.nextCursor).toBeNull();
     expect(res.body).not.toHaveProperty('timestamp');
   });
 

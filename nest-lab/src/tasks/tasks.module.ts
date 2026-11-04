@@ -4,13 +4,14 @@ import { classProvider, valueProvider } from '../common/typed-token.js';
 import { InMemoryTasksRepository } from './in-memory-tasks.repository.js';
 import type { Task } from './task.js';
 import { TasksController } from './tasks.controller.js';
+import { TasksV1Controller } from './v1/tasks-v1.controller.js';
 import { TASKS_REPOSITORY, TASKS_SEED } from './tasks.repository.js';
 import { TasksService } from './tasks.service.js';
 
 // Module = 一个部门的编制表。Day 9 起它还是「人事部的登记簿」:
 // 每一行都在说「有人要 X 这个 token 时,怎么造出来」。
 @Module({
-  controllers: [TasksController],
+  controllers: [TasksController, TasksV1Controller], // Day 19:v2(+ 不带版本)与已弃用的 v1
   providers: [
     // 简写:等于 { provide: TasksService, useClass: TasksService },类本身就是 token
     TasksService,

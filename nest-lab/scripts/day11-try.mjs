@@ -10,9 +10,10 @@ console.log = (...args) => {
 
 print('========== 第 0 幕:import 编译好的类(还没开店) ==========');
 const { Module } = await import('@nestjs/common');
-const { NestFactory, Reflector } = await import('@nestjs/core');
+const { Reflector } = await import('@nestjs/core');
+// Day 19:统一用 createApp()(= NestFactory.create + configureApp,开启 URI 版本化)
+const { createApp } = await import('../dist/app.factory.js');
 const { AppModule } = await import('../dist/app.module.js');
-const { configureApp } = await import('../dist/app.setup.js');
 const { IS_PUBLIC_KEY } = await import('../dist/common/decorators/public.decorator.js');
 const { Roles } = await import('../dist/common/decorators/roles.decorator.js');
 const { TasksController } = await import('../dist/tasks/tasks.controller.js');
@@ -25,8 +26,7 @@ class Day11Module {}
 Module({ imports: [AppModule, DecoratorDemoModule] })(Day11Module);
 
 line('第 1 幕:开店');
-const app = await NestFactory.create(Day11Module, { logger: false });
-configureApp(app);
+const app = await createApp(Day11Module, { logger: false });
 await app.listen(0, '127.0.0.1');
 const { port } = app.getHttpServer().address();
 const base = `http://127.0.0.1:${port}`;
