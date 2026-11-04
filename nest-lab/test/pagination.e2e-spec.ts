@@ -60,6 +60,18 @@ describe('分页 / 过滤 / 排序 / 版本化 (e2e)', () => {
     expect(new Set(seen).size).toBe(30);
   });
 
+  it('Day 34:混合方向且第一列升序(createdAt,-id)也能一路翻到底,并且顺序正确', async () => {
+    const seen = await walk('sort=createdAt,-id&limit=7');
+    expect(seen).toHaveLength(30);
+    expect(new Set(seen).size).toBe(30);
+    // createdAt 升序;createdAt 相同时 id 降序。拿完整列表按同样的规则排一遍对照
+    const all = (await request(server()).get('/v2/tasks?limit=100').expect(200)).body.items as { id: number; createdAt: string }[];
+    const expected = [...all]
+      .sort((a, b) => (a.createdAt === b.createdAt ? b.id - a.id : a.createdAt < b.createdAt ? -1 : 1))
+      .map((t) => t.id);
+    expect(seen).toEqual(expected);
+  });
+
   it('翻页途中新增 / 删除:cursor 不重不漏', async () => {
     const first = await request(server()).get('/v2/tasks?sort=-id&limit=10').expect(200);
     const firstIds = first.body.items.map((t: { id: number }) => t.id);

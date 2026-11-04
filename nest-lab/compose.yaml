@@ -13,6 +13,10 @@ services:
   postgres:
     image: postgres:16 # 固定大版本,和讲义的验证版本(16.x)一致;不要用 latest
     restart: unless-stopped
+    # Day 34:启动时预加载 pg_stat_statements(慢查询统计)。改了这一行要 docker compose up -d 重建容器才生效;
+    # 然后在库里执行一次 CREATE EXTENSION pg_stat_statements;(POSTGRES_USER 是超级用户,可以直接建)
+    # ⚠️ 本课程环境没有 Docker,这个写法未实测;本机安装的 PostgreSQL 改的是 postgresql.conf(见 Day 34 讲义)
+    command: ['postgres', '-c', 'shared_preload_libraries=pg_stat_statements']
     environment:
       # 这三个变量只在「数据卷第一次初始化」时生效;之后再改 .env 不会改已有的用户和密码
       POSTGRES_USER: ${POSTGRES_USER:-nest_lab}

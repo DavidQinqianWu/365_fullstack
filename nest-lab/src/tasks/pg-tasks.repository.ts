@@ -61,6 +61,10 @@ export function escapeLike(text: string): string {
 //   方向全部相同:行值比较 (a, b, id) > ($1, $2, $3) —— 一个条件,数据库也最容易用上索引(Week 5)
 //   方向混合(如 -createdAt, id):行值比较只有一个方向,不能用 → 展开成 OR:
 //     a < $1 OR (a = $1 AND id > $2)
+//   Day 34 修复:OR 本身用不上索引(只能当 Filter,深分页时要从头扫、扔掉前面所有行,Day 31 实测)。
+//   在前面补一个「第一列的范围」:a <= $1 AND (a < $1 OR (a = $1 AND id > $2))。
+//   它是 OR 的必要条件(两个分支都满足它),所以结果完全不变;但它是简单的范围,能成为 Index Cond,
+//   索引直接跳到书签那里。
 export function keysetCondition(sort: SortKey[], values: unknown[], param: (v: unknown) => string): string {
   const cols = sort.map((s) => SORT_SQL[s.field]);
   const placeholders = sort.map((s, i) => `${param(values[i])}::${cols[i]!.cast}`);
@@ -74,7 +78,8 @@ export function keysetCondition(sort: SortKey[], values: unknown[], param: (v: u
     const op = s.dir === 'asc' ? '>' : '<';
     return `(${[...equals, `${cols[i]!.expr} ${op} ${placeholders[i]}`].join(' AND ')})`;
   });
-  return `(${ors.join(' OR ')})`;
+  const range = `${cols[0]!.expr} ${sort[0]!.dir === 'asc' ? '>=' : '<='} ${placeholders[0]}`;
+  return `(${range} AND (${ors.join(' OR ')}))`;
 }
 
 export class PgTasksRepository implements TasksRepository, OnModuleInit {
