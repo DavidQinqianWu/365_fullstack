@@ -35,6 +35,7 @@ npm run day25          # Day 25 观察脚本:JOIN 全家、EXISTS / NOT EXISTS /
 npm run day26          # Day 26 观察脚本:窗口函数与每组最新、UPSERT 与并发注册、RETURNING、JSONB、数组、timestamptz 与夏令时、枚举(schema day26)
 npm run day27          # Day 27 观察脚本:连接池、SQL 注入对比、PG 版 CRUD、事务回滚、keyset 真实 SQL、约束 → problem+json、fail fast(需要 PostgreSQL)
 npm run day29          # Day 29 观察脚本:百万行 tasks 上没有索引 vs 有索引、ctid、B-tree 树高、选择性导致不用索引(schema day29,需要 PostgreSQL)
+npm run day30          # Day 30 观察脚本:读计划树、BUFFERS 冷热、Index Only / Bitmap(lossy)、排序与 work_mem、三种 JOIN、统计信息过期与 ANALYZE(schema day30)
 npm run db:reset       # 用 psql 重建 schema app(sql/schema.sql + sql/seed.sql);-- --schema app_test 重建测试用的 schema
 npm run test:e2e:pg    # 同一套 e2e,换成 PostgreSQL 版仓储再跑一遍(先自动重建 app_test)
 npm run openapi:generate  # 改了接口后重新生成 openapi.json(和代码一起提交)
@@ -101,3 +102,4 @@ psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab   # 本机装了
 | Day 26 | `sql/day26/`(schema `day26`:窗口函数 `row_number / rank / dense_rank / lag / lead`、累计和与移动平均、每组最新的三种写法(`row_number`、`DISTINCT ON`、`LATERAL`)、`INSERT … ON CONFLICT DO NOTHING / DO UPDATE` 与并发注册、`RETURNING`、JSONB 操作符与「便条不校验」、数组 vs 中间表、`timestamptz` vs `timestamp` 与柏林夏令时、ENUM);`docs/er-diagram.md` 新增「存储形式的决定」(checklist 用子表);`scripts/day26-try.mjs`;应用代码未改 | `docs/26-sql-queries-2/` |
 | Day 27 | 依赖 `pg` + `@types/pg`;`src/database/`(`PG_POOL` 带类型 token + `useFactory` 建连接池、`onModuleDestroy` 关池、`pg-errors.ts` 把 SQLSTATE 翻译成 problem+json);`src/tasks/pg-tasks.repository.ts`(参数化查询、两张表写入用事务、`json_agg` 拼 checklist、keyset 行值比较 / OR 展开、ORDER BY 白名单、`COLLATE "C"`);仓储接口改为 async(Service / Controller 跟着 await);`TasksModule` 按 `TASKS_STORAGE` 选实现;env schema 新增 `TASKS_STORAGE` / `DATABASE_URL` / `DATABASE_SCHEMA` / `DB_POOL_MAX` / `DB_RESET_ON_START`;`sql/schema.sql`、`sql/seed.sql`、`scripts/db-reset.mjs`、`vitest.config.e2e.pg.ts`;`src/db-demo/`(SQL 注入对比等实验接口,不在 AppModule 里);`sql/day27/`;`scripts/day27-try.mjs` | `docs/27-nest-postgres/` |
 | Day 29 | `sql/day29/`(schema `day29`:`generate_series` 造 100 万行 tasks(owner 分布不均、90% 已完成)、无索引时的 Seq Scan、`ctid`、主键 / 普通 B-tree 索引、建索引前后的 EXPLAIN 与执行时间、选择性(`done = true` 走全表扫描、小表不用索引)、`pageinspect` 看树高);`scripts/day29-try.mjs`;应用代码未改 | `docs/29-indexes-btree/` |
+| Day 30 | `sql/day30/`(schema `day30`:100 万 tasks + 1 万 users;`EXPLAIN (ANALYZE, BUFFERS)` 读计划树、shared hit vs read、Index Only Scan / Bitmap 精确与 lossy、Sort 溢出到磁盘与 top-N、Nested Loop / Hash / Merge 三种 JOIN 与 `enable_*` 对照、关闭 autovacuum 制造统计过期与 `ANALYZE` 修复、`CREATE STATISTICS`、`EXPLAIN ANALYZE` 真的执行 DELETE);`scripts/day30-try.mjs`;应用代码未改 | `docs/30-explain-plans/` |

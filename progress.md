@@ -1,7 +1,7 @@
 # 365 天全栈成长 · 进度记录
 
 - 计数方式:**只按 Day N 计数,不写具体日期**——不要求每天连续学习,完成一天才算一天,Day N 永远 = 已完成天数 + 1。
-- 当前进度:Day 5(进行中;Day 6–29 材料已备)
+- 当前进度:Day 5(进行中;Day 6–30 材料已备)
 - 时间标准:按 `roadmap.md` 每天 1.5 小时。注:另一仓库的路线图 v2(3 小时/天、Hetzner 部署、365 平台主线项目)在合并时被覆盖,已确认**以当前 `roadmap.md` 为准**;v2 原文可在提交 `8ac8470` 中查看,Day 6–7 讲义按 v2 节奏编写,使用时酌情删减。⚠️ `hetzner` 主机是公司测试环境(Coolify + Traefik),不要部署学习项目,需要服务器时另租独立 VPS。
 - 水平测试(Day 4 完成):**1 / 46**,全部 7 个领域从零起步,React/TS 深层知识为真实缺口。每个 Phase 结束重答对应题目,见 `docs/00-level-check/level-check.md`。
 - 说明:第一轮(Day 1–8)的旧文件已归档至 `archive/round-1/`,供对照参考。
@@ -37,3 +37,4 @@
 | Day 27 | Phase 2 / Week 4 | 接回 nest-lab(nest-lab 第一次真正读写 PG):账房门口固定几位伙计 = 连接池(`pg` Pool 作为 Provider、`onModuleDestroy` 关池,实测 20 个并发请求只用 5 个后端进程)+ 客人的话只写进填写栏 = 参数化查询(实测 `OR 1=1` / `UNION` / `DROP TABLE` 三种真注入及修复;列名与排序方向走白名单)+ 后厨从临时冰柜换成中央仓库 = `PgTasksRepository`(`TASKS_STORAGE=memory\|postgres` 切换、两张表同一连接上的事务、`json_agg`、keyset 真实 SQL 与混合方向 OR 展开、SQLSTATE → problem+json、`DATABASE_URL` fail fast);同一套 85 个 e2e 在内存版与 PG 版都通过 | `docs/27-nest-postgres/Day 27 - 接回 nest-lab:账房门口固定几位伙计,客人的话只写进填写栏,后厨从临时冰柜换成中央仓库.html` + `src/27-nest-postgres/notes.md` + `nest-lab/`(database/、pg-tasks.repository、sql/schema.sql、`db:reset`、`test:e2e:pg`、`npm run day27`) | 待开始 |
 | Day 28 | Phase 2 / Week 4 | **复盘日(1.5h,不学新内容)**:画出带 checklist 的 `POST /v2/tasks` 从 HTTP 到写进 PG 的一生(连接池借还、BEGIN / COMMIT、哪条约束在哪一步生效,25 min)+ Day 22–27 六张概念卡默写(25 min)+ SQL 与仓储 review(15 min)+ 对照表改写 3 行并自填三行 + 自测 12 题(满分 24,低于 17 分重看;另 8 题选做);Week 4 遗留清单与 Week 5 预告。⚠️ 已知缺陷(review 考点,Week 6 修):`transaction()` 里 ROLLBACK 自身失败会盖住原错误,且出错的连接会被放回池子(应 `release(err)`) | `docs/28-week4-review/Day 28 - 复盘日:把 Week 4 的六天连成一次真正落库的请求.html` + `src/28-week4-review/`(四份模板) | 待开始 |
 | Day 29 | Phase 2 / Week 5 | 为什么需要索引:账本旁边那盒按会员号排好的卡片(百万行实测:按 id / owner_id / title 查,无索引 25–40 ms vs 有索引 0.006–0.7 ms;ctid 与堆表)+ 卡片盒的三层目录 = B-tree(pageinspect 实测树高 3、叶子页 367 条、叶子链表支持范围与排序,页分裂原理闭环 Day 24 的 v4 vs v7)+ 账房先生先报方案 = EXPLAIN 入门(Seq Scan vs Index Scan、cost 与 rows、选择性:done=true 占 90% 时宁可全表扫描) | `docs/29-indexes-btree/Day 29 - 为什么需要索引:账本旁边那盒按会员号排好的卡片,和它的三层目录.html` + `src/29-indexes-btree/notes.md` + `nest-lab/`(sql/day29 百万行实验、`npm run day29`) | 待开始 |
+| Day 30 | Phase 2 / Week 5 | 读执行计划:账房先生的取货路线单,从最里面那一步往外读(cost / rows / actual × loops、估算 vs 实际、`BUFFERS` hit vs read、Bitmap lossy、Sort 溢出与 work_mem 实测「调大不一定更快」、EXPLAIN ANALYZE 自身开销)+ 三种 JOIN 算法各自被选中的场景(Nested Loop / Hash Join 分批 / Merge Join,`enable_*` 只用于学习)+ 统计信息过期导致估算 1 行实际 50 万行、计划选错,`ANALYZE` 后快 6–7 倍;`CREATE STATISTICS` 处理相关列;EXPLAIN ANALYZE 会真的执行 DELETE | `docs/30-explain-plans/Day 30 - 读执行计划:账房先生的取货路线单,从最里面那一步往外读.html` + `src/30-explain-plans/notes.md` + `nest-lab/`(sql/day30、`npm run day30`) | 待开始 |
