@@ -92,6 +92,13 @@
   - D6 · 小实战(计时与异常过滤已在 D3 完成):请求 ID 贯穿日志(AsyncLocalStorage)、把全局 interceptor / filter 改成 `APP_INTERCEPTOR` / `APP_FILTER` 的 DI 版、用 D4 的 `@Public()` 做全局 guard 收尾;D7 · 复盘
   - **跨语言对照**:DI ↔ ASP.NET Core 内置 DI(`AddSingleton/AddScoped/AddTransient`,和 Nest 三种作用域一一对应)/ Spring IoC(`@Component` + `@Autowired`);AOP ↔ Spring `@Aspect` + `@Around` / ASP.NET Core Action Filter + Middleware。**概念卡:IoC 与 AOP 各解决什么问题,为什么企业级框架都长这样**
 - Week 3:API 设计(语言无关):**HTTP 语义深入(方法、状态码、幂等性、内容协商)、REST 约束、版本化、分页、统一错误格式(RFC 7807 problem+json)、OpenAPI 规范**;**DTO 与验证专题**:DTO 是什么(接口的「进出口报关单」,和数据库 Entity 分开的原因)、`class-validator` + `class-transformer` + 全局 `ValidationPipe`(`whitelist` 丢弃多余字段、`transform` 自动转类型、嵌套对象与数组校验、自定义校验器)、zod 方案对比;**响应 DTO**:用 `ClassSerializerInterceptor` + `@Exclude()` 防止把密码哈希等字段返回给前端;实战:在 `nest-lab/` 里实现完整 REST API(任务管理服务),全局 exception filter 输出 problem+json、`@nestjs/swagger` 从 DTO 自动生成 OpenAPI;设计文档按语言无关的方式写;对照:ASP.NET Core DataAnnotations / FluentValidation、Spring Bean Validation(`@Valid`)
+  - D1(Day 15)· **HTTP 语义与 REST 资源设计**:资源与 URI 设计、方法语义(GET / POST / PUT / PATCH / DELETE)、安全与幂等、PUT vs PATCH、状态码选择(201 + Location、204、409、422)、内容协商(Accept / Content-Type、406 / 415);nest-lab 把任务接口改成规范的 REST(补 PUT / PATCH、201 Location、409 冲突)
+  - D2(Day 16)· **DTO 与输入校验**:DTO 是进出口报关单;`class-validator` + `class-transformer` + 全局 `ValidationPipe`(`whitelist` / `forbidNonWhitelisted` / `transform`、嵌套与数组、自定义校验器);对比 Day 12 的 zod 方案,决定 nest-lab 用哪种;补上 Day 8 留下的坑(`POST {}` 也能 201)
+  - D3(Day 17)· **统一错误格式 problem+json**:RFC 9457(取代 7807)字段含义、错误码目录、校验错误的字段级明细;把 Day 10 / 13 的 `AllExceptionsFilter` 升级为 problem+json(保留 requestId)
+  - D4(Day 18)· **响应 DTO 与序列化**:为什么不能直接返回 Entity;`ClassSerializerInterceptor` + `@Exclude()` / `@Expose()`、分组;用一个带 `passwordHash` 的 users 演示防泄露;响应包装与 problem+json 的关系收口
+  - D5(Day 19)· **分页、过滤、排序与版本化**:offset vs cursor 分页及各自的坑、过滤 / 排序参数设计与白名单、URI vs 请求头版本化(Nest `enableVersioning`)、弃用(`Deprecation` / `Sunset` 头)
+  - D6(Day 20)· **OpenAPI 与实战收口**:`@nestjs/swagger` 从 DTO 生成文档(装进 Day 13 留下的 `configureApp` 空位)、API 设计文档(语言无关)、补齐 e2e,任务管理 REST API 完成
+  - D7(Day 21)· 复盘(格式同 Day 7 / Day 14)
 - GitHub 产出:每天提交代码或中文笔记;Week 3 的 REST API 继续写在 `nest-lab/` 里(不另开仓库),README 成长日志持续更新;**每周一张概念卡 + 对照表更新**
 
 ## Phase 2(Day 22–63 · Week 4–9):数据层 — 数据库是后端的心脏(以 PostgreSQL 为主线)
