@@ -1,7 +1,7 @@
 # 365 天全栈成长 · 进度记录
 
 - 计数方式:**只按 Day N 计数,不写具体日期**——不要求每天连续学习,完成一天才算一天,Day N 永远 = 已完成天数 + 1。
-- 当前进度:Day 5(进行中;Day 6–22 材料已备)
+- 当前进度:Day 5(进行中;Day 6–23 材料已备)
 - 时间标准:按 `roadmap.md` 每天 1.5 小时。注:另一仓库的路线图 v2(3 小时/天、Hetzner 部署、365 平台主线项目)在合并时被覆盖,已确认**以当前 `roadmap.md` 为准**;v2 原文可在提交 `8ac8470` 中查看,Day 6–7 讲义按 v2 节奏编写,使用时酌情删减。⚠️ `hetzner` 主机是公司测试环境(Coolify + Traefik),不要部署学习项目,需要服务器时另租独立 VPS。
 - 水平测试(Day 4 完成):**1 / 46**,全部 7 个领域从零起步,React/TS 深层知识为真实缺口。每个 Phase 结束重答对应题目,见 `docs/00-level-check/level-check.md`。
 - 说明:第一轮(Day 1–8)的旧文件已归档至 `archive/round-1/`,供对照参考。
@@ -30,3 +30,4 @@
 | Day 20 | Phase 1 / Week 3 | OpenAPI 与实战收口:标准菜单册要从后厨真实配方自动印出来(OpenAPI 3.x、code-first vs contract-first、能驱动文档 / 类型 / mock / 契约测试)+ `@nestjs/swagger` 印刷机只认贴了标签的配方(实测 CLI 插件在 vitest 下不生效 → 选择显式 `@ApiProperty`;响应类同时作 mapper 返回类型与 schema,三层一致性保证)+ 文档即契约(problem+json / 分页 / deprecated / 安全写进文档,提交 `openapi.json` + `openapi:check` 防过期,openapi-typescript 生成前端类型,生产默认关闭 `/docs`)+ `docs/api-design.md` 汇总 Week 3 约定 | `docs/20-openapi/Day 20 - OpenAPI 与实战收口:菜单册要从后厨真实配方自动印出来.html` + `src/20-openapi/notes.md` + `nest-lab/`(openapi.ts、problem.schema.ts、openapi.json、docs/api-design.md、`npm run day20`) | 待开始 |
 | Day 21 | Phase 1 / Week 3 | **复盘日(1.5h,不学新内容)**:画出一次 `GET /v2/tasks?...&cursor=...` 请求从调用方拿 openapi.json 到翻第二页的一生(每站标注 Week 3 约定与 Week 2 机制,25 min)+ Day 15–20 六张概念卡默写(25 min)+ 以 `api-design.md` 为清单 review nest-lab(15 min)+ 对照表改写 3 行并自填「响应序列化」一行 + 自测 12 题(满分 24,低于 17 分重看;另 8 题选做);Week 3 遗留 12 条清单与 Week 4(接 PostgreSQL)预告 | `docs/21-week3-review/Day 21 - 复盘日:把 Week 3 的六天连成一份对外契约.html` + `src/21-week3-review/`(request-lifecycle / concept-cards / code-review / self-test 四份模板) | 待开始 |
 | Day 22 | Phase 2 / Week 4 | 把 PostgreSQL 跑起来:总店的中央账房,每个来窗口办事的人都配一个账房伙计(客户端-服务器、PG 每连接一个后端进程,实测 pg_stat_activity + ps、`max_connections`)+ 层级与 psql 元命令(集群 / 库 / schema / 表 / 行 / 列,`\l` `\c` `\dt` `\d` `\x` `\timing`)+ 第一张 tasks 表与 CRUD ↔ HTTP 方法(忘写 WHERE 用 `BEGIN ... ROLLBACK` 兜底、表没有顺序、声明式 SQL);nest-lab:`compose.yaml`(postgres:16)、`.env.example` 新增 `POSTGRES_*`、`sql/day22/`、`npm run day22` | `docs/22-postgres-intro/Day 22 - 把 PostgreSQL 跑起来:总店的中央账房,每个来窗口办事的人都配一个账房伙计.html` + `src/22-postgres-intro/notes.md` + `nest-lab/`(compose.yaml、sql/day22、`npm run day22`) | 待开始 |
+| Day 23 | Phase 2 / Week 4 | 数据建模与范式:一本什么都记的大流水账,拆成会员名册、任务本和标签对照表(实体与关系 1:1 / 1:N / N:M 与中间表;宽表三类异常实测)+ 整理账本的三条规矩 = 1NF → 2NF → 3NF(函数依赖大白话,「同一个事实存几份」结算表:宽表 3 → 1NF 5 → 2NF 3 → 3NF 1)+ 有意且有记录的反范式(计数缓存失真演示)与「schema 设计是最难改的决定」;nest-lab:`docs/er-diagram.md`、`sql/day23/`(独立 schema,可重跑)、`npm run day23` | `docs/23-data-modeling/Day 23 - 数据建模与范式:一本什么都记的大流水账,拆成会员名册、任务本和标签对照表.html` + `src/23-data-modeling/notes.md` + `nest-lab/`(docs/er-diagram.md、sql/day23、`npm run day23`) | 待开始 |
