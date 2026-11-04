@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 36 - 事务与 ACID:一张整单作业单,要么全部盖章,要么整张作废</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 6</div>
+  <h1>Day 36 - 事务与 ACID:一张整单作业单,要么全部盖章,要么整张作废</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>为什么需要事务 · ACID 逐个字母实测(原子性、一致性与可延迟外键、隔离性最小演示、持久性与崩溃恢复、<code>synchronous_commit</code>)· <code>BEGIN</code> / <code>COMMIT</code> / <code>ROLLBACK</code> / <code>SAVEPOINT</code> · autocommit · aborted 状态 · DDL 也能回滚 · <code>now()</code> vs <code>clock_timestamp()</code> · 修 nest-lab 的 <code>transaction()</code></b> ·
+    项目:<code>nest-lab/</code> 新增 <code>sql/day36/</code>(schema <code>day36</code>)、<code>npm run day36</code>(约 10 秒;<code>-- --crash</code> 真的崩溃一次);<b>修改 <code>src/tasks/pg-tasks.repository.ts</code> 的 <code>transaction()</code></b> 并补了 5 个单元测试 ·
+    所有输出来自 PostgreSQL 16.15 的真实运行;耗时类数字跑 3 遍、写区间
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:数据多了要快(Week 5),很多人同时改要对(Week 6)</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:事务与原子性 —— 一张整单作业单</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:一致性、隔离性、持久性 —— 盖章前先记流水日记</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:应用里的事务 —— 出错的伙计不能直接放回门口</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:数据多了要快(Week 5),很多人同时改要对(Week 6)</h2>
+  <p>Week 5 一直在回答「怎么更快」,中间好几次碰到没解释的东西:Day 31 的 <code>Heap Fetches</code> 和 VACUUM、Day 32 的 HOT 留下的旧行、Day 34 在事务里 <code>DROP INDEX</code> 再 <code>ROLLBACK</code>。Week 6 回答另一个问题:<b>出错了、断电了、很多人同时在改的时候,数据怎么还是对的</b>。第一天从最基本的单位开始:事务。</p>
+  <p>其实你已经用过事务了。Day 27 里,nest-lab 创建一个带清单的任务要写两张表:<code>tasks</code> 一行、<code>checklist_items</code> 几行。Day 27 第 4 幕演示过:清单第二项违反约束时,整个请求回滚,<code>tasks</code> 里也不会留下那一行。今天把它拆开看清楚:数据库到底保证了什么(ACID 四个字母),没保证什么;应用怎么用它;以及 Day 28 review 时你找到的那个 <code>transaction()</code> 缺陷,今天怎么修。</p>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你写过「乐观更新」:点了「完成」,先把 UI 改成已完成,再发请求;请求失败了,把 UI 状态<b>整体滚回去</b>(不能只滚回一半,比如勾选框滚回了、计数器没滚回)。浏览器的 IndexedDB 也有事务:<code>db.transaction(['tasks', 'items'], 'readwrite')</code> 里的几次写入,任何一个请求出错,整个事务 abort,前面的写入都不算数。数据库的事务是同一个思想,只是还要额外保证:断电以后也不丢、很多人同时写也不乱。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+npm run day36                 # 原子性 → 一致性 → 隔离性(两个连接)→ 持久性 → aborted → transaction() 修复(本机约 10 秒)
+sudo npm run day36 -- --crash # 额外「真的崩溃一次」:kill -9 一个后端进程,PostgreSQL 整体做崩溃恢复(本机 PostgreSQL + root 才做)
+
+psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab
+nest_lab=&gt; SET search_path = day36;</code></pre>
+  <p>⚠️ <code>--crash</code> 会断开这台 PostgreSQL 上的<b>所有</b>连接(包括你开着的 psql 和正在跑的 nest-lab),只在自己的开发机上用。本课程环境就是本机安装的 PostgreSQL,讲义里的崩溃实验都是真的做了,做完服务状态是 <code>16/main (port 5432): online</code>。Docker 里可以用 <code>docker compose kill -s SIGKILL postgres</code> 再 <code>up -d</code> 做类似的实验(没有实测)。</p>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用</th></tr>
+    <tr><td><code>sql/day36/01-setup.sql</code></td><td>新增</td><td>schema <code>day36</code>:账户(余额不能为负)、可延迟外键的两组表、<code>notes</code></td></tr>
+    <tr><td><code>sql/day36/02-atomicity.sql</code></td><td>新增</td><td>转账:不用事务 vs 用事务;aborted 状态;保存点;序列不回滚</td></tr>
+    <tr><td><code>sql/day36/03-consistency.sql</code></td><td>新增</td><td>普通外键 vs <code>DEFERRABLE INITIALLY DEFERRED</code>;数据库不知道的规则</td></tr>
+    <tr><td><code>sql/day36/04-isolation-two-sessions.sql</code></td><td>新增</td><td>两个 psql 窗口的手动步骤(脚本里用两个连接自动做)</td></tr>
+    <tr><td><code>sql/day36/05-durability.sql</code></td><td>新增</td><td>WAL 位置、相关设置、<code>synchronous_commit</code> on / off</td></tr>
+    <tr><td><code>sql/day36/06-ddl-autocommit-time.sql</code></td><td>新增</td><td>autocommit 的事务号、DDL 回滚、<code>now()</code> vs <code>clock_timestamp()</code></td></tr>
+    <tr><td><code>scripts/day36-try.mjs</code> + <code>package.json</code> 的 <code>day36</code></td><td>新增</td><td>观察脚本;<code>--crash</code> 模式;在真实 PostgreSQL 上演示 <code>transaction()</code> 修复前后</td></tr>
+    <tr><td><code>src/tasks/pg-tasks.repository.ts</code></td><td><b>修改</b></td><td><code>transaction()</code>:原来的错误优先;ROLLBACK 失败时 <code>release(err)</code> 丢掉连接</td></tr>
+    <tr><td><code>src/tasks/pg-tasks.repository.spec.ts</code></td><td>修改</td><td>新增 5 个单元测试(假的连接池和连接)</td></tr>
+    <tr><td><code>README.md</code></td><td>修改</td><td>命令、成长日志 Day 36</td></tr>
+  </table>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:事务与原子性 —— 一张整单作业单</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>事务</b>把几条 SQL 绑成一个整体:要么全部生效(<code>COMMIT</code>),要么全部当没发生过(<code>ROLLBACK</code>)。这就是 ACID 的 <b>A(原子性)</b>。PostgreSQL 里,事务中只要有一条语句出错,整个事务就进入 <b>aborted</b> 状态,之后的语句全部被拒绝,只能 ROLLBACK;想只撤回一部分,要事先设一个 <b>SAVEPOINT</b>。不写 <code>BEGIN</code> 时,每条语句自己就是一个事务(autocommit)。
+  </div>
+
+  <h3>② 生活类比:整单作业单</h3>
+  <p>账房办「转账」这种事,从不一步一步地直接改账本,而是先开一张<b>整单作业单</b>:第一步给 Bob 加 130,第二步从 Alice 扣 130。两步都办完了,才在作业单上<b>盖章</b>,账本上的改动一起生效;中间任何一步办不了(Alice 只有 100),整张作业单<b>作废</b>,前面办过的也当没发生过。作业单中途出了错,就被<b>红笔划掉</b>,在正式作废之前,账房拒绝在这张单子上再办任何事。复杂的单子上可以有「<b>阶段签字</b>」:办到某一步签个字,后面出错时可以撤回到那个签字处继续,而不用整张作废。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测</th></tr>
+    <tr><td>开一张整单作业单</td><td><code>BEGIN</code></td><td>—</td></tr>
+    <tr><td>盖章</td><td><code>COMMIT</code></td><td>—</td></tr>
+    <tr><td>整张作废</td><td><code>ROLLBACK</code></td><td>Bob 的 +130 也撤回,合计仍是 150</td></tr>
+    <tr><td>红笔划掉,作废前什么都不能办</td><td><b>aborted</b>:<code>current transaction is aborted</code>,SQLSTATE <code>25P02</code></td><td>连 <code>SELECT 1</code> 都被拒绝;<code>COMMIT</code> 变成 <code>ROLLBACK</code></td></tr>
+    <tr><td>阶段签字</td><td><code>SAVEPOINT</code> / <code>ROLLBACK TO SAVEPOINT</code></td><td>只撤回第二条,第一条、第三条都留下</td></tr>
+    <tr><td>不开作业单,每件小事当场办完</td><td><b>autocommit</b>:每条语句一个事务</td><td>两条语句的事务号 41737、41738</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:转账,不用事务 vs 用事务。</b>✍️ <b>预测(先写再运行)</b>:Alice 100、Bob 50,先给 Bob 加 130,再从 Alice 扣 130(扣款会违反 <code>CHECK (balance &gt;= 0)</code>)。不用事务时两人合计是多少?用事务呢?真实结果(<code>02-atomicity.sql</code>):</p>
+  <pre><code>=== ① 不用事务(psql 默认 autocommit:每条语句自己就是一个事务)
+UPDATE 1
+ERROR:  new row for relation "accounts" violates check constraint "accounts_balance_check"
+DETAIL:  Failing row contains (1, Alice, -30.00).
+ owner | balance
+-------+---------
+ Alice |  100.00
+ Bob   |  180.00
+ 两人合计(本来是 150)
+----------------------
+               280.00
+
+=== ② 用事务:两步放在同一个 BEGIN … 里
+BEGIN
+UPDATE 1
+ERROR:  new row for relation "accounts" violates check constraint "accounts_balance_check"
+--- 出错之后,这个事务里再执行任何语句(哪怕是 SELECT 1)都会被拒绝:
+ERROR:  current transaction is aborted, commands ignored until end of transaction block
+--- 这时 COMMIT 也提交不了:psql 会显示 ROLLBACK
+ROLLBACK
+ owner | balance
+-------+---------
+ Alice |  100.00
+ Bob   |   50.00
+ 两人合计
+----------
+   150.00</code></pre>
+  <ul>
+    <li>不用事务时,Bob 的加款已经<b>单独提交</b>了,凭空多出 130 元。这就是「扣款失败、加款成功」的经典事故。</li>
+    <li>用事务时,第二条失败后,整个事务进入 aborted 状态:<b>原话是 <code>current transaction is aborted, commands ignored until end of transaction block</code></b>。这时你发 <code>COMMIT</code>,PostgreSQL 也只会回滚,psql 显示的命令标签是 <code>ROLLBACK</code>。</li>
+    <li>观察脚本第 7 幕用 nest-lab 的 <code>pg</code> 驱动做了同样的事:第一条 <code>23514</code>(CHECK 违反),同一事务里接着 <code>SELECT 1</code> 得到 <code>25P02 current transaction is aborted…</code>,再发 <code>COMMIT</code>,驱动拿到的命令标签是 <code>ROLLBACK</code>。所以<b>应用里一出错就必须 ROLLBACK</b>:不 ROLLBACK 就把连接还回池子,下一个借到它的请求一开口就是 25P02。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 B:保存点、序列、autocommit、DDL。</b>✍️ <b>预测</b>:下面四个实验的结果各是什么?</p>
+  <pre><code>-- 保存点:第二条主键重复
+BEGIN;
+INSERT INTO notes VALUES (1, '第一条');
+SAVEPOINT before_second;
+INSERT INTO notes VALUES (1, '主键重复,会失败');   -- ERROR: duplicate key value violates unique constraint "notes_pkey"
+ROLLBACK TO SAVEPOINT before_second;                -- 事务恢复正常
+INSERT INTO notes VALUES (2, '第二条');
+COMMIT;
+ id |  body
+----+--------
+  1 | 第一条
+  2 | 第二条
+
+-- 自增序列:回滚的那次插入用掉的号不还
+ id | v
+----+---
+  1 | a
+  3 | c
+
+-- autocommit:不写 BEGIN 时,两条语句是两个事务;BEGIN 之后是同一个
+ 第一条语句的事务号 41737 / 第二条语句的事务号 41738
+ BEGIN 之后 · 第一条 41739 / BEGIN 之后 · 第二条 41739
+
+-- DDL 也能回滚:建表、加列、删列,ROLLBACK 之后都像没发生过
+BEGIN; CREATE TABLE ddl_demo …; ALTER TABLE notes ADD COLUMN tmp text; ALTER TABLE notes DROP COLUMN body;
+ column_name:id, tmp            ← 事务里看到的
+ROLLBACK;
+ ddl_demo 还在吗:(空)
+ column_name:id, body           ← 回滚之后
+
+-- now() 是事务开始的时刻,整个事务不变;clock_timestamp() 是这一刻
+             now_1             |            clock_1
+ 2026-11-04 16:52:05.644592+00 | 2026-11-04 16:52:05.645293+00
+(pg_sleep 0.3 秒)
+             now_2             |           clock_2
+ 2026-11-04 16:52:05.644592+00 | 2026-11-04 16:52:05.94753+00</code></pre>
+  <ul>
+    <li><b>保存点</b>相当于事务里的「部分回滚」。psql 的 <code>\set ON_ERROR_ROLLBACK interactive</code> 就是在每条语句前自动设一个保存点,让交互式操作打错一条不至于整个事务作废。</li>
+    <li><b>序列不回滚</b>(Day 24 说过 id 会有空洞):序列要支持很多事务同时取号,如果回滚要把号「还回去」,所有人都得互相等。</li>
+    <li><b>DDL 是事务性的</b>,这是 PostgreSQL 的一个强项:Day 24 的 <code>SET NULL</code> 实验、Day 34 在事务里 <code>DROP INDEX</code> 再回滚,都靠它。迁移脚本可以「要么整套结构改完,要么一点不改」。MySQL 的 DDL 会隐式提交当前事务(见跨语言对照)。</li>
+    <li><b><code>now()</code></b> 在整个事务里不变:同一事务写进去的 <code>created_at</code> 都是同一个时刻。要「真正的这一刻」用 <code>clock_timestamp()</code>,比如在一个长事务里记录每一步的耗时。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「作废了就当没发生过」——只对数据库里的改动成立。</b>事务里如果发了邮件、调用了支付接口、往消息队列里推了消息、写了本地文件,ROLLBACK 不会把它们撤回来。所以<b>事务里不要做外部调用</b>(概念卡 #3);真要「数据库改了才发消息」,要用 Week 13 的 Outbox 模式。</li>
+      <li><b>「作废了,单号也收回」——序列号、事务号不会收回。</b>id 出现空洞是正常的。</li>
+      <li><b>「红笔划掉」是 PostgreSQL 的做法,不是所有数据库都这样。</b>MySQL(InnoDB)和 SQL Server(默认 <code>XACT_ABORT OFF</code>)在很多错误下只回滚出错的那一条语句,事务还能继续、还能提交。从这些数据库转过来的人,常常在 PostgreSQL 里第一次看到 <code>25P02</code>。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>transaction</b>;<b>atomicity</b>;<code>BEGIN</code> / <code>START TRANSACTION</code>、<code>COMMIT</code>、<code>ROLLBACK</code>;<b>autocommit</b>;<b>aborted transaction</b>(SQLSTATE <code>25P02</code> <code>in_failed_sql_transaction</code>);<b><code>SAVEPOINT</code> / <code>ROLLBACK TO SAVEPOINT</code> / <code>RELEASE SAVEPOINT</code></b>(subtransaction);<b>transactional DDL</b>;<code>now()</code> = <code>transaction_timestamp()</code>、<code>statement_timestamp()</code>、<code>clock_timestamp()</code>;<code>pg_current_xact_id()</code>。
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:一致性、隔离性、持久性 —— 盖章前先记流水日记</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>C(一致性)</b>:事务结束时,你告诉数据库的规则(约束)全部成立;可延迟的约束允许事务中间暂时不成立,COMMIT 时再检查。但「转账前后合计不变」这类规则数据库不知道,一致性大部分是应用的责任。<b>I(隔离性)</b>:别的会话看不到你还没提交的修改(细节留给 Day 37)。<b>D(持久性)</b>:COMMIT 返回之前,这次事务的改动已经写进磁盘上的 WAL;之后哪怕崩溃,重启时照着 WAL 重放就能补回来。
+  </div>
+
+  <h3>② 生活类比:规矩、关着门办事、流水日记</h3>
+  <p>账房盖章前要核对规矩:余额不能为负、每件物品都得放在一个存在的箱子里。有的规矩允许「办的过程中暂时不满足」:先把物品登记上、再去建箱子,只要盖章那一刻箱子已经在了就行。但账房只核对写在墙上的规矩;「两人合计不能变」没写在墙上,他就不管。</p>
+  <p>每张作业单都关着门办:作业单还没盖章,隔壁窗口的人看不到它改过的账。</p>
+  <p>最重要的一条:账房盖章之前,先在一本<b>流水日记</b>(WAL)上记下「这张单子改了什么」,并且确认墨水干了(写到磁盘上)。真正的账本可以慢慢誊抄。半夜停电,第二天早上照着流水日记从上次誊抄的地方往后补,所有盖过章的单子都能补回来,没盖章的就当没发生过。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测</th></tr>
+    <tr><td>墙上的规矩,盖章前核对</td><td>约束(Day 24)</td><td>—</td></tr>
+    <tr><td>允许中间暂时不满足,盖章时才核对</td><td><b><code>DEFERRABLE INITIALLY DEFERRED</code></b></td><td>先插物品、后建箱子 → COMMIT 成功</td></tr>
+    <tr><td>没写在墙上的规矩</td><td>应用的不变量(合计不变)</td><td>有 bug 的转账照样提交,合计变成 120</td></tr>
+    <tr><td>关着门办,隔壁看不到</td><td>隔离性:未提交的修改不可见</td><td>A 看到 70,B 看到 100</td></tr>
+    <tr><td>流水日记,墨水干了才盖章</td><td><b>WAL</b> + <code>fsync</code>,<code>synchronous_commit = on</code></td><td>一次提交写了 232 字节 WAL</td></tr>
+    <tr><td>停电后照着日记补回来</td><td><b>崩溃恢复</b>(redo)</td><td>提交过的行还在,没提交的没了</td></tr>
+    <tr><td>先盖章,墨水待会儿再晾干</td><td><code>synchronous_commit = off</code></td><td>快 7–30 倍;崩溃时丢了 21–66 次已确认的提交</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:一致性与可延迟外键。</b>✍️ <b>预测</b>:先插物品(指向箱子 10)、后建箱子 10,普通外键和可延迟外键各会怎样?可延迟外键在 COMMIT 时箱子还不存在呢?真实结果(<code>03-consistency.sql</code>):</p>
+  <pre><code>=== ① 普通外键:每条语句执行完就检查
+BEGIN
+ERROR:  insert or update on table "items_now" violates foreign key constraint "items_now_box_id_fkey"
+DETAIL:  Key (box_id)=(10) is not present in table "boxes".
+ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ROLLBACK
+=== ② 可延迟的外键(DEFERRABLE INITIALLY DEFERRED)
+BEGIN
+INSERT 0 1                                   ← 箱子 10 还不存在,不报错
+ 此刻 items_later 里指向不存在箱子的行
+---------------------------------------
+                                     1
+INSERT 0 1
+COMMIT                                       ← 提交时检查:箱子有了 → 成功
+--- 提交时还不满足:COMMIT 这一刻才报错,整个事务回滚
+BEGIN
+INSERT 0 1
+INSERT 0 1
+ERROR:  insert or update on table "items_later" violates foreign key constraint "items_later_box_id_fkey"   ← 在 COMMIT 这一行
+ notes 里 id=100 的行(应为 0):0
+--- SET CONSTRAINTS ALL IMMEDIATE:在这个事务里改回立即检查,插入那一条就报错
+=== ③ 数据库只检查你告诉它的规则:有 bug 的转账(只扣款)
+COMMIT
+ Alice | 70.00 / Bob | 50.00
+ 两人合计(本来是 150):120.00</code></pre>
+  <ul>
+    <li>可延迟约束适合「要么同时存在、要么都不存在」的互相引用(比如两张表互相指向、或者批量导入时顺序不好保证)。代价是:错误要到 COMMIT 才报,定位更难;只有 <code>UNIQUE</code>、<code>PRIMARY KEY</code>、<code>FOREIGN KEY</code>、<code>EXCLUDE</code> 能设成可延迟,<code>CHECK</code> 和 <code>NOT NULL</code> 不行。</li>
+    <li>③ 说明了一致性的边界:数据库能保证「你声明过的约束」在每个事务结束时成立,但「转账要一加一减」「库存不能超卖」是业务规则,要靠应用把相关操作放进同一个事务、写对逻辑,必要时再加约束或锁(Day 40)。所以有人说 ACID 里的 C 更像是应用的目标,而 A、I、D 是数据库提供的工具。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 B:隔离性的最小演示。</b>✍️ <b>预测</b>:A 开事务把 Alice 改成 70、还没提交,B 读到多少?B 也去改同一行会怎样?真实结果(观察脚本第 4 幕,两个连接;手动版在 <code>04-isolation-two-sessions.sql</code>):</p>
+  <pre><code>  A:BEGIN; UPDATE … -30          A 自己看到 70.00
+  B:SELECT(A 还没提交)          B 看到 100.00
+  B:UPDATE 同一行 → 卡住了:wait_event_type=Lock, wait_event=transactionid, state=active
+  A:COMMIT → B 的 UPDATE 立刻继续   B 再看 71.00(100 - 30 + 1)</code></pre>
+  <p>B 看不到 A 没提交的修改;B 想改同一行时,要等 A 结束(它在等 A 的事务号,<code>wait_event=transactionid</code>)。A 提交后,B 是在<b>A 改过的值</b>上再加 1。这几件事背后是 MVCC(Day 38)和行锁(Day 39);不同隔离级别下读到的东西不一样,两个窗口会出现哪些「怪现象」,是 Day 37 的内容。</p>
+
+  <p><b>⑤ 动手验证 C:持久性 —— 真的崩溃一次。</b>✍️ <b>预测</b>:一行已经提交、另一个连接插了一行没提交,这时数据库进程被 <code>kill -9</code>(模拟崩溃),重启后表里有几行?真实结果(以 root 在本机做,PostgreSQL 日志原文):</p>
+  <pre><code>INSERT 0 1                                ← 提交「提交过的」这一行
+ after_commit:1A/EB2FD130                ← 提交后 WAL 写到了这里
+(另一个连接:BEGIN; INSERT 「没提交的」; 然后 kill -9 它的后端进程)
+
+LOG:  server process (PID 24010) was terminated by signal 9: Killed
+LOG:  terminating any other active server processes
+LOG:  all server processes terminated; reinitializing
+LOG:  database system was interrupted; last known up at 2026-11-04 16:40:33 UTC
+LOG:  database system was not properly shut down; automatic recovery in progress
+LOG:  redo starts at 1A/DC1F08D0
+LOG:  invalid record length at 1A/EB2FD130: expected at least 24, got 0
+LOG:  redo done at 1A/EB2FD108 system usage: CPU: user: 0.67 s, system: 1.45 s, elapsed: 2.16 s
+LOG:  checkpoint starting: end-of-recovery immediate wait
+LOG:  database system is ready to accept connections
+
+ id |   note
+----+----------
+  1 | 提交过的</code></pre>
+  <ul>
+    <li>一个后端进程被 <code>kill -9</code>,PostgreSQL 不知道共享内存有没有被它写坏,于是<b>断开所有连接、整个实例重新初始化,并做崩溃恢复</b>:从上一个检查点开始,照着 WAL 把改动重放一遍(<code>redo</code>)。WAL 正好读到提交后的位置 <code>1A/EB2FD130</code> 就结束了。</li>
+    <li>提交过的那一行在,没提交的那一行没了。观察脚本的 <code>--crash</code> 模式再做了一遍,结果相同:<code>[{"id":1,"note":"提交过的"}]</code>,服务最后是 <code>online</code>。</li>
+    <li>这不是真正的断电。<code>kill -9</code> 时操作系统的页缓存还在,真正断电时,能不能保住靠的是 <code>fsync</code> 真的把数据写进了磁盘、磁盘没有「假装写好了」的缓存。这一层要靠配置(<code>fsync = on</code>,本机就是 on)和硬件,讲义里没法实测。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 D:<code>synchronous_commit</code> 的取舍。</b>✍️ <b>预测</b>:关掉 <code>synchronous_commit</code> 以后提交会快多少?崩溃时会丢数据吗?会损坏数据吗?真实结果:</p>
+  <pre><code>-- 2000 次单行提交(一个 DO 块里每行 COMMIT 一次),各跑 3 次、脚本跑 3 遍
+  synchronous_commit = on   269.6 – 818.0 ms
+  synchronous_commit = off   27.6 –  41.3 ms
+
+-- 一个连接不停地单行提交,300 毫秒后 kill -9 它的后端进程,恢复后数一数(手动 3 轮 + 观察脚本 --crash 1 轮)
+  synchronous_commit = off  客户端收到「成功」 1838 / 1935 / 2043 / 1554 次,恢复后 1814 / 1869 / 2022 / 1508 行 → 丢了 24 / 66 / 21 / 46 行
+  synchronous_commit = on   客户端收到「成功」  572 /  750 /  412 /  523 次,恢复后 572 / 750 / 412 / 523 行 → 丢了 0 行</code></pre>
+  <ul>
+    <li><code>on</code>(默认):每次 COMMIT 都要等 WAL 写到磁盘才返回。本机 2000 次提交要 0.27–0.82 秒,一次 0.1–0.4 毫秒,大部分花在等磁盘上。</li>
+    <li><code>off</code>:COMMIT 写进内存里的 WAL 缓冲区就返回,由后台的 WAL writer 过一会儿(<code>wal_writer_delay</code> 默认 200 ms,最坏约 3 倍)再写盘。快了 7–30 倍,代价是<b>崩溃时会丢掉最近一小段「已经告诉客户端成功了」的提交</b>,实测丢了 21–66 次。</li>
+    <li>但它<b>不会损坏数据</b>:丢掉的是最后一段完整的事务,不会出现「一个事务只恢复了一半」,也不会让表结构坏掉(<code>fsync = off</code> 才会有损坏的风险,永远不要在生产上关它)。</li>
+    <li>可以只对某些事务关掉:<code>SET LOCAL synchronous_commit = off</code> 适合「丢几条也无所谓」的数据,比如访问日志、点击统计;转账、订单不要关。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「账房会核对所有规矩」——一致性不是数据库自动给的。</b>它只检查你声明过的约束;业务不变量(合计不变、不超卖)要靠应用写对,数据库只提供原子性、隔离性这些工具。</li>
+      <li><b>「关着门办事,就不会互相影响」——隔离不是完全的。</b>默认的 Read Committed 下,同一个事务里两次读同一行,可能读到别人中间提交的不同的值;两个事务同时「先读后改」还会丢更新。这些都是 Day 37 和 Day 40 的内容。</li>
+      <li><b>「记了流水日记就一定不丢」——持久性取决于配置和硬件。</b><code>synchronous_commit = off</code> 会丢最近的提交;<code>fsync = off</code> 或者磁盘缓存骗了操作系统,崩溃后可能损坏;机器整个坏了,本地的 WAL 也救不回来,要靠备份和复制(Week 9 / Phase 3)。持久性是「在这台机器的磁盘还在的前提下」。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>consistency</b>;<b>deferrable constraint</b>:<code>DEFERRABLE INITIALLY DEFERRED / IMMEDIATE</code>、<code>SET CONSTRAINTS</code>;<b>isolation</b>(Day 37 详讲);<b>durability</b>;<b>WAL</b>(write-ahead logging)、<b>LSN</b>、<b><code>fsync</code></b>、<b>checkpoint</b>、<b>crash recovery / redo</b>;<b><code>synchronous_commit</code></b>(<code>on</code> / <code>off</code> / <code>local</code> / <code>remote_write</code> / <code>remote_apply</code>,后三个和复制有关)、<code>wal_writer_delay</code>、<code>SET LOCAL</code>。
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:应用里的事务 —— 出错的伙计不能直接放回门口</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    应用里的事务要做到三件事:<b>同一个事务的所有语句用同一个连接</b>(Day 27);<b>出错一定 ROLLBACK</b>,而且 ROLLBACK 本身也失败时,要保住原来的错误、<b>把这个连接丢掉</b>而不是还回池子;<b>事务尽量短</b>,里面不做外部调用和长计算,因为事务开着的时候,它占着一个连接,还可能锁着一些行。
+  </div>
+
+  <h3>② 生活类比:出错的伙计不能直接放回门口</h3>
+  <p>门口站着几位伙计(连接池,Day 27)。一位伙计接了一张整单作业单,办到一半出了事:账房那边突然把他的窗口关了。按规矩他应该去把作业单作废(ROLLBACK),可窗口已经关了,作废也办不了。以前的做法有两个毛病:</p>
+  <ul>
+    <li>他回来只说一句「窗口关了」,<b>真正出了什么事(哪一步、为什么)没人知道</b>;</li>
+    <li>不管他现在是什么状态,都<b>直接放回门口继续接客</b>。如果他手里还攥着一张没作废的单子,下一位客人一开口,就会听到「这张单子已经划掉了,什么都不能办」。</li>
+  </ul>
+  <p>修好以后:先报告真正的原因,作废失败这件事另外记一笔;作废都没办成的伙计,直接请回家,门口换一位新伙计。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实</th></tr>
+    <tr><td>门口的几位伙计</td><td><code>pg.Pool</code> 里的连接(Day 27)</td></tr>
+    <tr><td>一位伙计接一张作业单从头办到尾</td><td><code>pool.connect()</code> 借一个连接,<code>BEGIN</code> … <code>COMMIT</code> 都用它</td></tr>
+    <tr><td>先报告真正的原因</td><td>原来的错误优先抛出,ROLLBACK 的错误只记日志</td></tr>
+    <tr><td>请回家,换一位新伙计</td><td><code>client.release(err)</code>:传了错误,pg-pool 销毁这个连接</td></tr>
+    <tr><td>一张作业单别办太久</td><td>事务要短:不在事务里调外部 HTTP、不做长计算</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:nest-lab 的 <code>transaction()</code>,修复前后。</b>修复前(Day 27 的写法):</p>
+  <pre><code>} catch (err) {
+  await client.query('ROLLBACK');        // ① 它自己也可能失败:一失败就抛出 ROLLBACK 的错误,原来的 err 丢了
+  throw translatePgError(err);
+} finally {
+  client.release();                      // ② 不管连接处在什么状态,都还回池子
+}</code></pre>
+  <p>修复后(<code>src/tasks/pg-tasks.repository.ts</code>):</p>
+  <pre><code>let broken: Error | undefined;           // 不为空 = 这个连接的状态不可信,不能还回池子
+try {
+  await client.query('BEGIN');
+  const result = await work(client);
+  await client.query('COMMIT');
+  return result;
+} catch (err) {
+  try {
+    await client.query('ROLLBACK');
+  } catch (rollbackErr) {
+    broken = rollbackErr instanceof Error ? rollbackErr : new Error(String(rollbackErr));
+    logger.error(`ROLLBACK 失败,丢弃这个连接(原来的错误照常抛出):${broken.message}`);
+  }
+  throw translatePgError(err);           // 原来的错误优先
+} finally {
+  client.release(broken);                // 传了错误 → 池子销毁这个连接,下次新建一个
+}</code></pre>
+  <p>✍️ <b>预测</b>:一个创建任务的事务执行到 <code>INSERT INTO tasks</code> 时,它的连接被 <code>pg_terminate_backend</code> 杀掉(模拟数据库重启、网络断开)。修复前后,调用方各收到什么错误?下一个请求会不会失败?真实结果(观察脚本第 8 幕,真实的 PostgreSQL):</p>
+  <pre><code>  修复前:调用方收到的错误 → Connection terminated unexpectedly
+  修复前:下一个请求照样成功(表里 0 行);pg-pool 自己丢掉了「已经不能再查询」的连接
+[Nest] ERROR [PgTasksRepository] ROLLBACK 失败,丢弃这个连接(原来的错误照常抛出):Connection terminated unexpectedly
+  修复后:调用方收到的错误 → 57P01 terminating connection due to administrator command
+  修复后:下一个请求成功(新任务 id 1,清单 1 项)</code></pre>
+  <ul>
+    <li><b>第一点修好了</b>:修复前,调用方只看到 ROLLBACK 的错误「连接意外断开」;修复后看到的是真正的原因 <code>57P01</code>(连接被管理员终止),ROLLBACK 失败另外记了一条日志。换成约束违反之类的错误时,差别更大:修复前,一个本该是 422 的请求会变成 500。</li>
+    <li><b>第二点要说准确</b>:在这个场景里,修复前「下一个请求」也成功了。因为 pg-pool 3.x 在 <code>release()</code> 时会检查连接是不是已经不能再查询(<code>_queryable</code> / <code>_ending</code>),是就自己丢掉。<code>release(err)</code> 管的是 pg-pool 判断不了的情况:连接看起来还活着,但 ROLLBACK 没成功,我们不知道它是不是还停在一个 aborted 的事务里。这时把它丢掉,代价只是重新建一个连接,比让下一个请求踩坑划算。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 B:单元测试。</b><code>pg-tasks.repository.spec.ts</code> 新增 5 个测试,用一个假的连接池和假的连接,按 SQL 开头决定每条语句成功还是失败:</p>
+  <table>
+    <tr><th>测试</th><th>断言</th><th>修复前的代码</th></tr>
+    <tr><td>成功</td><td><code>BEGIN → INSERT → SELECT → COMMIT</code>,<code>release</code> 不带错误</td><td>通过</td></tr>
+    <tr><td>中途失败、ROLLBACK 成功</td><td>抛出原来的错误,<code>release</code> 不带错误</td><td>通过</td></tr>
+    <tr><td><b>中途失败、ROLLBACK 也失败</b></td><td>仍然抛出原来的错误;<code>release(rollbackErr)</code>;记了日志</td><td><b>失败</b></td></tr>
+    <tr><td>COMMIT 失败</td><td>尝试 ROLLBACK,抛出 COMMIT 的错误</td><td>通过</td></tr>
+    <tr><td><b>约束违反、ROLLBACK 又失败</b></td><td>调用方仍然收到翻译好的 422(<code>ProblemException</code>)</td><td><b>失败</b></td></tr>
+  </table>
+  <p>把 <code>pg-tasks.repository.ts</code> 临时换回修复前的版本跑一次:正好是加粗的那 2 个测试失败,其余 3 个通过。换回修复后的版本,9 个(含 Day 34 的 4 个)全部通过。<b>先确认测试能抓住 bug,再确认修复让它通过</b>,这个测试才有意义。</p>
+
+  <h3>事务的边界:放在哪一层、包多大</h3>
+  <ul>
+    <li><b>不放在 Controller</b>:Controller 管 HTTP,不该知道数据怎么存。</li>
+    <li><b>nest-lab 现在放在仓储方法里</b>(一次 <code>insert</code> / <code>update</code> 一个事务)。够用,因为每个业务操作只调用一次仓储。</li>
+    <li><b>一个业务操作要调用好几个仓储方法</b>(比如「建任务 + 扣用户的配额」)时,事务要上移到 Service 层,所有仓储方法共用同一个连接。怎么在不层层传 <code>client</code> 参数的情况下做到,就是 Week 7 的「事务传播」(<code>nestjs-cls</code> + <code>@Transactional()</code>,对照 Spring 的 <code>REQUIRED</code> / <code>REQUIRES_NEW</code>)。</li>
+    <li><b>「一个 HTTP 请求一个事务」</b>是一些框架的默认做法(比如 EF Core 的一个请求一个 <code>DbContext</code>),简单,但容易让事务包住不该包的东西。</li>
+    <li><b>不管放在哪一层,事务里都不要</b>:调外部 HTTP(对方慢 10 秒,你就占着一个连接、锁着几行 10 秒)、发邮件(回滚撤不回来)、做长计算、等用户输入。先算好、调好,再开事务写库;或者先写库,提交后再做外部动作。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「把伙计请回家就安全了」——丢掉连接只保护了下一个请求,这一个请求还是失败了。</b>调用方会收到 500(连接断开)或 422(约束违反)。要不要自动重试,取决于这个操作是不是幂等的(Day 15):创建任务的 POST 不幂等,重试可能建出两条。Week 12 的 <code>Idempotency-Key</code> 解决这个问题。</li>
+      <li><b>「ROLLBACK 失败了,事务就没回滚」——不一定。</b>连接断开时,PostgreSQL 服务器那边会自动回滚这个没提交的事务。ROLLBACK 失败只说明「客户端没能确认」,数据库里的数据是安全的;不安全的是那个连接。</li>
+      <li><b>「一张作业单别办太久」听起来像建议,其实是硬性要求。</b>长事务会一直占着连接(池子被借空,Day 27),一直锁着改过的行(别人卡住,今天第 4 幕),还会挡住 VACUUM 清理旧版本(表膨胀,Day 38)。Day 41 会讲 <code>idle_in_transaction_session_timeout</code>,让数据库主动掐掉开着事务又不干活的连接。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>connection affinity</b>(一个事务一个连接);<b><code>client.release(err)</code></b>(pg-pool 销毁连接);<b>SQLSTATE <code>57P01</code></b> <code>admin_shutdown</code>、<code>pg_terminate_backend()</code>;<b>error masking</b>(清理代码的错误掩盖了原来的错误);<b>transaction boundary</b>、<b>unit of work</b>、<b>transaction propagation</b>(Week 7);<b>long-running transaction</b>、<b><code>idle in transaction</code></b>(Day 38 / 41);<b>Outbox pattern</b>(Week 13)。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <table>
+    <tr><th></th><th>Node(<code>pg</code>)</th><th>C# / .NET</th><th>Java</th><th>Go</th></tr>
+    <tr><td>手动事务</td><td><code>client = await pool.connect()</code>;<code>BEGIN</code> / <code>COMMIT</code> / <code>ROLLBACK</code>;<code>finally { client.release(err) }</code></td><td><code>using var tx = await conn.BeginTransactionAsync()</code>;<code>tx.Commit()</code>;<code>using</code> 结束时没提交就自动回滚。EF Core:<code>context.Database.BeginTransaction()</code></td><td>JDBC:<code>conn.setAutoCommit(false)</code> … <code>conn.commit()</code> / <code>conn.rollback()</code></td><td><code>tx, err := db.BeginTx(ctx, nil)</code>;<code>defer tx.Rollback()</code>;最后 <code>tx.Commit()</code>(提交之后再 Rollback 只会返回 <code>sql.ErrTxDone</code>,无害)</td></tr>
+    <tr><td>声明式 / 默认事务</td><td>没有内置;Week 7 用 <code>nestjs-cls</code> + <code>@Transactional()</code></td><td>EF Core 的 <code>SaveChanges()</code> 默认把这次的所有改动包在一个事务里;<code>TransactionScope</code> 是「环境事务」(async 代码要加 <code>TransactionScopeAsyncFlowOption.Enabled</code>)</td><td>Spring <code>@Transactional</code></td><td>没有内置,常见做法是写一个 <code>WithTx(ctx, func(tx) error)</code> 辅助函数</td></tr>
+  </table>
+  <p><b>Spring <code>@Transactional</code> 什么时候不回滚</b>(面试高频):</p>
+  <ul>
+    <li>默认只在抛出 <b><code>RuntimeException</code>(及其子类)和 <code>Error</code></b> 时回滚;抛出<b>受检异常(checked exception,比如 <code>IOException</code>)时不回滚,照常提交</b>。要改就写 <code>@Transactional(rollbackFor = Exception.class)</code>,反过来用 <code>noRollbackFor</code>。</li>
+    <li>异常在方法里被 <code>catch</code> 住、没有抛出来,Spring 不知道出错了,照常提交。</li>
+    <li>同一个类里的方法互相调用(<code>this.doSomething()</code>)不经过 Spring 的代理,被调用方法上的 <code>@Transactional</code> 不生效;非 public 方法上的注解在默认的代理模式下也可能不生效。</li>
+  </ul>
+  <p><b>出错之后事务还能不能继续、DDL 能不能回滚:</b></p>
+  <table>
+    <tr><th></th><th>PostgreSQL</th><th>MySQL(InnoDB)</th><th>SQL Server</th></tr>
+    <tr><td>事务里一条语句出错</td><td>整个事务 aborted,之后的语句都被拒绝(<code>25P02</code>),只能 ROLLBACK</td><td>很多错误只回滚出错的那条语句,事务可以继续;死锁会回滚整个事务(锁等待超时默认只回滚那一条语句)</td><td>默认(<code>XACT_ABORT OFF</code>)很多错误只回滚那一条语句;<code>SET XACT_ABORT ON</code> 后任何运行时错误都回滚整个事务</td></tr>
+    <tr><td>DDL 在事务里</td><td><b>可以回滚</b></td><td><b>隐式提交</b>:执行 DDL 前先提交当前事务,DDL 本身也不能回滚;8.0 的「原子 DDL」只保证单条 DDL 要么完成、要么不做</td><td>大部分 DDL 可以在事务里回滚</td></tr>
+  </table>
+  <p>🔎 核实说明:</p>
+  <ul>
+    <li>联网核对过:Spring 官方文档的回滚规则(默认只对 <code>RuntimeException</code> 和 <code>Error</code> 回滚,受检异常不回滚,用 <code>rollbackFor</code> / <code>noRollbackFor</code> 改);MySQL 官方文档的「会引起隐式提交的语句」包括 DDL。</li>
+    <li>公认事实或我的记忆、<b>没有在本机实测</b>(本课程环境只有 PostgreSQL 和 Node):Spring 自调用 / 非 public 方法的限制、EF Core <code>SaveChanges</code> 的默认事务、<code>TransactionScope</code> 的 async 选项、Go <code>database/sql</code> 的惯用法、MySQL / SQL Server 出错后「只回滚那一条语句」的细节和 <code>XACT_ABORT</code>、SQL Server 的 DDL 回滚。</li>
+    <li>PostgreSQL 和 <code>pg</code> 驱动的所有行为都在本机实测过。</li>
+  </ul>
+  <p>📌 Day 42 复盘时更新 roadmap 顶部的「声明式事务 / 事务传播」那一行:补上「PG 出错后 aborted vs MySQL / SQL Server 语句级回滚」「Spring 默认只对 RuntimeException 回滚」,内容自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"What is ACID? Why do all subsequent statements fail after an error inside a PostgreSQL transaction? When does Spring's @Transactional not roll back?"</b>(或者:「什么是 ACID?事务里出错了为什么后续语句都失败?Spring @Transactional 什么时候不回滚?」)你可以答:<br>
+    <b>"ACID 是事务的四个保证。原子性:一个事务里的修改要么全部生效、要么全部撤销,比如转账的扣款和加款。一致性:事务结束时数据库声明过的约束都成立,PostgreSQL 还支持可延迟的约束,到提交时才检查;但业务规则,比如转账前后合计不变,数据库并不知道,要靠应用保证。隔离性:并发的事务互相看不到对方没提交的修改,具体看到什么由隔离级别决定。持久性:提交返回之前改动已经写进磁盘上的预写日志,崩溃后可以重放恢复;我实际 kill -9 过 PostgreSQL 的后端进程,提交过的数据在,没提交的没了。如果关掉 synchronous_commit,提交会快一个数量级,但崩溃时会丢最近的一小段提交,只是不会损坏数据。PostgreSQL 里事务中一条语句出错后,整个事务进入 aborted 状态,之后的语句都会报 current transaction is aborted,连 COMMIT 也只会回滚,只能 ROLLBACK,或者事先用 SAVEPOINT 回到保存点;这和 MySQL、SQL Server 默认只回滚出错的那条语句不同。所以应用里出错必须 ROLLBACK,ROLLBACK 失败时还要保住原来的错误,并把这个连接从池子里丢掉。Spring 的 @Transactional 默认只在 RuntimeException 和 Error 时回滚,受检异常会照常提交,要用 rollbackFor 改;异常被 catch 住没抛出、或者同一个类里自调用不经过代理时,也不会回滚。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:跟着跑一遍(动手,约 10 min)</h3>
+    <ol>
+      <li>先把第 3、4、5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day36</code> 批改。如果你在本机安装的 PostgreSQL 上、有 sudo 权限,再跑一次 <code>sudo npm run day36 -- --crash</code>(会断开所有连接),然后看 <code>/var/log/postgresql/</code> 里的日志,找到 <code>redo starts at</code> 和 <code>redo done at</code> 两行。</li>
+      <li>开两个 psql 窗口,按 <code>04-isolation-two-sessions.sql</code> 里的步骤手动做一遍。✍️ <b>预测</b>:B 卡住的时候,在第三个窗口查 <code>SELECT pid, state, wait_event_type, wait_event, query FROM pg_stat_activity WHERE datname = 'nest_lab';</code>,A 的 <code>state</code> 是什么?</li>
+      <li>在 psql 里 <code>\set ON_ERROR_ROLLBACK interactive</code>,再做一遍第 3 节的转账事务。✍️ <b>预测</b>:这次出错后 <code>SELECT 1</code> 还会被拒绝吗?COMMIT 之后 Bob 的余额是多少?为什么这个设置只适合交互式使用?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:读代码找事务的问题(动笔,约 10 min)</h3>
+    <ol>
+      <li>读 nest-lab 的 <code>PgTasksRepository.remove()</code>:它先 <code>findById</code>、再 <code>DELETE</code>,没有包在事务里。两个请求同时删同一个任务,会发生什么?这和 Week 4 遗留的「先查后改」是同一类问题吗?(不用改,写下判断,Day 40 再验证。)</li>
+      <li>假设要给 nest-lab 加一个功能:创建任务后给负责人发一封邮件。写出你会把「发邮件」放在事务的哪一边(之前 / 之中 / 之后),以及事务提交成功但邮件发送失败时怎么办。</li>
+      <li>Go 的惯用法是 <code>tx, _ := db.BeginTx(…); defer tx.Rollback(); …; return tx.Commit()</code>。用 nest-lab 的 <code>transaction()</code> 对照:Go 的这个写法在「ROLLBACK 失败」和「连接放回池子」这两点上是怎么处理的?(提示:<code>database/sql</code> 遇到 <code>driver.ErrBadConn</code> 会怎样,写下你的猜测并标「未实测」。)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:持久性的取舍(思考,约 5 min)</h3>
+    <ol>
+      <li>按今天的实测,<code>synchronous_commit = off</code> 快 7–30 倍,崩溃时丢了 21–66 次已确认的提交。nest-lab 的哪些写入你愿意这样做?哪些绝对不行?</li>
+      <li>为什么说 <code>synchronous_commit = off</code> 不会损坏数据,而 <code>fsync = off</code> 可能会?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/36-transactions-acid/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事说:「我做乐观更新时,请求失败就把 UI 状态整体滚回去;IndexedDB 的事务里一个请求出错,整个事务就 abort。数据库的事务是一回事吗?」用「整单作业单」的比喻讲清楚原子性、aborted 和保存点,并说出这个比喻在哪里会骗人(至少讲一条「回滚撤不回来」的东西)。</li>
+      <li>ACID 的 C、I、D 各保证什么、不保证什么?为什么说一致性大部分是应用的责任?<code>synchronous_commit = off</code> 丢的是什么、不会丢的是什么?</li>
+      <li>nest-lab 的 <code>transaction()</code> 修复了哪两个问题?为什么在「连接被杀掉」的场景里,修复前下一个请求也成功了?<code>release(err)</code> 真正防的是什么情况?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里记一笔;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>原子性</b>:不用事务时,「加款成功、扣款失败」让合计从 150 变成 280;用事务就整体回滚。PostgreSQL 里事务中出错后进入 <b>aborted</b>(<code>current transaction is aborted, commands ignored until end of transaction block</code>),连 COMMIT 都变成 ROLLBACK;想部分回滚要用 SAVEPOINT。序列号不回滚,DDL 能回滚。</li>
+    <li><b>一致性</b>:数据库只保证你声明过的约束,可延迟外键要到 COMMIT 时才检查;「合计不变」这类业务规则要靠应用。<b>隔离性</b>:别人看不到你没提交的修改,改同一行要排队(Day 37 详讲)。</li>
+    <li><b>持久性</b>:COMMIT 返回前 WAL 已落盘;真的 <code>kill -9</code> 之后,PostgreSQL 照着 WAL 重放,提交过的行在、没提交的没了。<code>synchronous_commit = off</code> 快 7–30 倍,崩溃时丢了 21–66 次已确认的提交,但不会损坏数据。</li>
+    <li><b>应用里的事务</b>:同一个连接、出错必 ROLLBACK、ROLLBACK 失败时保住原错误并 <code>release(err)</code> 丢掉连接、事务里不做外部调用。nest-lab 的 <code>transaction()</code> 已按这几条修好,新增的 5 个测试里有 2 个能抓住旧代码的问题。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>autocommit 是什么?为什么不用事务做转账会「凭空多出钱」?</li>
+    <li>PostgreSQL 事务里一条语句出错后,再发 <code>SELECT 1</code> 和 <code>COMMIT</code> 各得到什么?MySQL 呢?</li>
+    <li>SAVEPOINT 解决什么问题?为什么序列号回滚之后不还?</li>
+    <li><code>DEFERRABLE INITIALLY DEFERRED</code> 的外键在什么时候检查?什么场景用得上?</li>
+    <li>WAL 和崩溃恢复是怎么保证持久性的?<code>kill -9</code> 实验和真正的断电有什么不同?</li>
+    <li>nest-lab 的 <code>transaction()</code> 修复前,调用方在连接被杀掉时收到什么错误?修复后呢?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 37</b>:隔离级别与并发异常。开两个 psql 窗口,复现不可重复读、幻读、丢失更新、写偏斜;为什么 PostgreSQL 里不会有脏读;Read Committed(默认,每条语句一个快照)、Repeatable Read(整个事务一个快照,<code>could not serialize access due to concurrent update</code>)、Serializable(SSI,序列化失败要<b>重试</b>);再对照 SQL 标准和 MySQL(Repeatable Read 默认 + 间隙锁)。后面几天:Day 38 讲 MVCC 与 VACUUM,Day 39 讲锁(<code>FOR UPDATE</code>、<code>SKIP LOCKED</code>、死锁),Day 40 用乐观锁和悲观锁修 nest-lab 的丢失更新,Day 41 讲连接池深入与 PgBouncer。</p>
+</section>
+
+<footer>
+  Day 36 · Phase 2 / Week 6 · 产出:<code>docs/36-transactions-acid/</code> 本文档 + <code>nest-lab/</code>(<code>sql/day36/</code> 六个文件、<code>npm run day36</code>、<code>transaction()</code> 修复与 5 个单元测试)+ <code>src/36-transactions-acid/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,4 +1,4 @@
-import type { OnModuleInit } from '@nestjs/common';
+import { Logger, type OnModuleInit } from '@nestjs/common';
 import type pg from 'pg';
 import { ProblemException } from '../common/problems/problem.exception.js';
 import { ProblemTypes } from '../common/problems/problem-types.js';
@@ -6,6 +6,8 @@ import { isPgError, translatePgError } from '../database/pg-errors.js';
 import type { ChecklistItem, Task, TaskWritable } from './task.js';
 import type { SortField, SortKey, TaskQuery } from './task-query.js';
 import type { TasksRepository } from './tasks.repository.js';
+
+const logger = new Logger('PgTasksRepository');
 
 // Day 27:仓储的第二个实现 —— 后厨从「临时冰柜」(内存数组)换成「中央仓库」(PostgreSQL)。
 // 表结构见 sql/schema.sql(约束沿用 Day 24 的设计,checklist 按 Day 26 的决定放在子表)。
@@ -201,18 +203,34 @@ export class PgTasksRepository implements TasksRepository, OnModuleInit {
 
   // 事务必须在「同一个连接」上:BEGIN、INSERT、COMMIT 如果各自 pool.query(),
   // 可能被分到三个不同的连接(三位不同的伙计),BEGIN 开的事务和 INSERT 根本不在一起
+  //
+  // Day 36 修复了两个缺陷:
+  //   ① 以前 ROLLBACK 自己也失败时(比如连接已经断了),await 'ROLLBACK' 抛出的错误会顶掉原来的错误,
+  //      调用方和日志里只剩一句「连接断了」,真正的原因(约束违反、哪条 SQL 出错)丢了。
+  //      现在:原来的错误优先抛出,ROLLBACK 的错误只记日志。
+  //   ② 以前不管发生什么都 client.release(),把一个「ROLLBACK 都没成功、不知道还在不在事务里」的连接放回池子,
+  //      下一个借到它的请求可能一开口就是 current transaction is aborted。
+  //      现在:ROLLBACK 失败时 release(err),让池子销毁这个连接、下次新建一个。
+  //      (pg-pool 3.x 自己也会丢掉「已经断开、不能再查询」的连接;release(err) 管的是它判断不了的情况:
+  //       连接看起来还活着,但我们不知道它处在什么状态。)
   private async transaction<T>(work: (client: pg.PoolClient) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
+    let broken: Error | undefined; // 不为空 = 这个连接的状态不可信,不能还回池子
     try {
       await client.query('BEGIN');
       const result = await work(client);
       await client.query('COMMIT');
       return result;
     } catch (err) {
-      await client.query('ROLLBACK');
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackErr) {
+        broken = rollbackErr instanceof Error ? rollbackErr : new Error(String(rollbackErr));
+        logger.error(`ROLLBACK 失败,丢弃这个连接(原来的错误照常抛出):${broken.message}`);
+      }
       throw translatePgError(err);
     } finally {
-      client.release(); // 把伙计还回池子;忘了 release,池子很快就会被借空
+      client.release(broken); // 把伙计还回池子;传了错误 = 这位伙计不能再接客,池子换一个新的
     }
   }
 }
