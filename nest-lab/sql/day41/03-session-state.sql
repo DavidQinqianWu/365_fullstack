@@ -1,0 +1,29 @@
+-- Day 41 · 03:transaction 模式下「会话级状态」会消失、会串到别人那里 —— 两个 psql 窗口手动做
+-- (npm run day41 第 5 幕用两个连接自动做了同样的步骤。本文件只有注释里的步骤是实验,直接执行只会打印一行说明。)
+--
+-- 两个窗口都连 PgBouncer 的 nest_lab_tiny(transaction 模式,只有 2 个服务端连接,现象最稳定):
+--   psql postgresql://nest_lab:nest_lab_dev@127.0.0.1:6432/nest_lab_tiny
+--
+-- ① SET 不带 LOCAL:
+--   窗口 A:SET statement_timeout = '100ms';
+--   窗口 A:SELECT pg_backend_pid(), current_setting('statement_timeout');   -- 记下 pid(服务端连接 S1),多半是 100ms
+--   窗口 B:BEGIN; SELECT pg_backend_pid(), current_setting('statement_timeout');
+--           -- 多半拿到的正是 S1(PgBouncer 默认把最近用过的空闲连接先分出去),看到的是 A 设的 100ms:串过来了
+--   窗口 A:SELECT pg_backend_pid(), current_setting('statement_timeout');
+--           -- S1 被 B 的事务占着,A 只能拿到另一个连接 S2:A 自己设的 100ms「消失」了
+--   窗口 B:COMMIT;
+--   修法:只在事务里设,用 SET LOCAL(COMMIT / ROLLBACK 时自动撤销):
+--           BEGIN; SET LOCAL statement_timeout = '100ms'; SELECT …; COMMIT;
+--   PgBouncer 那边可以用 SHOW SERVERS; 看两个服务端连接
+--
+-- ② 会话级咨询锁(Day 39 的「值班牌」):
+--   窗口 A:SELECT pg_advisory_lock(41);          -- 锁记在 S1 这个后端进程上,A 的「事务」结束后 S1 回到池里,锁还在
+--   窗口 B:BEGIN; SELECT pg_try_advisory_lock(41);  -- 拿到 S1 → true!咨询锁对同一个会话是可重入的,B「继承」了 A 的锁
+--   窗口 A:SELECT pg_advisory_unlock(41);         -- 拿到 S2 → false + WARNING you don't own a lock of type ExclusiveLock
+--   窗口 B:COMMIT;  -- 锁还挂在 S1 上(B 加了一层,A 那一层也没放掉),直到这个服务端连接被关掉
+--   修法:pg_advisory_xact_lock(41) 放在事务里:COMMIT / ROLLBACK 时自动释放,不跟着服务端连接留下来
+--
+-- ③ 其他同类的「会话级」东西(都会在 transaction 模式下出问题,今天只讲不测):
+--   LISTEN / NOTIFY 的 LISTEN、临时表(CREATE TEMP TABLE)、WITH HOLD 游标、PREPARE 的预备语句(第 6 幕测了协议层的版本)、
+--   会话级的 set_config(…, false)、pg_backend_pid() 拿来当「我是谁」
+SELECT '本文件的实验步骤都在注释里,请开两个连到 6432/nest_lab_tiny 的 psql 窗口按步骤做' AS 说明;

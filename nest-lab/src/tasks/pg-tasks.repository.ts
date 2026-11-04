@@ -91,11 +91,21 @@ export class PgTasksRepository implements TasksRepository, OnModuleInit {
     private readonly pool: pg.Pool,
     // DB_RESET_ON_START=true 时:启动时清空并写入样品数据(和内存版一样「每次开店都是新的」);否则为 null
     private readonly resetSeed: Task[] | null = null,
+    // Day 41:期望的 schema(DATABASE_SCHEMA)。给了就在启动时核对 current_schema()
+    private readonly expectedSchema?: string,
   ) {}
 
   async onModuleInit(): Promise<void> {
     // 启动时先连一次:数据库连不上就让应用启动失败(fail fast,Day 12),而不是等第一个请求才 500
-    await this.pool.query('SELECT 1');
+    // Day 41:顺便核对「表到底在哪个 schema 里找」。search_path 没设上时不会报错,而是悄悄去找 public 里的同名表
+    // (Day 41 实测:经过 PgBouncer 时把 options 忽略掉,查到的是 public.tasks)—— 读错、甚至 TRUNCATE 错一张表。
+    const { rows } = await this.pool.query<{ schema: string | null }>('SELECT current_schema() AS schema');
+    if (this.expectedSchema !== undefined && rows[0]?.schema !== this.expectedSchema) {
+      throw new Error(
+        `当前 schema 是 ${rows[0]?.schema ?? '(空)'},不是 DATABASE_SCHEMA=${this.expectedSchema}:search_path 没有设上。` +
+          '直连 PostgreSQL 时用 DB_STARTUP_SEARCH_PATH=true;经过 PgBouncer 时设为 false,并连 pgbouncer.ini 里带 connect_query 的库别名',
+      );
+    }
     if (!this.resetSeed) return;
     // RESTART IDENTITY:序列也从 1 重新开始,样品任务的 id 和内存版一样是 1、2
     await this.pool.query('TRUNCATE tasks RESTART IDENTITY CASCADE');
