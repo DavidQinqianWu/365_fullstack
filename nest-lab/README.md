@@ -31,6 +31,7 @@ npm run day20          # Day 20 观察脚本:拉取 OpenAPI、列接口清单、
 npm run day22          # Day 22 观察脚本:检查 PG 是否在线、每个连接一个后端进程、跑 sql/day22/ 下的 CRUD 实验(需要先启动 PostgreSQL)
 npm run day23          # Day 23 观察脚本:宽表的三类异常 → 1NF / 2NF / 3NF 逐级拆解 → JOIN 拼回 → 计数缓存失真(schema day23,需要 PostgreSQL)
 npm run day24          # Day 24 观察脚本:serial / IDENTITY、integer 用完、UUID v4 vs v7、约束与 SQLSTATE、ON DELETE、并发注册(schema day24,需要 PostgreSQL)
+npm run day25          # Day 25 观察脚本:JOIN 全家、EXISTS / NOT EXISTS / NOT IN 遇 NULL、扇出、GROUP BY / HAVING / FILTER、CTE 与递归、NULL 三值逻辑(schema day25)
 npm run openapi:generate  # 改了接口后重新生成 openapi.json(和代码一起提交)
 npm run openapi:check     # openapi.json 是否和代码一致(过期 → 退出码 1,给 CI 用)
 ```
@@ -91,3 +92,4 @@ psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab   # 本机装了
 | Day 22 | `compose.yaml`(`postgres:16`,用户 / 密码 / 库名从 `.env` 读,具名数据卷,`pg_isready` 健康检查,只绑定 127.0.0.1);`.env.example` 新增 `POSTGRES_*`;`sql/day22/`(建表、CRUD 对应 HTTP 方法、忘写 WHERE 用 `BEGIN … ROLLBACK` 兜底、没有 ORDER BY 就没有顺序、`EXPLAIN` 看一眼、没有 BEGIN 时 ROLLBACK 无效);`scripts/day22-try.mjs`(用 `node:child_process` 调 psql,没有数据库时给出提示并退出);应用代码未改 | `docs/22-postgres-intro/` |
 | Day 23 | `sql/day23/`(独立 schema `day23`:宽表与更新 / 插入 / 删除异常、1NF → 2NF → 3NF 逐级拆表并用 `INSERT … SELECT` 搬数据、`JOIN` 拼回原视图、`tasks_count` 计数缓存失真与校正);`docs/er-diagram.md`(mermaid `erDiagram`:users / tasks / checklist_items / tags / task_tags,表 ≠ API 资源对照);`scripts/day23-try.mjs`;应用代码未改 | `docs/23-data-modeling/` |
 | Day 24 | `sql/day24/`(schema `day24`:serial vs `GENERATED ALWAYS / BY DEFAULT AS IDENTITY`、回滚后序列不回退、integer 上限、UUID v4 vs v7 与 PG 16 下的 `uuid_v7()` SQL 函数、20 万行插入与主键索引大小对比、带命名约束的 3NF 表(NOT NULL / UNIQUE / `lower(email)` 唯一索引 / CHECK / 外键 `ON DELETE`)、四种 SQLSTATE、并发「先查后插」);`docs/er-diagram.md` 补上主键与约束和 SQLSTATE → 状态码约定;`scripts/day24-try.mjs`;应用代码未改 | `docs/24-keys-constraints/` |
+| Day 25 | `sql/day25/`(schema `day25`:Day 24 的 3NF 表 + 没有任务的 Carol、没有标签的任务、`estimate_minutes`、`employees` 自引用表;INNER / LEFT(条件放 ON vs WHERE)/ RIGHT / CROSS / 自连接、EXISTS / NOT EXISTS / NOT IN 遇 NULL、扇出重复计算与两种修法、COUNT / GROUP BY / HAVING / FILTER / string_agg、子查询 / CTE / 递归 CTE、NULL 三值逻辑与逻辑执行顺序);`scripts/day25-try.mjs`;应用代码未改 | `docs/25-sql-queries-1/` |

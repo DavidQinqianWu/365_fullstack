@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 25 - SQL 查询深入 I:拿会员名册和订单本对着翻,别把一笔账算两遍</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 4</div>
+  <h1>Day 25 - SQL 查询深入 I:拿会员名册和订单本对着翻,别把一笔账算两遍</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>JOIN 全家(INNER / LEFT / RIGHT / FULL / CROSS / 自连接)· EXISTS / NOT EXISTS · NOT IN 遇 NULL · 扇出 · COUNT / GROUP BY / HAVING / FILTER · 子查询与 CTE · 递归 CTE · NULL 三值逻辑 · 逻辑执行顺序</b> ·
+    项目:<code>nest-lab/</code> 新增 <code>sql/day25/</code>(schema <code>day25</code>)、<code>npm run day25</code>(应用代码今天不改)·
+    今天没有新依赖;SQL 输出均来自 PostgreSQL 16.15 的真实运行
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:拆开的账,怎么拼回去</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:JOIN —— 拿名册和订单本按会员号对着翻</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:聚合与扇出 —— 分堆再数,别把一笔账算两遍</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:子查询、CTE 与 NULL —— 分步算账,「不知道」不是「零」</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:拆开的账,怎么拼回去</h2>
+  <p>Day 23 把一本大流水账拆成了 <code>users</code>、<code>tasks</code>、<code>checklist_items</code>、<code>tags</code>、<code>task_tags</code> 五张表,Day 24 给它们加上了主键和约束。代价是:想看「任务 + 负责人 + 标签」,数据已经分散在三张表里。Day 23 用一条最基本的 <code>JOIN</code> 拼回过一次,今天系统地学怎么问这种「跨表」的问题:</p>
+  <ul>
+    <li>每个用户有几个任务,<b>包括一个任务都没有的人</b>?</li>
+    <li>哪些用户一个任务都没有?哪些任务一个标签都没有?</li>
+    <li>每个用户的任务预估总时长是多少?为什么一条看起来很合理的 SQL 会把 Alice 的 90 分钟算成 160?</li>
+    <li>一个公司的组织架构,怎么从老板一路列到最底层?</li>
+  </ul>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    这些问题你在前端都手写过:<code>users.map(u =&gt; ({ ...u, tasks: tasks.filter(t =&gt; t.ownerId === u.id) }))</code> 就是一次 JOIN;<code>tasks.reduce(…)</code> 是聚合;lodash 的 <code>groupBy</code> 是 <code>GROUP BY</code>。区别在于:前端得先把<b>所有</b>用户和<b>所有</b>任务都拉到浏览器里,再在 JS 里两层循环配对;数据库是在数据旁边做,只把结果传给你,而且它会挑一种比两层循环快得多的方法去配对(Week 5 看它到底怎么做)。今天你会发现,SQL 里的坑和 JS 里的坑也是同一批:配对时漏了没有任务的人、求和时把同一笔账加了两遍、<code>undefined</code> 和 <code>0</code> 搞混。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+docker compose up -d     # 或本机的 PostgreSQL 已在运行(Day 22)
+npm run day25            # 依次跑 sql/day25/01 … 07
+
+psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab
+nest_lab=&gt; SET search_path = day25;</code></pre>
+  <p>今天的数据在独立的 schema <code>day25</code> 里,表结构沿用 Day 24 的 3NF 设计,数据补了几样,让查询有东西可查:</p>
+  <pre><code> id | display_name
+----+--------------
+  1 | Alice
+  2 | Bob
+  3 | Carol          ← 一个任务都没有
+
+ id |   title    | done | owner_id | estimate_minutes
+----+------------+------+----------+------------------
+  1 | 学 psql    | f    |        1 |               30
+  2 | 建第一张表 | t    |        1 |               20
+  3 | 买菜       | f    |        1 |               40
+  4 | 修自行车   | f    |        2 |               60
+  5 | 写周报     | t    |        2 |                     ← 没有标签;预估没填(NULL)
+
+ id |      name      | manager_id
+----+----------------+------------
+  1 | 老板           |                ← 没有经理
+  2 | 技术总监       |          1
+  3 | 运营总监       |          1
+  4 | 后端组长       |          2
+  5 | 前端组长       |          2
+  6 | 后端工程师小王 |          4
+  7 | 后端工程师小李 |          4
+  8 | 店长小周       |          3</code></pre>
+  <p>(<code>←</code> 是我加的说明。)标签和 Day 23 一样:任务 1 有 learning、urgent,任务 2 有 learning,任务 3 有 home、urgent,任务 4 有 home。<code>employees</code> 是新加的一张<b>指向自己</b>的表:<code>manager_id</code> 引用同一张表的 <code>id</code>。</p>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用</th></tr>
+    <tr><td><code>sql/day25/01-setup.sql</code></td><td>新增</td><td>建 schema <code>day25</code> 和数据(重跑会整个删掉重建)</td></tr>
+    <tr><td><code>sql/day25/02-joins.sql</code></td><td>新增</td><td>INNER / LEFT / 条件放 ON vs WHERE / RIGHT / CROSS / 忘了写条件 / 自连接</td></tr>
+    <tr><td><code>sql/day25/03-semi-anti.sql</code></td><td>新增</td><td><code>EXISTS</code> / <code>IN</code> / <code>NOT EXISTS</code>,以及 <code>NOT IN</code> 遇到 NULL</td></tr>
+    <tr><td><code>sql/day25/04-fanout.sql</code></td><td>新增</td><td>扇出:JOIN 后再 SUM 算重了;两种修法</td></tr>
+    <tr><td><code>sql/day25/05-aggregate.sql</code></td><td>新增</td><td><code>COUNT(*)</code> vs <code>COUNT(列)</code>、GROUP BY 的规矩、HAVING vs WHERE、<code>FILTER</code>、<code>string_agg</code> / <code>array_agg</code></td></tr>
+    <tr><td><code>sql/day25/06-subquery-cte.sql</code></td><td>新增</td><td>标量子查询、派生表、CTE、递归 CTE(组织架构、汇报链)</td></tr>
+    <tr><td><code>sql/day25/07-null-and-order.sql</code></td><td>新增</td><td>NULL 的三值逻辑、<code>IS DISTINCT FROM</code>、<code>COALESCE</code>、逻辑执行顺序</td></tr>
+    <tr><td><code>scripts/day25-try.mjs</code> + <code>package.json</code> 的 <code>day25</code></td><td>新增</td><td>观察脚本(和 day23 / day24 一样,数据库不可用时立即提示)</td></tr>
+    <tr><td><code>README.md</code></td><td>修改</td><td>命令、成长日志 Day 25</td></tr>
+  </table>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:JOIN —— 拿名册和订单本按会员号对着翻</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>JOIN 就是按一个条件,把两张表的行两两配对</b>,每配上一对就拼成结果里的一行。<b>INNER JOIN</b> 只留配上的;<b>LEFT JOIN</b> 左边的每一行都留,配不上的右边补 NULL;<b>CROSS JOIN</b> 不要条件,每一行配每一行;<b>自连接</b>是同一张表和自己配。只想问「对面有没有」、不需要对面的行时,用 <b>EXISTS / NOT EXISTS</b>(半连接 / 反连接)。
+  </div>
+
+  <h3>② 生活类比:会员名册和订单本对着翻</h3>
+  <p>左手拿会员名册,右手拿订单本,按「会员号」一条条对。<b>INNER</b>:只抄下两本里都有的配对,没下过单的会员不抄。<b>LEFT</b>:名册上的每个人都要列出来,没订单的就在订单那栏写「无」。<b>CROSS</b>:不管会员号,每个会员和每张订单都配一遍,3 个会员 5 张订单就是 15 行,大多毫无意义。<b>自连接</b>:员工名册里每个人旁边写着「经理是第几号」,拿同一本名册再翻一次,找到经理的名字。<b>EXISTS</b>:只问一句「这个会员有没有下过单」,不抄订单内容,有就打个勾。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>SQL</th><th>今天的例子</th></tr>
+    <tr><td>只抄两本都有的</td><td><code>[INNER] JOIN … ON 条件</code></td><td>用户 + 任务:Carol 不出现</td></tr>
+    <tr><td>名册上每个人都列,没有就写「无」</td><td><code>LEFT [OUTER] JOIN</code>:右边补 NULL</td><td>每个用户的任务数,Carol 是 0</td></tr>
+    <tr><td>把两只手换一下</td><td><code>RIGHT JOIN</code>(很少用,通常改写成 LEFT)</td><td>和 LEFT 结果一样</td></tr>
+    <tr><td>两本都全列</td><td><code>FULL [OUTER] JOIN</code>:两边配不上的各补 NULL</td><td>对账:找出「只在 A 系统有」和「只在 B 系统有」的记录</td></tr>
+    <tr><td>每个配每个</td><td><code>CROSS JOIN</code>(笛卡尔积),或旧式 <code>FROM a, b</code> 忘了写条件</td><td>3 × 5 = 15 行</td></tr>
+    <tr><td>同一本名册翻两次</td><td><b>自连接</b>:<code>FROM employees e JOIN employees m ON m.id = e.manager_id</code></td><td>员工 → 经理</td></tr>
+    <tr><td>只问有没有,打个勾</td><td><b>半连接</b> <code>EXISTS (…)</code> / <code>IN (…)</code></td><td>有 urgent 标签的任务</td></tr>
+    <tr><td>只问没有的,打个叉</td><td><b>反连接</b> <code>NOT EXISTS (…)</code></td><td>没有任务的用户、没有标签的任务</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:INNER、LEFT、以及 LEFT 的条件放在哪里。</b>✍️ <b>预测(先写再运行)</b>:INNER JOIN 用户和任务有几行?LEFT JOIN 呢?「每个用户的未完成任务」,把 <code>t.done = false</code> 放在 <code>ON</code> 里和放在 <code>WHERE</code> 里,Carol 会不会出现?真实结果(<code>02-joins.sql</code>):</p>
+  <pre><code>-- INNER JOIN
+ display_name |   title
+--------------+------------
+ Alice        | 学 psql
+ Alice        | 建第一张表
+ Alice        | 买菜
+ Bob          | 修自行车
+ Bob          | 写周报
+(5 rows)
+
+-- LEFT JOIN
+ ...(前 5 行同上)
+ Carol        |
+(6 rows)
+
+-- 每个用户有几个任务(LEFT JOIN + count(t.id))
+ display_name | 任务数
+--------------+--------
+ Alice        |      3
+ Bob          |      2
+ Carol        |      0
+
+-- 条件放在 ON 里
+ display_name | 未完成任务
+--------------+------------
+ Alice        | 学 psql
+ Alice        | 买菜
+ Bob          | 修自行车
+ Carol        |
+(4 rows)
+
+-- 条件放在 WHERE 里
+ display_name | 未完成任务
+--------------+------------
+ Alice        | 学 psql
+ Alice        | 买菜
+ Bob          | 修自行车
+(3 rows)</code></pre>
+  <p><b>Carol 在第二种写法里消失了。</b><code>ON</code> 里的条件决定「哪些行算配上」,配不上的左边照样保留;<code>WHERE</code> 是在配对<b>之后</b>过滤,Carol 那一行补出来的 <code>t.done</code> 是 NULL,<code>NULL = false</code> 不是 true(第 3 张卡讲),于是被扔掉了。效果上,一个 LEFT JOIN 被悄悄变成了 INNER JOIN。<b>规则:对右表的过滤条件,想保留左边所有行,就写在 <code>ON</code> 里。</b></p>
+
+  <p><b>⑤ 动手验证 B:CROSS JOIN 和忘了写条件。</b>3 个用户 × 3 个标签,<code>CROSS JOIN</code> 得到 9 行(每个用户配每个标签,完整输出在脚本里)。旧式写法 <code>FROM users, tasks</code> 忘了写 <code>WHERE</code> 条件:</p>
+  <pre><code> 忘了写条件时的行数
+--------------------
+                 15
+ 用户数 | 任务数
+--------+--------
+      3 |      5</code></pre>
+  <p>3 × 5 = 15。这里只是多了 10 行;在 10 万用户 × 100 万任务的表上,同样的错误会产生 1000 亿行,把数据库拖垮。显式写 <code>JOIN … ON</code> 的好处之一,就是忘了写条件时会直接语法报错。CROSS JOIN 也有正当用途,比如「每个用户 × 每一天」生成一张空白的日历表再去填数据。</p>
+
+  <p><b>⑤ 动手验证 C:自连接。</b>同一张 <code>employees</code> 起两个别名 <code>e</code>(员工)和 <code>m</code>(经理),当成两张表来配:</p>
+  <pre><code>      员工      |   经理
+----------------+----------
+ 老板           |
+ 技术总监       | 老板
+ 运营总监       | 老板
+ 后端组长       | 技术总监
+ 前端组长       | 技术总监
+ 后端工程师小王 | 后端组长
+ 后端工程师小李 | 后端组长
+ 店长小周       | 运营总监</code></pre>
+  <p>用的是 <code>LEFT JOIN</code>,否则没有经理的老板会消失。</p>
+
+  <p><b>⑤ 动手验证 D:半连接、反连接,以及 NOT IN 的坑。</b>✍️ <b>预测</b>:「不是任何人经理的员工」(基层员工)应该有几个?用 <code>WHERE id NOT IN (SELECT manager_id FROM employees)</code> 查,能查出来吗?真实结果(<code>03-semi-anti.sql</code>):</p>
+  <pre><code>-- EXISTS:有 urgent 标签的任务(用 IN 写结果一样)
+ id |  title
+----+---------
+  1 | 学 psql
+  3 | 买菜
+
+-- NOT EXISTS:没有任务的用户 / 没有标签的任务
+ display_name
+--------------
+ Carol
+ id | title
+----+--------
+  5 | 写周报
+
+-- 子查询里的 manager_id(第一行是老板的 NULL)
+ manager_id
+------------
+
+          1
+          1
+          2
+          2
+          3
+          4
+          4
+
+-- NOT IN
+ 用 NOT IN 查到的
+------------------
+(0 rows)
+
+-- NOT EXISTS
+ 用 NOT EXISTS 查到的
+----------------------
+ 前端组长
+ 后端工程师小王
+ 后端工程师小李
+ 店长小周
+(4 rows)
+
+-- 原因
+ 6 NOT IN (2, 4, NULL) | 结果是不是 NULL
+-----------------------+-----------------
+                       | t</code></pre>
+  <p><b>应该有 4 个,<code>NOT IN</code> 一个都没查出来。</b><code>x NOT IN (2, 4, NULL)</code> 展开就是 <code>x &lt;&gt; 2 AND x &lt;&gt; 4 AND x &lt;&gt; NULL</code>,而 <code>x &lt;&gt; NULL</code> 永远是「不知道」;<code>AND</code> 上一个「不知道」,整个条件最好也只能是「不知道」,<code>WHERE</code> 把它当 false。所以<b>子查询结果里只要混进一个 NULL,<code>NOT IN</code> 就返回空</b>,而且不报任何错。规则:<b>反连接一律用 <code>NOT EXISTS</code></b>。<code>IN</code>(正向的)没有这个问题,但为了统一,很多团队也习惯写 <code>EXISTS</code>。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「数据库就是像我这样一行行对着翻」——JOIN 的逻辑结果和实际怎么执行是两回事。</b>「把两张表两两配对」是在描述<b>结果应该是什么</b>(SQL 是声明式的,Day 22)。数据库实际可能用嵌套循环、先建哈希表再查(hash join)、或者两边都排好序再合并(merge join),选哪种取决于数据量和索引。同一条 SQL 在 100 行和 100 万行上可能走完全不同的路。Week 5 用 <code>EXPLAIN</code> 看这些。</li>
+      <li><b>「对完的账按名册顺序排好了」——JOIN 的结果仍然没有顺序。</b>上面所有输出看起来整整齐齐,是因为每条 SQL 都写了 <code>ORDER BY</code>(Day 22 的规矩)。换一种执行方式(比如哈希连接),不写 <code>ORDER BY</code> 的结果顺序可能完全不同。</li>
+      <li><b>「LEFT 就是左边全要,写在哪都一样」——条件放在 ON 还是 WHERE,结果不同。</b>上面实测过:放进 <code>WHERE</code> 会把补出来的 NULL 行筛掉。INNER JOIN 时两种写法结果相同,所以很多人养成了随手写进 <code>WHERE</code> 的习惯,换成 LEFT JOIN 就出错。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>inner join / left (outer) join / right (outer) join / full (outer) join / cross join</b>;<b>Cartesian product</b>;<b>self join</b>;<b>semi join</b>(<code>EXISTS</code> / <code>IN</code>)与 <b>anti join</b>(<code>NOT EXISTS</code>);<b>join predicate</b>(<code>ON</code> 条件)vs <b>filter predicate</b>(<code>WHERE</code> 条件);<b>nested loop / hash join / merge join</b>(Week 5)。
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:聚合与扇出 —— 分堆再数,别把一笔账算两遍</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>GROUP BY</b> 把行按某几列分成一堆一堆,<b>聚合函数</b>(<code>count</code> / <code>sum</code> / <code>avg</code> / <code>min</code> / <code>max</code> / <code>string_agg</code>)把每一堆算成一个值。<b>WHERE</b> 在分堆<b>之前</b>扔掉行,<b>HAVING</b> 在分堆<b>之后</b>扔掉整堆。<b>扇出</b>是最常见的聚合 bug:一对多 JOIN 会把「一」那边的行复制成好几行,这时再 <code>SUM</code>,同一笔数就被加了好几遍。
+  </div>
+
+  <h3>② 生活类比:按会员把订单分堆</h3>
+  <p>月底统计,把订单按会员号分成一堆一堆,每堆数一数有几张、加一加金额。<b>WHERE</b> 是分堆之前先把作废的订单扔掉;<b>HAVING</b> 是分完以后,只留下「超过 1 张」的那几堆。<b>扇出</b>是这样发生的:你为了顺便统计标签,把订单本和标签对照表也对着翻了一遍,一张订单有 2 个标签,就被抄成了 2 行;接着按会员加金额,这张订单的金额就加了两次。账面上多出来的钱,一分都不存在。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>SQL</th><th>要点</th></tr>
+    <tr><td>数有几张订单 / 数「填了金额」的订单</td><td><code>count(*)</code> / <code>count(列)</code></td><td><code>count(列)</code> 不数 NULL;LEFT JOIN 后要数 <code>count(右表.id)</code>,不能 <code>count(*)</code></td></tr>
+    <tr><td>加金额、求平均</td><td><code>sum</code> / <code>avg</code> / <code>min</code> / <code>max</code></td><td>都跳过 NULL;一堆里全是 NULL(或没有行)时 <code>sum</code> 是 NULL 不是 0</td></tr>
+    <tr><td>按会员分堆</td><td><code>GROUP BY</code></td><td>SELECT 里没被聚合的列必须出现在 GROUP BY 里(按主键分组时例外)</td></tr>
+    <tr><td>分堆前扔掉作废单 / 分堆后只留大堆</td><td><code>WHERE</code> / <code>HAVING</code></td><td><code>WHERE</code> 里不能用聚合函数</td></tr>
+    <tr><td>同一堆里按条件分别数</td><td><code>count(*) FILTER (WHERE …)</code></td><td>一行算出「已完成 / 未完成」</td></tr>
+    <tr><td>把一堆的名字写成一行</td><td><code>string_agg(列, ', ')</code> / <code>array_agg(列)</code></td><td>Day 23 折叠回一行用过</td></tr>
+    <tr><td>一张订单被抄成两行,金额算两遍</td><td><b>扇出(fan-out)</b></td><td>先聚合再 JOIN;只数个数时可用 <code>count(DISTINCT …)</code></td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:COUNT 和 GROUP BY 的规矩。</b>✍️ <b>预测</b>:5 个任务里有一个预估是 NULL,<code>count(*)</code>、<code>count(estimate_minutes)</code>、<code>avg(estimate_minutes)</code> 各是多少?SELECT 里多写一个 <code>u.email</code> 却只 <code>GROUP BY u.display_name</code> 会怎样?真实结果(<code>05-aggregate.sql</code>):</p>
+  <pre><code> 行数 | 填了预估的行数 | 总和 |        平均         | 最少 | 最多
+------+----------------+------+---------------------+------+------
+    5 |              4 |  150 | 37.5000000000000000 |   20 |   60
+
+ERROR:  column "u.email" must appear in the GROUP BY clause or be used in an aggregate function
+LINE 1: SELECT u.display_name, u.email, count(*) AS 任务数
+                               ^
+-- 改成 GROUP BY u.id(主键)就可以
+ display_name |       email       | 任务数
+--------------+-------------------+--------
+ Alice        | alice@example.com |      3
+ Bob          | bob@example.com   |      2</code></pre>
+  <p>平均值是 150 / 4 = 37.5,<b>不是</b> 150 / 5 = 30:那个没填的任务不参与平均。这在业务上可能对,也可能错(「没估算」应该算 0 吗?),要想清楚。GROUP BY 那条报错是 PostgreSQL 在保护你:同一堆里可能有好几个不同的 <code>email</code>,它不知道该显示哪一个。按主键 <code>u.id</code> 分组时,同一堆里只有一个用户,<code>display_name</code>、<code>email</code> 都由 <code>u.id</code> 唯一确定(Day 23 的<b>函数依赖</b>),PostgreSQL 认这个,所以允许。</p>
+
+  <p><b>⑤ 动手验证 B:WHERE vs HAVING,以及 FILTER。</b></p>
+  <pre><code>-- 未完成任务超过 1 个的用户:WHERE 先扔掉已完成的行,HAVING 再扔掉不到 2 个的堆
+ display_name | 未完成数
+--------------+----------
+ Alice        |        2
+
+-- 把分组后的条件写进 WHERE
+ERROR:  aggregate functions are not allowed in WHERE
+LINE 2: WHERE count(*) &gt; 1 GROUP BY u.id;
+              ^
+-- FILTER:一行算出三个数
+ display_name | 全部 | 已完成 | 未完成
+--------------+------+--------+--------
+ Alice        |    3 |      1 |      2
+ Bob          |    2 |      1 |      1
+ Carol        |    0 |      0 |      0
+
+-- string_agg / array_agg
+   title    |       标签       |     标签数组
+------------+------------------+-------------------
+ 学 psql    | learning, urgent | {learning,urgent}
+ 建第一张表 | learning         | {learning}
+ 买菜       | home, urgent     | {home,urgent}
+ 修自行车   | home             | {home}</code></pre>
+  <p><code>WHERE count(*) &gt; 1</code> 报错的原因在第 3 张卡的「逻辑执行顺序」里:WHERE 执行时还没分堆,哪来的 count。<code>FILTER</code> 那张表正是 nest-lab 用户列表页想要的数字。最后一张表里没有「写周报」:它没有标签,INNER JOIN 把它配丢了,想要它出现就得改成 LEFT JOIN。</p>
+
+  <p><b>⑤ 动手验证 C:扇出。</b>✍️ <b>预测</b>:Alice 三个任务的预估是 30 + 20 + 40 = 90 分钟。下面这条 SQL 同时 JOIN 了任务和标签,再按用户 <code>sum</code>,Alice 的总时长会是多少?标签数呢?真实结果(<code>04-fanout.sql</code>):</p>
+  <pre><code>-- 直接在 tasks 上算的正确答案
+ owner_id | 正确的总时长
+----------+--------------
+        1 |           90
+        2 |           60
+
+-- users LEFT JOIN tasks LEFT JOIN task_tags,再 SUM / COUNT
+ display_name | 总时长 | 标签数
+--------------+--------+--------
+ Alice        |    160 |      5
+ Bob          |     60 |      1
+ Carol        |        |      0
+
+-- 摊开 Alice 聚合之前的中间结果
+ display_name |   title    | estimate_minutes | tag_id
+--------------+------------+------------------+--------
+ Alice        | 学 psql    |               30 |      2
+ Alice        | 学 psql    |               30 |      3
+ Alice        | 建第一张表 |               20 |      2
+ Alice        | 买菜       |               40 |      1
+ Alice        | 买菜       |               40 |      3
+
+-- 修法 1:先各自聚合成「一个用户一行」,再 JOIN
+ display_name | 总时长 | 标签数
+--------------+--------+--------
+ Alice        |     90 |      3
+ Bob          |     60 |      1
+ Carol        |      0 |      0
+
+-- 修法 2:只数个数时,count(DISTINCT …)
+ display_name | 任务数 | 标签种类
+--------------+--------+----------
+ Alice        |      3 |        3
+ Bob          |      2 |        1
+ Carol        |      0 |      0</code></pre>
+  <p><b>160 = 30×2 + 20 + 40×2</b>:「学 psql」和「买菜」各有两个标签,JOIN 之后各被复制成两行,求和时就加了两遍。<b>这个 bug 不会报错</b>,数字看起来也「挺像回事」,最容易混进报表。识别方法:看 JOIN 路径上有没有<b>两个以上的「一对多」</b>(用户 → 任务 → 标签),有的话,对「上游」的数求和就要小心。<b>修法 1 最通用</b>:每个子查询按 <code>owner_id</code> 先聚合,结果都是「一个用户一行」,再 JOIN 就不会扇出。<b>修法 2 只适用于计数</b>:<code>count(DISTINCT t.id)</code> 能把复制出来的同一个任务只数一次;但 <code>sum(DISTINCT estimate_minutes)</code> 不行,两个不同的任务时长恰好都是 30,就会被当成一个。另外注意错误版本里 Carol 的总时长是空的:<code>sum</code> 一个值都没有时结果是 NULL,修法 1 用 <code>coalesce(…, 0)</code> 把它显示成 0。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「分堆就是把订单摞起来,每堆都在」——没有行的堆根本不存在。</b>INNER JOIN 后按用户分组,Carol 一行都没有,就不会有 Carol 这一堆,结果里也就没有 Carol。要让「0」出现,得先用 LEFT JOIN 把 Carol 留下来,再数 <code>count(t.id)</code>:因为 LEFT JOIN 给她补了一行全是 NULL 的任务,<code>count(*)</code> 会把这一行数成 1,<code>count(t.id)</code> 不数 NULL,才是 0。</li>
+      <li><b>「数错了一眼就能看出来」——扇出的错误数字看起来很合理。</b>160 分钟不像 9999 那样一看就假。唯一可靠的办法是:写完聚合查询,挑一个用户<b>手算一遍</b>,或者像上面那样把中间结果摊开看(去掉 GROUP BY,加上 <code>WHERE</code> 只看一个人)。这和前端写 reduce 时 <code>console.log</code> 一下中间数组是一个道理。</li>
+      <li><b>「WHERE 和 HAVING 都是过滤,随便写」——能写进 WHERE 的条件就别写进 HAVING。</b>比如 <code>HAVING u.id = 1</code> 也能得到正确结果,但它是先把所有用户都分堆算完,再扔掉其他堆;写在 <code>WHERE</code> 里则是一开始就只拿 Alice 的行。结果一样,干的活差很多,数据量大时差别明显。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>aggregate function</b>;<b>GROUP BY / HAVING</b>;<b><code>count(*)</code> vs <code>count(expr)</code></b>;<b>aggregate <code>FILTER</code> clause</b>(条件聚合);<b><code>DISTINCT</code> aggregate</b>;<b>functional dependency</b>(按主键分组时其他列可以直接出现在 SELECT 里);<b>fan-out / row multiplication</b>(也叫 "chasm trap");<b>pre-aggregation</b>(先聚合再连接)。
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:子查询、CTE 与 NULL —— 分步算账,「不知道」不是「零」</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>子查询</b>是嵌在另一条 SQL 里的 SQL:可以返回一个值(<b>标量子查询</b>),一列值(给 <code>IN</code> 用),或一张临时的表(<b>派生表</b>,放在 FROM 里)。<b>CTE</b>(<code>WITH 名字 AS (…)</code>)是给这些中间结果起名字、按顺序写出来,让复杂查询像几行代码一样分步可读;<b>递归 CTE</b> 能一层层往下找(组织架构、评论楼中楼)。<b>NULL</b> 表示「不知道」,和它比较的结果还是「不知道」,而 WHERE 只留下「确定为真」的行。
+  </div>
+
+  <h3>② 生活类比:分步算账,和账本上的「不知道」</h3>
+  <p>复杂的月报,会计不会一口气写在一张纸上,而是先算一张「每位会员的消费汇总」草稿,给它起名叫「草稿 A」,再在草稿 A 上算完成率。<b>CTE 就是这些有名字的草稿</b>。<b>递归</b>像查族谱:先找到老祖宗,再找「父亲在上一轮名单里」的人,一轮轮往下,直到某一轮一个人都找不到为止。账本上还有一种格子写的是<b>「不知道」</b>:不是 0,也不是空字符串,就是「没人填」。问「这一格等于 30 吗?」,答案只能是「不知道」;问「这一格不等于 30 吗?」,答案还是「不知道」。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>SQL</th><th>今天的例子</th></tr>
+    <tr><td>在这一行旁边顺手算一个数</td><td><b>标量子查询</b>:<code>(SELECT count(*) FROM … WHERE … = 外层.id)</code></td><td>每个任务的清单项数</td></tr>
+    <tr><td>先列一张小表,再从里面挑</td><td><b>派生表</b>:<code>FROM (SELECT …) AS x</code></td><td>任务数为 0 的用户</td></tr>
+    <tr><td>有名字的草稿</td><td><b>CTE</b>:<code>WITH a AS (…), b AS (… FROM a) SELECT … FROM b</code></td><td>每个用户的完成率</td></tr>
+    <tr><td>查族谱,一轮轮往下</td><td><b>递归 CTE</b>:<code>WITH RECURSIVE x AS (起点 UNION ALL 从 x 推下一轮)</code></td><td>组织架构、小王的汇报链</td></tr>
+    <tr><td>「不知道」</td><td><code>NULL</code>;和它比较得到 NULL(三值逻辑:true / false / unknown)</td><td><code>NULL = NULL</code> 是 NULL</td></tr>
+    <tr><td>问「是不是没填」</td><td><code>IS NULL</code> / <code>IS NOT NULL</code>;<code>IS DISTINCT FROM</code>(把 NULL 当成一个普通值来比)</td><td><code>= NULL</code> 找到 0 行</td></tr>
+    <tr><td>没填就先写个默认值</td><td><code>COALESCE(a, b, …)</code>:取第一个不是 NULL 的</td><td>「未估算」</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:CTE 与递归 CTE。</b>✍️ <b>预测</b>:Carol 的完成率应该显示成什么,0 还是空?递归 CTE 从老板出发,一共要几轮才停?真实结果(<code>06-subquery-cte.sql</code>):</p>
+  <pre><code>-- CTE:per_user → with_rate,分两步
+ display_name | 任务数 | 已完成 | 完成率
+--------------+--------+--------+--------
+ Alice        |      3 |      1 |     33
+ Bob          |      2 |      1 |     50
+ Carol        |      0 |      0 |
+
+-- 递归 CTE:组织架构
+ 层级 |          组织架构          |                  汇报路径
+------+----------------------------+---------------------------------------------
+    1 | 老板                       | 老板
+    2 |     技术总监               | 老板 → 技术总监
+    3 |         前端组长           | 老板 → 技术总监 → 前端组长
+    3 |         后端组长           | 老板 → 技术总监 → 后端组长
+    4 |             后端工程师小李 | 老板 → 技术总监 → 后端组长 → 后端工程师小李
+    4 |             后端工程师小王 | 老板 → 技术总监 → 后端组长 → 后端工程师小王
+    2 |     运营总监               | 老板 → 运营总监
+    3 |         店长小周           | 老板 → 运营总监 → 店长小周
+
+-- 反过来,从小王往上找
+                小王的汇报链
+---------------------------------------------
+ 后端工程师小王 → 后端组长 → 技术总监 → 老板</code></pre>
+  <p>Carol 的完成率是空的:CTE 里写了 <code>CASE WHEN 任务数 = 0 THEN NULL</code>。一个任务都没有的人,完成率是「无从谈起」,不是 0%,这是一个业务决定,用 NULL 表达得很准确。递归 CTE 的结构永远是两段,用 <code>UNION ALL</code> 连起来:<b>起点</b>(没有经理的人)+ <b>递推</b>(经理在上一轮结果里的人)。第 4 层之后再也找不到下属,递推得到 0 行,递归就停了。如果数据里有环(A 的经理是 B,B 的经理是 A),它会一直转下去,真实系统里要加层数上限或记录走过的路径来防止,这里只提一句。</p>
+  <p>子查询和 CTE 怎么选?<b>能读懂</b>是第一标准:一层子查询直接写;超过一层,或者同一个中间结果要用两次,就用 CTE。性能上,PostgreSQL 12 起会把只用一次的 CTE <b>内联</b>进主查询一起优化,和子查询没区别;想强制先算出来存着,写 <code>WITH x AS MATERIALIZED (…)</code>,反过来是 <code>NOT MATERIALIZED</code>。今天只点到,Week 5 看执行计划时再细看。</p>
+
+  <p><b>⑤ 动手验证 B:NULL 的三值逻辑。</b>✍️ <b>预测</b>:<code>NULL = NULL</code> 是 true 吗?<code>WHERE estimate_minutes &lt;&gt; 30</code> 和 <code>WHERE estimate_minutes = 30</code> 加起来能查出 5 行吗?真实结果(<code>07-null-and-order.sql</code>,用 <code>\pset null '(null)'</code> 让 NULL 显示出来):</p>
+  <pre><code> NULL = NULL | NULL &lt;&gt; 1 | NULL IS NULL | NULL IS DISTINCT FROM NULL | 1 IS DISTINCT FROM NULL
+-------------+-----------+--------------+----------------------------+-------------------------
+ (null)      | (null)    | t            | f                          | t
+
+-- &lt;&gt; 30
+   title    | estimate_minutes
+------------+------------------
+ 建第一张表 |               20
+ 买菜       |               40
+ 修自行车   |               60
+(3 rows)
+-- = 30
+  title  | estimate_minutes
+---------+------------------
+ 学 psql |               30
+(1 row)
+ 表里一共几行
+--------------
+            5
+
+-- IS DISTINCT FROM 30:把「没填」也算作「不等于 30」
+ ...
+ 写周报     |           (null)
+(4 rows)
+
+ 用 = NULL 找到
+----------------
+              0
+ 用 IS NULL 找到
+-----------------
+               1
+
+-- COALESCE
+   title    |  预估
+------------+--------
+ 学 psql    | 30
+ ...
+ 写周报     | 未估算</code></pre>
+  <p><b>3 + 1 = 4,可表里有 5 行。</b>「写周报」既不在「等于 30」里,也不在「不等于 30」里:它的预估是「不知道」,两个问题的答案都是「不知道」,WHERE 都把它扔了。这就是本节开头 LEFT JOIN 条件放 WHERE 时 Carol 消失、以及 <code>NOT IN</code> 返回空的共同原因。三条规则:<b>找没填的用 <code>IS NULL</code>,永远不要写 <code>= NULL</code></b>;想把 NULL 当成一个普通值来比,用 <code>IS DISTINCT FROM</code>;只是显示时用 <code>COALESCE</code> 给个默认值。</p>
+
+  <p><b>⑤ 动手验证 C:逻辑执行顺序。</b>SQL 写的顺序是 <code>SELECT … FROM … WHERE …</code>,但<b>逻辑上</b>的执行顺序是:</p>
+  <pre><code>FROM / JOIN  →  WHERE  →  GROUP BY  →  HAVING  →  SELECT  →  ORDER BY  →  LIMIT
+(找表、配对)   (扔掉行)   (分堆)      (扔掉堆)    (算列、起别名) (排序)     (截取)</code></pre>
+  <pre><code>-- WHERE 里用 SELECT 起的别名
+ERROR:  column "翻倍" does not exist
+LINE 1: ...le, estimate_minutes * 2 AS 翻倍 FROM tasks WHERE 翻倍 &gt; 60;
+                                                             ^
+HINT:  Perhaps you meant to reference the column "tasks.id".
+-- ORDER BY 里用就可以
+  title   | 翻倍
+----------+------
+ 修自行车 |  120
+ 买菜     |   80</code></pre>
+  <p>WHERE 执行时,SELECT 还没执行,别名「翻倍」还不存在;ORDER BY 在 SELECT 之后,所以认识它。(那条 HINT 是 PostgreSQL 在猜你想要哪一列,这次猜得不对,可以忽略。)同样的顺序解释了:为什么 <code>WHERE count(*) &gt; 1</code> 不行(WHERE 时还没分堆)、为什么 <code>HAVING</code> 可以用聚合(它在 GROUP BY 之后)、为什么 Day 19 的 <code>LIMIT</code> 一定要配 <code>ORDER BY</code>(先排好序再截取,截的才是你想要的那几行)。这是<b>逻辑</b>顺序:数据库实际执行时会大量调整(比如把 WHERE 条件提前到读表时就用),但结果必须和按这个顺序执行的一样。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「草稿算完会先放在桌上,后面直接拿来用」——CTE 不一定被先算出来。</b>PostgreSQL 12 起,只被引用一次的 CTE 默认会被内联,和直接写子查询没区别;它首先是让人读懂的工具。PostgreSQL 11 及更早的版本里,CTE 总是先完整算出来,常被当成「优化屏障」。看到老文章说「CTE 慢」,要先看它说的是哪个版本。</li>
+      <li><b>「『不知道』就是空着,当成 0 或空字符串处理就行」——NULL 不是 0,也不等于空字符串 <code>''</code>。</b>「预估 0 分钟」「预估没填」「标题是空字符串」是三件不同的事。<code>sum</code> / <code>avg</code> 跳过 NULL,但不跳过 0;把 NULL 用 <code>COALESCE(x, 0)</code> 变成 0 再求平均,平均值就从 37.5 变成了 30。哪种对,取决于业务含义,不取决于 SQL。</li>
+      <li><b>「查族谱总能查到头」——递归要有终点。</b>递归 CTE 在「这一轮一行都没找到」时停止。数据里有环、或者递推条件写错(比如忘了 <code>JOIN org o ON e.manager_id = o.id</code>,变成每轮都配上所有人),它就停不下来,一直吃内存和 CPU。写递归 CTE 时,先在小数据上跑,并考虑加一个 <code>WHERE 层级 &lt; 20</code> 之类的保险。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>scalar subquery</b>;<b>correlated subquery</b>(引用了外层的列,如 <code>WHERE c.task_id = t.id</code>);<b>derived table</b>;<b>CTE</b>(Common Table Expression);<b>recursive CTE</b>(anchor member + recursive member,<code>UNION ALL</code>);<b><code>MATERIALIZED</code> / <code>NOT MATERIALIZED</code></b>;<b>three-valued logic</b>(true / false / unknown);<b><code>IS [NOT] DISTINCT FROM</code></b>;<b><code>COALESCE</code></b>;<b>logical query processing order</b>。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p>SQL 本身是跨语言的;不同的是 ORM 怎么让你「不写 SQL 也能 JOIN 和聚合」。同一个问题:「每个用户的任务数,包括 0 个任务的用户」。</p>
+  <table>
+    <tr><th>工具</th><th>写法</th><th>它生成的 SQL 大致是</th></tr>
+    <tr><td>Prisma(Node / TS)</td><td><code>prisma.user.findMany({ include: { _count: { select: { tasks: true } } } })</code>;按列分组统计用 <code>prisma.task.groupBy({ by: ['ownerId'], _count: true })</code></td><td>一条带子查询计数的 SELECT(具体形式随版本变化)</td></tr>
+    <tr><td>EF Core(C#,LINQ)</td><td><code>db.Users.Select(u =&gt; new { u.DisplayName, Count = u.Tasks.Count() })</code>;显式连接用 <code>Join</code>,左连接的传统写法是 <code>GroupJoin</code> + <code>SelectMany</code> + <code>DefaultIfEmpty()</code>;分组用 <code>GroupBy</code></td><td>带关联子查询或 LEFT JOIN + GROUP BY 的 SQL</td></tr>
+    <tr><td>JPA(Java)</td><td>JPQL:<code>SELECT u.displayName, COUNT(t) FROM User u LEFT JOIN u.tasks t GROUP BY u</code>;要把关联对象一起加载用 <code>JOIN FETCH</code>;也可以用 Criteria API 拼</td><td>LEFT JOIN + GROUP BY</td></tr>
+    <tr><td>Go(sqlx / sqlc)</td><td>直接写 SQL。sqlx 负责把结果扫进结构体;sqlc 读你写的 <code>.sql</code> 文件,生成类型安全的 Go 函数</td><td>就是你写的那条</td></tr>
+  </table>
+  <p><b>不管用哪个 ORM,都要能读懂它生成的 SQL。</b>今天的三个坑在 ORM 里一个都不会消失:用 <code>include</code> 加载「用户 → 任务 → 标签」再在代码里求和,就是扇出;把过滤条件写在关联的哪一层,决定了是 LEFT 还是 INNER 的语义;ORM 里的 <code>null</code> 比较也会被翻译成 SQL 的三值逻辑。每个 ORM 都有打印 SQL 的开关(Prisma 的 <code>log: ['query']</code>、EF Core 的 <code>LogTo</code>、Hibernate 的 <code>show_sql</code>),调试时第一件事就是打开它。</p>
+
+  <p><b>和 MySQL / SQL Server 的差异</b>:</p>
+  <table>
+    <tr><th>功能</th><th>PostgreSQL</th><th>MySQL</th><th>SQL Server</th></tr>
+    <tr><td>CTE / 递归 CTE</td><td>支持(<code>WITH RECURSIVE</code>)</td><td><b>8.0 起</b>才支持(<code>WITH RECURSIVE</code>)</td><td>支持;递归时不写 <code>RECURSIVE</code>,直接 <code>WITH</code></td></tr>
+    <tr><td><code>FULL OUTER JOIN</code></td><td>支持</td><td><b>不支持</b>,常用 LEFT JOIN <code>UNION</code> RIGHT JOIN 模拟</td><td>支持</td></tr>
+    <tr><td>条件聚合 <code>FILTER (WHERE …)</code></td><td>支持</td><td>不支持,写成 <code>SUM(CASE WHEN … THEN 1 ELSE 0 END)</code></td><td>不支持,同样用 <code>CASE WHEN</code></td></tr>
+    <tr><td>拼接字符串聚合</td><td><code>string_agg</code></td><td><code>GROUP_CONCAT</code></td><td><code>STRING_AGG</code>(2017 起)</td></tr>
+    <tr><td>SELECT 里出现未分组的列</td><td>报错(按主键分组时放宽)</td><td>5.7 起默认开启 <code>ONLY_FULL_GROUP_BY</code> 也会报错,并同样识别函数依赖;关掉这个模式时会<b>随便挑一个值</b>返回</td><td>报错</td></tr>
+  </table>
+  <p>🔎 核实说明:上表根据我对各数据库文档的了解整理,本课程环境只有 PostgreSQL,MySQL / SQL Server 的行为<b>没有在本机实测</b>。我把握较大的是:MySQL 8.0 起支持 CTE、MySQL 没有 FULL OUTER JOIN、MySQL 和 SQL Server 都没有 <code>FILTER</code> 子句、SQL Server 递归 CTE 不写 <code>RECURSIVE</code>。EF Core 那一行的「.NET 10 新增了 <code>LeftJoin</code> 运算符」我没有写进表里,因为没核实。</p>
+  <p>📌 roadmap 顶部对照表的「ORM / 数据访问」一行,Day 23 / 24 已经建议你在 Day 28 补关系写法和错误码;今天再加一句「读懂 ORM 生成的 SQL(扇出、LEFT vs INNER)」,内容自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"What's the difference between INNER JOIN and LEFT JOIN? What happens with NOT IN when the subquery returns a NULL? And WHERE vs HAVING?"</b>(或者:「INNER JOIN 和 LEFT JOIN 有什么区别?NOT IN 遇到 NULL 会怎样?WHERE 和 HAVING 的区别?」)你可以答:<br>
+    <b>"INNER JOIN 只返回两边都匹配上的行;LEFT JOIN 保留左表的所有行,右边匹配不上的列补 NULL,比如统计每个用户的任务数、包括没有任务的用户,就要 LEFT JOIN 再 count 右表的主键,不能 count 星号。要注意对右表的过滤条件要写在 ON 里,写在 WHERE 里会把补出来的 NULL 行过滤掉,等于退化成了 INNER JOIN。NOT IN 的问题在于三值逻辑:x NOT IN 一个列表等价于 x 和每个元素都不相等再 AND 起来,只要列表里有一个 NULL,和它的比较结果就是 unknown,整个条件就不可能为 true,查询返回空,而且不报错。所以反连接我用 NOT EXISTS。WHERE 在分组之前过滤行,不能用聚合函数;HAVING 在分组之后过滤分组,可以用聚合函数,能写进 WHERE 的条件就不要放到 HAVING。另外我会注意扇出:一对多 JOIN 之后再 SUM 会重复计算,我的做法是先在子查询里按需要的粒度聚合,再 JOIN。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:跟着跑一遍(动手,约 8 min)</h3>
+    <ol>
+      <li>先把第 3、4、5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day25</code> 批改。</li>
+      <li>psql 连进去,<code>SET search_path = day25;</code>。往 <code>employees</code> 里插一个没有经理的「顾问」(<code>id = 9, manager_id = NULL</code>)。✍️ <b>预测</b>:<code>NOT IN</code> 和 <code>NOT EXISTS</code> 两种写法的「基层员工」结果各会怎么变?递归 CTE 的组织架构里会多出什么?</li>
+      <li>把 <code>NOT IN</code> 那条改对:不换成 <code>NOT EXISTS</code>,只改子查询,让它不再返回 NULL。</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:给 nest-lab 写查询(动笔 + 动手,约 12 min)</h3>
+    <p>都在 <code>day25</code> 里写、跑,并且挑一个用户手算核对结果:</p>
+    <ol>
+      <li>用户列表页:每个用户一行,显示 <code>display_name</code>、任务数、未完成数、清单项总数、已完成清单项数。(提示:这里有两条一对多路径:用户 → 任务、任务 → 清单项。先预测一下直接三表 JOIN 再 count 会不会扇出,再动手。)</li>
+      <li>标签统计:每个标签被几个任务用到、这些任务里有几个已完成;包括一个任务都没用到的标签(先插一个新标签 <code>work</code>)。</li>
+      <li>找出「所有任务都已完成」的用户。(提示:用 <code>NOT EXISTS</code> 找「不存在未完成任务」的人。Carol 算不算?你的答案是什么,为什么?)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:前端 vs 数据库(思考,约 5 min)</h3>
+    <p>同事写了这样一段 Node 代码来做用户列表页:</p>
+    <pre><code>const users = await db.query('SELECT * FROM users');
+const tasks = await db.query('SELECT * FROM tasks');
+const rows = users.map(u =&gt; ({ ...u, taskCount: tasks.filter(t =&gt; t.owner_id === u.id).length }));</code></pre>
+    <ol>
+      <li>它和第 3 节的 LEFT JOIN + <code>count(t.id)</code> 结果一样吗?</li>
+      <li>用户 1 万、任务 100 万时,它要从数据库传多少行到 Node?<code>filter</code> 一共要比较多少次?</li>
+      <li>如果再加上 Day 19 的分页(每页 20 个用户),这段代码该怎么改?换成 SQL 又该怎么写?(只写思路,Day 27 会写真实代码。)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/25-sql-queries-1/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「我在前端用 <code>users.map(u =&gt; ({ ...u, tasks: tasks.filter(t =&gt; t.ownerId === u.id) }))</code> 拼数据,再 <code>reduce</code> 求和,这和 SQL 的 JOIN、GROUP BY 是一回事吗?为什么后端要在数据库里做?」用名册和订单本的比喻讲清楚,并说出这个比喻在哪里会骗人。</li>
+      <li>INNER JOIN 和 LEFT JOIN 的区别是什么?LEFT JOIN 的条件放 ON 和放 WHERE 有什么不同?为什么反连接要用 NOT EXISTS 而不是 NOT IN?</li>
+      <li>什么是扇出?怎么识别、怎么修?WHERE 和 HAVING 的区别是什么,为什么 WHERE 里不能用 SELECT 的别名?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:把习题 2 里你满意的查询存成 <code>nest-lab/sql/day25/</code> 下的新文件(比如 <code>90-my-queries.sql</code>),在 README 成长日志里记一笔;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>JOIN 是按条件把两张表的行配对</b>:INNER 只留配上的,LEFT 保留左边所有行(对右表的过滤写在 ON 里),CROSS 是笛卡尔积(旧式写法忘了条件也会变成它),自连接是同一张表起两个别名;只问有没有用 EXISTS,反连接用 <b>NOT EXISTS,不用 NOT IN</b>(子查询里一个 NULL 就让它返回空)。</li>
+    <li><b>聚合 = 分堆再算</b>:<code>count(*)</code> 数行、<code>count(列)</code> 不数 NULL;SELECT 里没聚合的列要出现在 GROUP BY(按主键分组时放宽);WHERE 在分堆前、HAVING 在分堆后;<code>FILTER</code> 一行算出多个条件计数。</li>
+    <li><b>扇出</b>:一对多 JOIN 之后再 SUM 会重复计算,数字还看起来很合理。修法:先按需要的粒度聚合再 JOIN;只数个数时可以 <code>count(DISTINCT …)</code>。写完聚合查询,挑一个人手算核对。</li>
+    <li><b>NULL 是「不知道」</b>:和它比较得到 unknown,WHERE 把 unknown 当 false,于是行会「消失」;用 <code>IS NULL</code>、<code>IS DISTINCT FROM</code>、<code>COALESCE</code>。逻辑执行顺序 FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT 解释了别名和聚合能用在哪里。CTE 让复杂查询分步可读,递归 CTE 处理层级。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>「每个用户的任务数,包括 0 个」为什么要 <code>count(t.id)</code> 而不是 <code>count(*)</code>?</li>
+    <li>LEFT JOIN 后在 WHERE 里写 <code>t.done = false</code>,为什么 Carol 不见了?</li>
+    <li><code>6 NOT IN (2, 4, NULL)</code> 的结果是什么?为什么?</li>
+    <li>Alice 的总时长为什么被算成 160?用两种方法修正。</li>
+    <li><code>avg(estimate_minutes)</code> 为什么是 37.5 而不是 30?</li>
+    <li>为什么 <code>WHERE 翻倍 &gt; 60</code> 报错,<code>ORDER BY 翻倍</code> 不报错?</li>
+    <li>递归 CTE 的两段分别是什么?它什么时候停下来?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 26</b>:SQL 查询深入 II + PostgreSQL 特色类型。今天的聚合把一堆行压成了一行;明天的<b>窗口函数</b>(<code>row_number</code> / <code>rank</code> / <code>lag</code> / 累计和)能在<b>不压扁行</b>的情况下做同样的计算,比如「每个用户最新的一个任务」。还有 <code>INSERT … ON CONFLICT</code>(UPSERT)、<code>RETURNING</code>,以及 JSONB、数组、<code>timestamptz</code> vs <code>timestamp</code> 的时区坑,并对 nest-lab 的 <code>checklist</code> 到底用表还是 JSONB 做最终决定。</p>
+</section>
+
+<footer>
+  Day 25 · Phase 2 / Week 4 · 产出:<code>docs/25-sql-queries-1/</code> 本文档 + <code>nest-lab/</code>(<code>sql/day25/</code> 七个实验文件、<code>npm run day25</code>)+ <code>src/25-sql-queries-1/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>
