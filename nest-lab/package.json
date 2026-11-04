@@ -31,6 +31,8 @@
     "day24": "node scripts/day24-try.mjs",
     "day25": "node scripts/day25-try.mjs",
     "day26": "node scripts/day26-try.mjs",
+    "day27": "nest build && node scripts/day27-try.mjs",
+    "db:reset": "node scripts/db-reset.mjs",
     "openapi:generate": "nest build && node scripts/openapi.mjs",
     "openapi:check": "nest build && node scripts/openapi.mjs --check",
     "lint": "oxlint src/ test/",
@@ -38,7 +40,8 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:e2e": "vitest run --config ./vitest.config.e2e.ts"
+    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "test:e2e:pg": "node scripts/db-reset.mjs --schema app_test && vitest run --config ./vitest.config.e2e.pg.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
@@ -48,6 +51,7 @@
     "@nestjs/swagger": "^12.1.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "zod": "^4.6.7"
@@ -59,6 +63,7 @@
     "@nestjs/testing": "^12.0.1",
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.23.1",
     "@types/supertest": "^7.0.0",
     "@vitest/coverage-v8": "^4.1.2",
     "openapi-typescript": "^7.13.0",

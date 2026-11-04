@@ -33,6 +33,9 @@ npm run day23          # Day 23 观察脚本:宽表的三类异常 → 1NF / 2NF
 npm run day24          # Day 24 观察脚本:serial / IDENTITY、integer 用完、UUID v4 vs v7、约束与 SQLSTATE、ON DELETE、并发注册(schema day24,需要 PostgreSQL)
 npm run day25          # Day 25 观察脚本:JOIN 全家、EXISTS / NOT EXISTS / NOT IN 遇 NULL、扇出、GROUP BY / HAVING / FILTER、CTE 与递归、NULL 三值逻辑(schema day25)
 npm run day26          # Day 26 观察脚本:窗口函数与每组最新、UPSERT 与并发注册、RETURNING、JSONB、数组、timestamptz 与夏令时、枚举(schema day26)
+npm run day27          # Day 27 观察脚本:连接池、SQL 注入对比、PG 版 CRUD、事务回滚、keyset 真实 SQL、约束 → problem+json、fail fast(需要 PostgreSQL)
+npm run db:reset       # 用 psql 重建 schema app(sql/schema.sql + sql/seed.sql);-- --schema app_test 重建测试用的 schema
+npm run test:e2e:pg    # 同一套 e2e,换成 PostgreSQL 版仓储再跑一遍(先自动重建 app_test)
 npm run openapi:generate  # 改了接口后重新生成 openapi.json(和代码一起提交)
 npm run openapi:check     # openapi.json 是否和代码一致(过期 → 退出码 1,给 CI 用)
 ```
@@ -55,7 +58,7 @@ npm run openapi:check     # openapi.json 是否和代码一致(过期 → 退出
 
 ## 数据库(Week 4 起)
 
-本地开发用 PostgreSQL 16(Day 22 起;应用代码 Day 27 才接数据库,在那之前 nest-lab 仍然用内存仓储):
+本地开发用 PostgreSQL 16(Day 22 起)。Day 27 起任务数据可以存进 PostgreSQL:`.env` 里设 `TASKS_STORAGE=postgres` 和 `DATABASE_URL`,先 `npm run db:reset` 建表(Docker 下没有本机 psql 时:`docker compose exec -T postgres psql -U nest_lab -d nest_lab -v schema=app -f /sql/schema.sql -f /sql/seed.sql`)。默认 `TASKS_STORAGE=memory`,测试和 day08–day20 的观察脚本不需要数据库:
 
 ```bash
 cp .env.example .env             # POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB / POSTGRES_PORT
@@ -95,3 +98,4 @@ psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab   # 本机装了
 | Day 24 | `sql/day24/`(schema `day24`:serial vs `GENERATED ALWAYS / BY DEFAULT AS IDENTITY`、回滚后序列不回退、integer 上限、UUID v4 vs v7 与 PG 16 下的 `uuid_v7()` SQL 函数、20 万行插入与主键索引大小对比、带命名约束的 3NF 表(NOT NULL / UNIQUE / `lower(email)` 唯一索引 / CHECK / 外键 `ON DELETE`)、四种 SQLSTATE、并发「先查后插」);`docs/er-diagram.md` 补上主键与约束和 SQLSTATE → 状态码约定;`scripts/day24-try.mjs`;应用代码未改 | `docs/24-keys-constraints/` |
 | Day 25 | `sql/day25/`(schema `day25`:Day 24 的 3NF 表 + 没有任务的 Carol、没有标签的任务、`estimate_minutes`、`employees` 自引用表;INNER / LEFT(条件放 ON vs WHERE)/ RIGHT / CROSS / 自连接、EXISTS / NOT EXISTS / NOT IN 遇 NULL、扇出重复计算与两种修法、COUNT / GROUP BY / HAVING / FILTER / string_agg、子查询 / CTE / 递归 CTE、NULL 三值逻辑与逻辑执行顺序);`scripts/day25-try.mjs`;应用代码未改 | `docs/25-sql-queries-1/` |
 | Day 26 | `sql/day26/`(schema `day26`:窗口函数 `row_number / rank / dense_rank / lag / lead`、累计和与移动平均、每组最新的三种写法(`row_number`、`DISTINCT ON`、`LATERAL`)、`INSERT … ON CONFLICT DO NOTHING / DO UPDATE` 与并发注册、`RETURNING`、JSONB 操作符与「便条不校验」、数组 vs 中间表、`timestamptz` vs `timestamp` 与柏林夏令时、ENUM);`docs/er-diagram.md` 新增「存储形式的决定」(checklist 用子表);`scripts/day26-try.mjs`;应用代码未改 | `docs/26-sql-queries-2/` |
+| Day 27 | 依赖 `pg` + `@types/pg`;`src/database/`(`PG_POOL` 带类型 token + `useFactory` 建连接池、`onModuleDestroy` 关池、`pg-errors.ts` 把 SQLSTATE 翻译成 problem+json);`src/tasks/pg-tasks.repository.ts`(参数化查询、两张表写入用事务、`json_agg` 拼 checklist、keyset 行值比较 / OR 展开、ORDER BY 白名单、`COLLATE "C"`);仓储接口改为 async(Service / Controller 跟着 await);`TasksModule` 按 `TASKS_STORAGE` 选实现;env schema 新增 `TASKS_STORAGE` / `DATABASE_URL` / `DATABASE_SCHEMA` / `DB_POOL_MAX` / `DB_RESET_ON_START`;`sql/schema.sql`、`sql/seed.sql`、`scripts/db-reset.mjs`、`vitest.config.e2e.pg.ts`;`src/db-demo/`(SQL 注入对比等实验接口,不在 AppModule 里);`sql/day27/`;`scripts/day27-try.mjs` | `docs/27-nest-postgres/` |

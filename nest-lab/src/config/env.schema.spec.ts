@@ -9,7 +9,25 @@ describe('envSchema / validateEnv', () => {
       DEMO_KEY: 'let-me-in',
       LOG_REQUESTS: true,
       SWAGGER_ENABLED: true, // Day 20:非生产环境默认打开
+      TASKS_STORAGE: 'memory', // Day 27:默认不需要数据库
+      DATABASE_SCHEMA: 'app',
+      DB_POOL_MAX: 10,
+      DB_RESET_ON_START: false,
     });
+  });
+
+  it('Day 27:TASKS_STORAGE=postgres 时 DATABASE_URL 必填,而且必须是 postgresql:// 连接串', () => {
+    expect(() => validateEnv({ TASKS_STORAGE: 'postgres' })).toThrow(/DATABASE_URL: TASKS_STORAGE=postgres 时必须设置 DATABASE_URL/);
+    expect(() => validateEnv({ TASKS_STORAGE: 'postgres', DATABASE_URL: 'mysql://a@b/c' })).toThrow(/DATABASE_URL/);
+    const env = validateEnv({ TASKS_STORAGE: 'postgres', DATABASE_URL: 'postgresql://u:p@localhost:5432/db' });
+    expect(env.DATABASE_URL).toBe('postgresql://u:p@localhost:5432/db');
+  });
+
+  it('Day 27:schema 名走白名单(它会被拼进连接参数,不能参数化);生产环境禁止启动时清库', () => {
+    expect(() => validateEnv({ DATABASE_SCHEMA: 'app; DROP TABLE tasks' })).toThrow(/DATABASE_SCHEMA/);
+    expect(() => validateEnv({ NODE_ENV: 'production', DEMO_KEY: 'a-real-secret-key', DB_RESET_ON_START: 'true' })).toThrow(
+      /DB_RESET_ON_START/,
+    );
   });
 
   it('Day 20:SWAGGER_ENABLED 不写时生产环境默认关闭;显式写了以显式为准', () => {

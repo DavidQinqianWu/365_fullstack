@@ -28,31 +28,32 @@ const check = (label, ok) => {
 
 // 造数据:原有 2 条 + 48 条 =50 条;每 3 条有 1 条已完成
 for (let i = 3; i <= 50; i++) {
-  const t = tasks.create({ title: `第 ${String(i).padStart(2, '0')} 条任务` });
-  if (i % 3 === 0) tasks.update(t.id, { done: true });
+  // Day 27:Service 方法改成了 async,观察脚本跟着 await
+  const t = await tasks.create({ title: `第 ${String(i).padStart(2, '0')} 条任务` });
+  if (i % 3 === 0) await tasks.update(t.id, { done: true });
 }
-out(`造好了 ${tasks.listByOffset({ offset: 0, limit: 1000 }).length} 条任务`);
+out(`造好了 ${(await tasks.listByOffset({ offset: 0, limit: 1000 })).length} 条任务`);
 
 // ---------- 第 1 幕:offset 分页,翻页途中数据变了 ----------
 line('第 1 幕:offset 分页(sort=-id,最新的在前,每页 10 条)');
-const byOffset = (offset) => ids(tasks.listByOffset({ sort: ['-id'], offset, limit: 10 }));
+const byOffset = async (offset) => ids(await tasks.listByOffset({ sort: ['-id'], offset, limit: 10 }));
 
-let p1 = byOffset(0);
+let p1 = await byOffset(0);
 out(`第 1 页(offset=0) :${p1.join(', ')}`);
-const added = tasks.create({ title: '翻页途中新建的任务' });
+const added = await tasks.create({ title: '翻页途中新建的任务' });
 out(`…用户看第 1 页时,别人新建了一条 id=${added.id}`);
-let p2 = byOffset(10);
+let p2 = await byOffset(10);
 out(`第 2 页(offset=10):${p2.join(', ')}`);
 const dup = p2.filter((id) => p1.includes(id));
 out(`→ 重复出现:${dup.join(', ') || '(没有)'}`);
 check('offset:中途新增导致重复', dup.length > 0);
 
-p1 = byOffset(0);
-const expectedP2 = byOffset(10); // 删除之前,第 2 页「本来」是这些
+p1 = await byOffset(0);
+const expectedP2 = await byOffset(10); // 删除之前,第 2 页「本来」是这些
 out(`\n第 1 页(offset=0) :${p1.join(', ')}`);
-tasks.remove(p1[0]);
+await tasks.remove(p1[0]);
 out(`…用户看第 1 页时,别人删掉了 id=${p1[0]}`);
-p2 = byOffset(10);
+p2 = await byOffset(10);
 out(`第 2 页(offset=10):${p2.join(', ')}`);
 const missed = expectedP2.filter((id) => !p2.includes(id) && !p1.includes(id));
 out(`→ 两页都没看到:${missed.join(', ') || '(没有)'}`);
@@ -65,8 +66,8 @@ let c1 = ids(page.items);
 out(`第 1 页:${c1.join(', ')}`);
 out(`nextCursor = ${page.nextCursor}`);
 out(`  解开看看(只是 base64url,不是加密):${Buffer.from(page.nextCursor, 'base64url').toString()}`);
-let expectedNext = byOffset(10);
-const added2 = tasks.create({ title: '翻页途中又新建的任务' });
+let expectedNext = await byOffset(10);
+const added2 = await tasks.create({ title: '翻页途中又新建的任务' });
 out(`…别人新建了一条 id=${added2.id}`);
 let page2 = (await get(`/v2/tasks?sort=-id&limit=10&cursor=${page.nextCursor}`)).body;
 let c2 = ids(page2.items);
@@ -76,9 +77,9 @@ out(`→ 重复出现:${c2.filter((id) => c1.includes(id)).join(', ') || '(没�
 
 page = (await get('/v2/tasks?sort=-id&limit=10')).body;
 c1 = ids(page.items);
-expectedNext = byOffset(10);
+expectedNext = await byOffset(10);
 out(`\n第 1 页:${c1.join(', ')}`);
-tasks.remove(c1[0]);
+await tasks.remove(c1[0]);
 out(`…别人删掉了 id=${c1[0]}`);
 page2 = (await get(`/v2/tasks?sort=-id&limit=10&cursor=${page.nextCursor}`)).body;
 c2 = ids(page2.items);
@@ -97,7 +98,7 @@ do {
   cursor = body.nextCursor;
   pages++;
 } while (cursor);
-const total = tasks.listByOffset({ offset: 0, limit: 1000 }).length;
+const total = (await tasks.listByOffset({ offset: 0, limit: 1000 })).length;
 out(`\nsort=-createdAt、每页 7 条一路翻到底:${pages} 页,共 ${seen.length} 条,去重后 ${new Set(seen).size} 条,当前总数 ${total}`);
 check('cursor:按 createdAt(有大量相同值)翻到底不重不漏', seen.length === total && new Set(seen).size === total);
 

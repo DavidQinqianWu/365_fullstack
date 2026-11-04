@@ -1,7 +1,7 @@
 # nest-lab 数据模型(ER 图)
 
 > Day 23 的设计稿,按 3NF 拆分。它描述「数据在数据库里怎么存」,**不是** API 的形状(API 的契约见 [`api-design.md`](api-design.md) 和 [`../openapi.json`](../openapi.json))。
-> 状态:设计中。Day 24 定下了主键和约束,Day 26 定下了存储形式(见下方两节);Day 27 先把 `tasks` + `checklist_items` 接进 nest-lab。
+> 状态:`tasks` + `checklist_items` 已在 Day 27 落地(建表语句 [`../sql/schema.sql`](../sql/schema.sql),仓储 `src/tasks/pg-tasks.repository.ts`,`TASKS_STORAGE=postgres` 时启用);`users`、`tags`、`task_tags` 仍是设计稿。Day 24 定下了主键和约束,Day 26 定下了存储形式(见下方两节)。
 > `tasks.owner_id` 和标签现在还不在 API 里:有了真正的登录用户(Week 10)才有「负责人」,标签作为多对多的例子先画进来。
 > 实验用的 SQL:拆表过程在 [`../sql/day23/`](../sql/day23/)(schema `day23`),加上约束后的版本在 [`../sql/day24/04-constraints.sql`](../sql/day24/04-constraints.sql)(schema `day24`)。
 
@@ -56,7 +56,7 @@ erDiagram
 | `checklist_items.task_id`、`task_tags.*` | `ON DELETE CASCADE` | 离开任务 / 标签就没有意义的行,跟着一起删 |
 | 约束命名 | `表_列_key` / `表_列_check` / `表_列_fkey` | 违反时错误信息里带着这个名字,Day 27 按名字映射成具体的错误类型 |
 
-### 约束违反 → HTTP 状态码(Day 27 落地)
+### 约束违反 → HTTP 状态码(Day 27 已落地:`src/database/pg-errors.ts`)
 
 | SQLSTATE | 名称 | 典型场景 | 映射 |
 |---|---|---|---|

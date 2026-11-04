@@ -35,6 +35,7 @@ export interface TaskListPage {
 
 // Provider / Service = 后厨:只管「把菜做出来」(业务逻辑),不关心 HTTP。
 // Day 9 起:数据存哪、现在几点,都不自己决定,而是在构造函数里「声明我需要什么」,由 Nest 的 IoC 容器送来。
+// Day 27:仓储接口改成 async,这里每个方法跟着 await;业务规则(409、404、分页)一行没变。
 @Injectable()
 export class TasksService {
   constructor(
@@ -44,14 +45,14 @@ export class TasksService {
   ) {}
 
   // Day 19:cursor(keyset)分页 —— nest-lab 对外唯一的分页方式
-  listPage(query: ListTasksQueryDto): TaskListPage {
+  async listPage(query: ListTasksQueryDto): Promise<TaskListPage> {
     const sort = parseSort(query.sort);
     const filter = toFilter(query);
     const limit = query.limit ?? DEFAULT_LIMIT;
     const after = query.cursor ? decodeCursor(query.cursor, sort, filter) : undefined;
     ctxLog(`   ④ Service    后厨做菜:listPage(limit=${limit}${after ? `, after id=${after.id}` : ''})`);
     // 多取一条:取到了说明还有下一页,不用 COUNT(*)
-    const rows = this.repo.findPage({ filter, sort, limit: limit + 1, ...(after ? { after } : {}) });
+    const rows = await this.repo.findPage({ filter, sort, limit: limit + 1, ...(after ? { after } : {}) });
     const items = rows.slice(0, limit);
     const last = items.at(-1);
     const nextCursor =
@@ -60,19 +61,19 @@ export class TasksService {
   }
 
   // Day 19:offset 分页 —— 仓储层也实现了,但不对外开放;只给观察脚本做对比(翻页时会重复 / 漏项)
-  listByOffset(query: { done?: boolean; q?: string; sort?: string[]; offset: number; limit: number }): Task[] {
+  listByOffset(query: { done?: boolean; q?: string; sort?: string[]; offset: number; limit: number }): Promise<Task[]> {
     return this.repo.findPage({ filter: toFilter(query), sort: parseSort(query.sort), limit: query.limit, offset: query.offset });
   }
 
   // v1 兼容:不分页,一次返回全部(Day 8–17 的老行为)
-  findAll(): Task[] {
+  findAll(): Promise<Task[]> {
     ctxLog('   ④ Service    后厨做菜:findAll');
     return this.repo.findAll();
   }
 
-  findOne(id: number): Task {
+  async findOne(id: number): Promise<Task> {
     ctxLog(`   ④ Service    后厨做菜:findOne(${id})`);
-    const task = this.repo.findById(id);
+    const task = await this.repo.findById(id);
     if (!task) {
       // 不用自己 res.writeHead(404):抛一个「带状态码的异常」,exception filter 会把它翻译成 404
       throw new NotFoundException(`没有 id 为 ${id} 的任务`);
@@ -81,7 +82,7 @@ export class TasksService {
   }
 
   // Day 16:参数从 title 字符串换成 DTO。Service 拿到的已经是「校验过、转换过」的数据
-  create(input: CreateTaskDto): Task {
+  create(input: CreateTaskDto): Promise<Task> {
     ctxLog(`   ④ Service    后厨做菜:create("${input.title}")`);
     return this.repo.insert({
       title: input.title,
@@ -93,27 +94,34 @@ export class TasksService {
 
   // Day 15:PUT —— 用请求里的完整表示替换掉客户端能改的全部字段
   // PUT 是整体替换:没给 checklist = 清空成 [](不是「保留原样」—— 要保留请用 PATCH)
-  replace(id: number, input: ReplaceTaskDto): Task {
+  async replace(id: number, input: ReplaceTaskDto): Promise<Task> {
     ctxLog(`   ④ Service    后厨做菜:replace(${id})`);
-    this.assertCanChange(this.findOne(id), input);
-    return this.repo.update(id, { title: input.title, done: input.done, checklist: input.checklist ?? [] })!;
+    this.assertCanChange(await this.findOne(id), input);
+    // Day 27:先查(409 规则)再改,中间隔着一次往返 —— 两个请求同时改同一条时会有竞态,Week 6 处理
+    return this.found(id, await this.repo.update(id, { title: input.title, done: input.done, checklist: input.checklist ?? [] }));
   }
 
   // Day 15:PATCH —— 只改给了的字段
-  update(id: number, patch: UpdateTaskDto): Task {
+  async update(id: number, patch: UpdateTaskDto): Promise<Task> {
     ctxLog(`   ④ Service    后厨做菜:update(${id}, ${JSON.stringify(patch)})`);
-    this.assertCanChange(this.findOne(id), patch);
+    this.assertCanChange(await this.findOne(id), patch);
     // Day 16:只把自己明确列出的字段写进台账,不把 DTO 整包合并(DTO 之外的第二道保险,防批量赋值)
     const changes: Partial<TaskWritable> = {};
     if (patch.title !== undefined) changes.title = patch.title;
     if (patch.done !== undefined) changes.done = patch.done;
     if (patch.checklist !== undefined) changes.checklist = patch.checklist;
-    return this.repo.update(id, changes)!;
+    return this.found(id, await this.repo.update(id, changes));
   }
 
-  remove(id: number): void {
+  async remove(id: number): Promise<void> {
     ctxLog(`   ④ Service    后厨做菜:remove(${id})`);
-    if (!this.repo.remove(id)) throw new NotFoundException(`没有 id 为 ${id} 的任务`);
+    if (!(await this.repo.remove(id))) throw new NotFoundException(`没有 id 为 ${id} 的任务`);
+  }
+
+  // Day 27:查的时候还在、改的时候没了(被别的请求删掉)—— 也是 404
+  private found(id: number, task: Task | undefined): Task {
+    if (!task) throw new NotFoundException(`没有 id 为 ${id} 的任务`);
+    return task;
   }
 
   // 409 Conflict:请求本身没毛病,但和资源「当前的状态」冲突。

@@ -21,8 +21,9 @@ describe('分页 / 过滤 / 排序 / 版本化 (e2e)', () => {
     await app.init();
     tasks = app.get(TasksService);
     for (let i = 3; i <= 30; i++) {
-      const t = tasks.create({ title: `任务 ${String(i).padStart(2, '0')}` });
-      if (i % 3 === 0) tasks.update(t.id, { done: true });
+      // Day 27:Service 的方法变成了 async,这里要 await(不 await,PG 版里任务可能还没写进去测试就开始了)
+      const t = await tasks.create({ title: `任务 ${String(i).padStart(2, '0')}` });
+      if (i % 3 === 0) await tasks.update(t.id, { done: true });
     }
   });
 
@@ -62,17 +63,17 @@ describe('分页 / 过滤 / 排序 / 版本化 (e2e)', () => {
   it('翻页途中新增 / 删除:cursor 不重不漏', async () => {
     const first = await request(server()).get('/v2/tasks?sort=-id&limit=10').expect(200);
     const firstIds = first.body.items.map((t: { id: number }) => t.id);
-    tasks.create({ title: '中途新增' });
-    tasks.remove(firstIds[0]);
+    await tasks.create({ title: '中途新增' });
+    await tasks.remove(firstIds[0]);
     const second = await request(server()).get(`/v2/tasks?sort=-id&limit=10&cursor=${first.body.nextCursor}`).expect(200);
     const secondIds = second.body.items.map((t: { id: number }) => t.id);
     expect(secondIds).toEqual([20, 19, 18, 17, 16, 15, 14, 13, 12, 11]);
   });
 
-  it('对照:offset 在中途新增时会重复', () => {
-    const p1 = tasks.listByOffset({ sort: ['-id'], offset: 0, limit: 10 }).map((t) => t.id);
-    tasks.create({ title: '中途新增' });
-    const p2 = tasks.listByOffset({ sort: ['-id'], offset: 10, limit: 10 }).map((t) => t.id);
+  it('对照:offset 在中途新增时会重复', async () => {
+    const p1 = (await tasks.listByOffset({ sort: ['-id'], offset: 0, limit: 10 })).map((t) => t.id);
+    await tasks.create({ title: '中途新增' });
+    const p2 = (await tasks.listByOffset({ sort: ['-id'], offset: 10, limit: 10 })).map((t) => t.id);
     expect(p2.filter((id) => p1.includes(id))).toEqual([21]);
   });
 

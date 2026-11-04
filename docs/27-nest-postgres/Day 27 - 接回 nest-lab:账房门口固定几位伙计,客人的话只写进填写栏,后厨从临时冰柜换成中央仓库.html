@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 27 - 接回 nest-lab:账房门口固定几位伙计,客人的话只写进填写栏,后厨从临时冰柜换成中央仓库</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 4</div>
+  <h1>Day 27 - 接回 nest-lab:账房门口固定几位伙计,客人的话只写进填写栏,后厨从临时冰柜换成中央仓库</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b><code>pg</code> 驱动与连接池 · SQL 注入实测与参数化 · ORDER BY 白名单 · <code>PgTasksRepository</code> · 事务写两张表 · keyset 真实 SQL · SQLSTATE → problem+json · <code>DATABASE_URL</code> fail fast · 同一套 e2e 跑两种仓储</b> ·
+    项目:<code>nest-lab/</code> 第一次真正读写 PostgreSQL;<b>今天改了 src 和 test</b> ·
+    新依赖:<code>pg@8.23.1</code>、dev 依赖 <code>@types/pg@8.23.1</code>;所有输出来自 PostgreSQL 16.15 上的真实运行
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:Day 9 埋下的那一行</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:连接池 —— 账房门口固定几位伙计,轮流接待</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:参数化查询 —— 客人的话只写进「填写栏」</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:换仓储 —— 后厨从临时冰柜换成中央仓库,前台一个字不改</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:Day 9 埋下的那一行</h2>
+  <p>Day 9 写仓储接口时留了一句注释:「Week 4 换 PostgreSQL 时,只需要把 <code>tasks.module.ts</code> 里 <code>useClass</code> 那一行换成新的实现类。」Week 4 的前五天把需要的零件都备齐了:Day 22 知道每个连接是一个进程,Day 23–24 定下了表结构和约束,Day 25–26 学会了 JOIN、<code>json_agg</code>、<code>RETURNING</code>,也决定了 checklist 用子表。今天兑现这句话,并且诚实地看看:<b>它到底是不是「只改一行」?</b></p>
+  <p>今天还有一件第一次做的事:<b>亲手把一个接口注入成功</b>。Day 19 说「排序字段白名单在 SQL 里是防注入的必要条件」,Day 24 说「约束是最后一道校验」,今天都会在真实的数据库上看到后果。</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    总店的中央账房要正式开张了。门口<b>固定站几位伙计</b>轮流接待,而不是每来一个客人就新招一个;客人要查什么,只能写在单子上的<b>「填写栏」</b>里,伙计只照着印好的<b>「操作栏」</b>办事,客人在填写栏里写「顺便把保险柜打开」也没用;后厨的食材从门口的<b>临时冰柜</b>搬进<b>中央仓库</b>,前台、菜单、点菜流程一个字都不改。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+npm install                    # 新依赖 pg、@types/pg
+docker compose up -d           # 或本机的 PostgreSQL 已在运行(Day 22)
+npm run db:reset               # 用 psql 建 schema app:sql/schema.sql + sql/seed.sql
+
+# 内存版(默认,不需要数据库)
+npm run test:e2e
+# PostgreSQL 版:同一套 e2e,先自动重建 schema app_test
+npm run test:e2e:pg
+# 观察脚本(schema app_day27,每次重建)
+npm run day27
+
+# 让开发服务器用 PostgreSQL:在 .env 里
+TASKS_STORAGE=postgres
+DATABASE_URL=postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab
+npm run start:dev</code></pre>
+  <p>Docker 用户如果本机没有 psql,<code>db:reset</code> 可以换成:<code>docker compose exec -T postgres psql -U nest_lab -d nest_lab -v schema=app -f /sql/schema.sql -f /sql/seed.sql</code>(Day 22 已经把 <code>./sql</code> 挂进了容器)。</p>
+
+  <h3>两个决定</h3>
+  <ul>
+    <li><b>存储怎么切换</b>:新增配置 <code>TASKS_STORAGE=memory|postgres</code>,<b>默认 <code>memory</code></b>。理由:<code>npm test</code>、<code>npm run test:e2e</code>、<code>day08</code>–<code>day20</code> 的观察脚本都不该因为「今天加了数据库」而必须先起一个数据库;CI 和新同学 clone 下来就能跑。选 <code>postgres</code> 时 <code>DATABASE_URL</code> 必填(第 3 张卡实测 fail fast)。</li>
+    <li><b>users 今天不迁移</b>:它现在只是 Day 18 演示「响应 DTO / 防过度暴露」的内存模块(带 <code>passwordHash</code>、<code>internalNote</code>),和任务之间还没有关系(任务没有负责人)。Week 10 做登录时,users 的结构会大改(密码哈希算法、刷新令牌、角色),到时候连同 <code>tasks.owner_id</code> 一起迁移,用的就是今天这套模式。<code>docs/er-diagram.md</code> 里 users / tags 仍标为「设计稿」。</li>
+  </ul>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用</th></tr>
+    <tr><td><code>package.json</code></td><td>修改</td><td>依赖 <code>pg@^8.23.1</code>、<code>@types/pg@^8.23.1</code>;命令 <code>db:reset</code>、<code>test:e2e:pg</code>、<code>day27</code></td></tr>
+    <tr><td><code>src/database/pg-pool.ts</code>、<code>database.module.ts</code></td><td>新增</td><td><code>PG_POOL</code> 带类型 token;<code>useFactory</code> 按配置建连接池;<code>onModuleDestroy</code> 时 <code>pool.end()</code></td></tr>
+    <tr><td><code>src/database/pg-errors.ts</code></td><td>新增</td><td>按 SQLSTATE + 约束名把数据库错误翻译成 problem+json(不带 PG 原文)</td></tr>
+    <tr><td><code>src/tasks/pg-tasks.repository.ts</code></td><td>新增</td><td>PostgreSQL 版仓储:参数化查询、事务、<code>json_agg</code>、keyset、ORDER BY 白名单</td></tr>
+    <tr><td><code>src/tasks/tasks.repository.ts</code></td><td>修改</td><td><b>接口的所有方法改成返回 Promise</b>(第 3 张卡讲为什么)</td></tr>
+    <tr><td><code>src/tasks/in-memory-tasks.repository.ts</code>、<code>tasks.service.ts</code>、<code>tasks.controller.ts</code>、<code>v1/tasks-v1.controller.ts</code></td><td>修改</td><td>跟着改成 <code>async</code> / <code>await</code>;业务规则一行没变</td></tr>
+    <tr><td><code>src/tasks/tasks.module.ts</code></td><td>修改</td><td><code>TASKS_REPOSITORY</code> 从 <code>useClass</code> 改成按 <code>TASKS_STORAGE</code> 选实现的 <code>useFactory</code>;导入 <code>DatabaseModule</code></td></tr>
+    <tr><td><code>src/config/env.schema.ts</code>、<code>.spec.ts</code>、<code>.env.example</code></td><td>修改</td><td>新增 <code>TASKS_STORAGE</code>、<code>DATABASE_URL</code>、<code>DATABASE_SCHEMA</code>、<code>DB_POOL_MAX</code>、<code>DB_RESET_ON_START</code></td></tr>
+    <tr><td><code>sql/schema.sql</code>、<code>sql/seed.sql</code>、<code>scripts/db-reset.mjs</code></td><td>新增</td><td>建表(约束沿用 Day 24)和种子数据;用 psql 重建指定的 schema</td></tr>
+    <tr><td><code>vitest.config.e2e.pg.ts</code>;<code>vitest.config.e2e.ts</code></td><td>新增;修改</td><td>PG 版 e2e 配置;内存版显式写上 <code>TASKS_STORAGE=memory</code></td></tr>
+    <tr><td><code>src/tasks/tasks.service.spec.ts</code>、<code>test/pagination.e2e-spec.ts</code>、<code>scripts/day19-try.mjs</code></td><td>修改</td><td>直接调用 Service 的地方加上 <code>await</code>(编译器指出来的,见第 3 张卡)</td></tr>
+    <tr><td><code>src/db-demo/</code>、<code>sql/day27/01-injection-demo.sql</code></td><td>新增</td><td>实验接口(SQL 注入对比、连接池观察、绕过 DTO 的写入),<b>不在 AppModule 里</b>,只给观察脚本用</td></tr>
+    <tr><td><code>scripts/day27-try.mjs</code>、<code>README.md</code>、<code>docs/er-diagram.md</code></td><td>新增 / 修改</td><td>观察脚本;命令与成长日志;ER 图标注「tasks + checklist_items 已落地」</td></tr>
+  </table>
+  <p>API 契约没有变:<code>npm run openapi:check</code> 仍然是「✅ openapi.json 与代码一致」。</p>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:连接池 —— 账房门口固定几位伙计,轮流接待</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>连接池</b>是应用里预先准备好的一组数据库连接。请求来了从池子里<b>借</b>一个,查完<b>还</b>回去,下一个请求接着用;池子满了,后来的请求排队等。这样既省掉了每次新建连接的开销(PostgreSQL 每个连接是一个进程,Day 22),也给数据库的总连接数加了一个上限。
+  </div>
+
+  <h3>② 生活类比:门口固定几位伙计</h3>
+  <p>Day 22 说过:每来一个办事的人,账房总管就专门派一个伙计陪他,直到他离开。如果分店每接一单就派一个人去账房、办完就走,账房要不停地招人、遣散人,高峰期一下子来两百个人,账房就挤爆了。连接池的做法是:<b>门口固定站 5 位伙计</b>,谁来了就找一位空闲的,办完伙计留在门口等下一位;5 位都忙时,后来的人<b>排队</b>,而不是再招第 6 位。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>nest-lab 里</th></tr>
+    <tr><td>门口的伙计队伍</td><td><code>pg.Pool</code></td><td><code>PG_POOL</code>(<code>src/database/pg-pool.ts</code>)</td></tr>
+    <tr><td>最多几位</td><td><code>max</code></td><td><code>DB_POOL_MAX</code>,默认 10</td></tr>
+    <tr><td>闲太久的伙计先回去</td><td><code>idleTimeoutMillis</code></td><td>10 秒</td></tr>
+    <tr><td>排队最多等多久</td><td><code>connectionTimeoutMillis</code></td><td>3 秒,超时报错而不是无限挂住</td></tr>
+    <tr><td>借一位伙计 / 还回去</td><td><code>pool.query()</code>(自动借还)/ <code>pool.connect()</code> + <code>client.release()</code>(手动,事务要用)</td><td><code>PgTasksRepository.transaction()</code></td></tr>
+    <tr><td>工牌上写着「nest-lab」</td><td><code>application_name</code></td><td>在 <code>pg_stat_activity</code> 里认得出来</td></tr>
+    <tr><td>关店时让伙计都回家</td><td><code>pool.end()</code></td><td><code>DatabaseModule.onModuleDestroy()</code></td></tr>
+  </table>
+  <p>在 Nest 里,池子是一个 <b>Provider</b>:Day 12 的带类型 token <code>PG_POOL</code> + Day 9 的 <code>useFactory</code>(从 <code>ConfigService</code> 读连接串、池大小、schema 名),<code>DatabaseModule</code> 实现 <code>onModuleDestroy</code>,在 <code>app.close()</code> 时把所有连接还给数据库(不关的话进程会因为还有打开的 socket 退不出去)。<code>pg.Pool</code> 创建时<b>不会</b>连数据库,第一次 <code>query</code> 才真正建连接,所以内存模式下它只是一个闲置的对象。</p>
+
+  <p><b>⑤ 动手验证:</b>池子上限设为 5,同时发 20 个请求,每个请求占用连接 300 ms(<code>SELECT pg_sleep(0.3)</code>)。✍️ <b>预测(先写再运行)</b>:总用时大约多少?<code>pg_stat_activity</code> 里 nest-lab 的连接数最多是几?请求结束后连接会立刻消失吗?真实结果(<code>npm run day27</code> 第 1 幕):</p>
+  <pre><code>========== 第 1 幕:20 个请求同时到达,每个占用连接 300 ms;池子最多 5 个连接 ==========
+20 个请求全部返回:是,总用时 1283 ms(串行要 6000 ms,不限连接数约 300 ms)
+它们一共用到了 5 个不同的后端进程:12151, 12153, 12154, 12155, 12156
+观察期间 pg_stat_activity 里 nest-lab 的连接数最多是 5
+✅ 并发 20 个请求时,连接数始终不超过池大小 5
+请求结束后,池子里还留着 5 个空闲连接(idleTimeoutMillis=10000,空闲 10 秒才关)</code></pre>
+  <p>20 个请求分 4 轮,每轮 5 个,4 × 300 ms ≈ 1.2 秒,加上开销就是 1283 ms。只用到 <b>5 个后端进程</b>,后来的请求复用的是同一批连接。请求结束后连接没有断,还在池子里等下一批,这正是池子省掉的开销。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「伙计越多,办得越快」——池子不是越大越好。</b>数据库的 CPU、磁盘是固定的,同时干活的连接一多,反而在争锁、争 CPU、来回切换上浪费时间,总吞吐量可能下降。HikariCP(Java 最常用的连接池)文档里有个经验公式:<code>连接数 ≈ CPU 核数 × 2 + 磁盘数</code>,意思是池子通常比想象的小得多。真正的答案靠压测(Week 17 / Week 19)。</li>
+      <li><b>「一个账房一支伙计队伍」——多副本时要乘以副本数。</b>Day 4 讲过 cluster 开多个进程,部署时还会开多个副本:4 个副本 × 每个池 10 = 40 个连接,再加上后台任务、迁移脚本、你自己开的 psql。PostgreSQL 默认 <code>max_connections</code> 是 100(Day 22 实测),很容易超。连接数太多时,要在数据库前面放 PgBouncer 这类「共享的伙计队伍」(Week 6)。</li>
+      <li><b>「伙计办完就还回来」——忘了还,队伍就借空了。</b><code>pool.query()</code> 会自动借还;<code>pool.connect()</code> 拿到的连接必须在 <code>finally</code> 里 <code>release()</code>。漏一次 release,池子就少一个人;漏 5 次,所有请求都会卡在「等待空闲连接」,3 秒后报超时。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>connection pool</b>;<b><code>pg.Pool</code> / <code>pg.Client</code> / <code>PoolClient</code></b>;<b><code>max</code> / <code>idleTimeoutMillis</code> / <code>connectionTimeoutMillis</code></b>;<b>connection acquisition / release</b>;<b>pool exhaustion</b>(池子被借空);<b><code>application_name</code></b>;<b>PgBouncer</b>(外部连接池,Week 6);<b>graceful shutdown</b>(<code>onModuleDestroy</code> + <code>pool.end()</code>)。
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:参数化查询 —— 客人的话只写进「填写栏」</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>SQL 注入</b>:把用户输入拼进 SQL 字符串,用户就能在输入里写 SQL,改掉你的语句本来的意思。<b>参数化查询</b>:SQL 文本固定写成 <code>… WHERE body LIKE '%' || $1 || '%'</code>,用户输入作为<b>参数</b>单独发给数据库,数据库只把它当成一个值,永远不会把它当 SQL 解析。<b>数据和指令走不同的通道</b>。但列名、表名、排序方向这类「SQL 结构」不能参数化,只能从白名单里选。
+  </div>
+
+  <h3>② 生活类比:单子上的填写栏和操作栏</h3>
+  <p>账房的单子印着两栏:<b>操作栏</b>是印好的,「查询 alice 的笔记,内容包含【 】」;<b>填写栏</b>就是那对括号,客人只能往里面写字。伙计只照着操作栏办事,客人在括号里写「或者把所有人的笔记都给我,再把保险柜打开」,伙计会老老实实地去找「内容包含『或者把所有人的笔记都给我……』」的笔记,当然一条也找不到。<b>拼接字符串</b>则相当于让客人<b>自己在空白纸上写整张单子</b>,前半句由你写好、后半句由客人接着写,他想写什么操作都行。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实做法</th><th>今天实测</th></tr>
+    <tr><td>客人接着写整张单子</td><td><b>拼接字符串</b>:<code>`… LIKE '%${q}%'`</code></td><td><code>/demo/notes/unsafe</code>:永真条件、UNION、多语句全部成功</td></tr>
+    <tr><td>印好的操作栏 + 填写栏</td><td><b>参数化查询</b>:<code>pool.query('… $1 …', [q])</code></td><td><code>/demo/notes/safe</code>:同样四个输入都只是「要搜的文字」</td></tr>
+    <tr><td>一张单子只能办一件事</td><td>带参数时 pg 驱动走<b>扩展查询协议</b>(先发 SQL 文本、再发参数),一条 SQL 只能是一条语句</td><td><code>42601 cannot insert multiple commands into a prepared statement</code></td></tr>
+    <tr><td>操作栏里「按哪一栏排序」只能勾选</td><td><b>列名 / 方向白名单</b>:<code>SORT_SQL[field]</code>、<code>ASC</code> / <code>DESC</code> 由代码决定</td><td>Day 19 的 <code>SORTABLE_FIELDS</code> + <code>@IsIn</code></td></tr>
+    <tr><td>客人写的「%」只是百分号</td><td>LIKE 通配符转义:<code>%</code> <code>_</code> <code>\</code> 前面加 <code>\</code>,配 <code>ESCAPE '\'</code></td><td><code>escapeLike()</code></td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证:先亲手注入一次。</b><code>sql/day27/01-injection-demo.sql</code> 建了两张实验表:<code>day27_demo.notes</code>(alice 两条、bob 一条私人笔记)和一张接口不该碰到的 <code>day27_demo.api_keys</code>。<code>src/db-demo/db-demo.controller.ts</code> 里有一个<b>故意写错</b>的接口,只查 alice 的笔记:</p>
+  <pre><code>// ❌ 永远不要这样写
+const sql = `SELECT id, body FROM day27_demo.notes WHERE owner = 'alice' AND body LIKE '%${q}%'`;
+await this.pool.query(sql);</code></pre>
+  <p>✍️ <b>预测</b>:<code>q = ' OR 1=1 --</code> 会返回谁的笔记?<code>q = ' UNION SELECT id, secret FROM day27_demo.api_keys --</code> 呢?<code>q = '; DROP TABLE day27_demo.api_keys; --</code> 会怎样?真实结果(第 2 幕):</p>
+  <pre><code>❌ 拼接 · 正常搜索:q = SQL
+   实际执行的 SQL:SELECT id, body FROM day27_demo.notes WHERE owner = 'alice' AND body LIKE '%SQL%'
+   → SELECT:[{"id":2,"body":"周二:学 SQL 注入"}]
+
+❌ 拼接 · 永真条件:q = ' OR 1=1 --
+   实际执行的 SQL:SELECT id, body FROM day27_demo.notes WHERE owner = 'alice' AND body LIKE '%' OR 1=1 --%'
+   → SELECT:[{"id":1,"body":"周一:买菜"},{"id":2,"body":"周二:学 SQL 注入"},{"id":3,"body":"Bob 的私人笔记:银行卡密码提示"}]
+
+❌ 拼接 · UNION 偷别的表:q = ' UNION SELECT id, secret FROM day27_demo.api_keys --
+   实际执行的 SQL:SELECT id, body FROM day27_demo.notes WHERE owner = 'alice' AND body LIKE '%' UNION SELECT id, secret FROM day27_demo.api_keys --%'
+   → SELECT:[{"id":1,"body":"周一:买菜"},{"id":1,"body":"DEMO-SECRET-not-a-real-key"},{"id":2,"body":"周二:学 SQL 注入"}]
+
+❌ 拼接 · 多语句:删表:q = '; DROP TABLE day27_demo.api_keys; --
+   实际执行的 SQL:SELECT id, body FROM day27_demo.notes WHERE owner = 'alice' AND body LIKE '%'; DROP TABLE day27_demo.api_keys; --%'
+   → SELECT:[{"id":1,"body":"周一:买菜"},{"id":2,"body":"周二:学 SQL 注入"}]
+   → DROP:[]
+
+多语句注入之后,day27_demo.api_keys 还在吗?不在了</code></pre>
+  <p>三次攻击全部成功:<b>永真条件</b>让 <code>OR 1=1</code> 绕过了 <code>owner = 'alice'</code>(AND 比 OR 优先,<code>--</code> 把后面的 <code>%'</code> 注释掉),读到了 Bob 的私人笔记;<b>UNION</b> 把另一张表的密钥拼进了结果;<b>多语句</b>直接删掉了一张表。最后一种能成功,是因为这个接口调用 <code>pool.query(sql)</code> 时<b>没有传参数</b>,pg 驱动走「简单查询协议」:整段文本原样交给数据库,里面有几条语句就执行几条,驱动返回的是一个「每条语句一个结果」的数组(上面的 <code>SELECT</code> 和 <code>DROP</code> 两行)。</p>
+  <p>参数化版本(表先重建回来):</p>
+  <pre><code>✅ 参数化 · 永真条件:q = ' OR 1=1 --
+   SQL 文本永远是:SELECT id, body FROM day27_demo.notes WHERE owner = 'alice' AND body LIKE '%' || $1 || '%'
+   → 200:[]
+✅ 参数化 · UNION 偷别的表 …  → 200:[]
+✅ 参数化 · 多语句:删表 …     → 200:[]
+(正常搜索 q = SQL → 200:[{"id":2,"body":"周二:学 SQL 注入"}])
+
+带参数时塞两条语句:42601 cannot insert multiple commands into a prepared statement</code></pre>
+  <p>同样的四个输入,参数化之后都只是「要搜的文字」:没有哪条 alice 的笔记里包含 <code>' OR 1=1 --</code> 这串字符,所以结果是空的。最后一行:带参数时驱动走「扩展查询协议」,SQL 文本和参数分开发送,一段文本里只能有一条语句,这又多了一层保护(但不要依赖它,真正的保护是「值不进 SQL 文本」)。</p>
+  <p><b>排序字段为什么不能参数化</b>:<code>ORDER BY $1</code> 里的 <code>$1</code> 会被当成一个<b>值</b>(比如字符串 <code>'title'</code>),对每一行都一样,等于没排序;它不能变成列名。所以 <code>PgTasksRepository</code> 里有一张白名单:</p>
+  <pre><code>// src/tasks/pg-tasks.repository.ts
+const SORT_SQL: Record&lt;SortField, { expr: string; cast: string }&gt; = {
+  id: { expr: 't.id', cast: 'bigint' },
+  createdAt: { expr: 't.created_at', cast: 'timestamptz' },
+  title: { expr: 't.title COLLATE "C"', cast: 'text' },
+};
+// 用户的 ?sort=-createdAt 只用来「选」哪一项;拼进 SQL 的永远是代码里写死的字符串
+const orderBy = sort.map((s) =&gt; `${SORT_SQL[s.field].expr} ${s.dir === 'desc' ? 'DESC' : 'ASC'}`).join(', ');</code></pre>
+  <p>Day 19 的 DTO(<code>@IsIn</code>)是第一道墙,这张表是第二道。同样的道理也用在 <code>DATABASE_SCHEMA</code> 上:schema 名会拼进连接参数 <code>search_path</code>,所以 env schema 用正则限制它只能是小写字母、数字、下划线(<code>env.schema.spec.ts</code> 里测了 <code>'app; DROP TABLE tasks'</code> 会被拒绝)。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「有了填写栏就万事大吉」——参数化只保护「值」。</b>列名、表名、排序方向、<code>LIMIT</code> 以外的 SQL 结构(比如 <code>IN (…)</code> 里有几个元素)都不能用 <code>$n</code>。动态生成这些部分时,只能用白名单,或者 <code>pg</code> 的 <code>escapeIdentifier</code> 这类函数,并且要非常小心。ORM 也一样:Prisma 的 <code>$queryRawUnsafe</code>、EF Core 的 <code>FromSqlRaw</code> 拼字符串,照样能被注入(第 6 节)。</li>
+      <li><b>「客人填写栏里写的只是文字」——对数据库是,对下一个读它的人不一定。</b>参数化防的是 SQL 注入。用户存进去的 <code>&lt;script&gt;…</code> 依然是一段字符串,如果前端拿它去拼 HTML,那是 XSS(Week 20)。每一层都要按自己的语法转义:SQL 用参数,HTML 用转义 / 框架的自动转义,shell 用参数数组(Day 4 的 shell 注入)。</li>
+      <li><b>「伙计会检查填写栏里写的是不是合理」——参数化不做校验。</b><code>q</code> 可以有 1 MB 长,可以全是 <code>%</code>(没转义时就变成「匹配一切」)。长度、格式仍然是 DTO 的事(Day 16),LIKE 通配符要自己转义(<code>escapeLike</code>)。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>SQL injection</b>(OWASP Top 10 的 Injection 类);<b>tautology attack</b>(<code>OR 1=1</code>);<b>UNION-based injection</b>;<b>stacked queries</b>(多语句);<b>parameterized query / prepared statement</b>;<b>bind parameter</b>(<code>$1</code>);PostgreSQL 的 <b>simple query protocol</b> vs <b>extended query protocol</b>;<b>identifier vs literal</b>(<code>escapeIdentifier</code> / <code>escapeLiteral</code>);<b>allowlist</b>;<b>LIKE escaping</b>。
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:换仓储 —— 后厨从临时冰柜换成中央仓库,前台一个字不改</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    Day 9 让 <code>TasksService</code> 只依赖 <code>TasksRepository</code> <b>接口</b>,今天写了第二个实现 <code>PgTasksRepository</code>,按配置选用哪一个;Controller、DTO、映射函数、错误格式都没改,<b>同一套 85 个 e2e 在两种仓储上都通过</b>。新实现里有三件内存版不需要操心的事:<b>两张表要一起写成功</b>(事务)、<b>数据库会拒绝坏数据</b>(约束错误要翻译成 problem+json)、<b>数据库在另一个进程里</b>(一切都是异步的)。
+  </div>
+
+  <h3>② 生活类比:临时冰柜换成中央仓库</h3>
+  <p>后厨原来从门口的临时冰柜拿食材,伸手就有;现在改从中央仓库调货:要<b>打电话、等送来</b>(异步);一道菜要的两样食材必须<b>一起送到</b>,只到一样就整单退回(事务);仓库有自己的入库规矩,不合格的货直接拒收,后厨要把「仓库拒收单」翻译成客人听得懂的话(约束 → problem+json)。前台、菜单、点菜流程一个字不改。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实做法</th><th>nest-lab 里</th></tr>
+    <tr><td>后厨只认「进货合同」</td><td>依赖接口,不依赖实现(Day 9 的 DI)</td><td><code>TasksRepository</code> + <code>TASKS_REPOSITORY</code> token</td></tr>
+    <tr><td>按配置决定从哪里进货</td><td><code>useFactory</code> 按 <code>TASKS_STORAGE</code> 返回不同实现</td><td><code>tasks.module.ts</code></td></tr>
+    <tr><td>打电话等送货</td><td>接口方法返回 <code>Promise</code></td><td>Service / Controller 全部 <code>await</code></td></tr>
+    <tr><td>两样食材一起送到,否则整单退回</td><td>同一个连接上 <code>BEGIN … COMMIT</code>,出错 <code>ROLLBACK</code></td><td><code>PgTasksRepository.transaction()</code></td></tr>
+    <tr><td>仓库拒收单 → 客人听得懂的话</td><td>SQLSTATE + 约束名 → problem+json</td><td><code>src/database/pg-errors.ts</code></td></tr>
+    <tr><td>「从书签之后继续」</td><td>keyset 条件:行值比较 / OR 展开</td><td><code>keysetCondition()</code></td></tr>
+    <tr><td>配置写错就不开门</td><td>env schema 校验 + 启动时 <code>SELECT 1</code></td><td>fail fast(Day 12)</td></tr>
+  </table>
+
+  <h3>「只改一行」兑现了吗?</h3>
+  <p><b>差一点。</b>Day 9 的接口是同步的:<code>findById(id: number): Task | undefined</code>。内存数组伸手就有,同步没问题;数据库在另一个进程里,每次读写都是网络 I/O,在 Node 里只能是异步的(Day 1–3 的 event loop)。所以今天第一件事是把接口改成 <code>Promise&lt;Task | undefined&gt;</code>。这就是所谓的<b>抽象泄漏</b>:接口本该只描述「能做什么」,却悄悄带上了「数据就在手边」这个实现细节。改完以后,TypeScript 编译器把所有没 <code>await</code> 的地方一个个指了出来(单元测试里的假仓储、<code>pagination.e2e-spec.ts</code> 里直接调 Service 的地方、<code>day19</code> 观察脚本),改掉它们就好;<b>业务规则一行都没动</b>。教训:设计会碰 I/O 的接口时,从第一天就写成异步的,哪怕第一个实现是内存版。</p>
+  <p>第二处是 <code>tasks.module.ts</code>:不是改 <code>useClass</code> 那一行,而是把它换成一个按配置选择的 <code>useFactory</code>(为了让默认的内存版不需要数据库):</p>
+  <pre><code>{
+  provide: TASKS_REPOSITORY,
+  useFactory: (seed: Task[], pool: pg.Pool, config?: ConfigService&lt;Env, true&gt;): TasksRepository =&gt; {
+    if (config?.get('TASKS_STORAGE', { infer: true }) !== 'postgres') return new InMemoryTasksRepository(seed);
+    return new PgTasksRepository(pool, config.get('DB_RESET_ON_START', { infer: true }) ? seed : null);
+  },
+  inject: [TASKS_SEED, PG_POOL, { token: ConfigService, optional: true }],
+}</code></pre>
+
+  <p><b>⑤ 动手验证 A:PG 版的 CRUD 全流程。</b>✍️ <b>预测</b>:<code>POST</code> 一个带两个清单项的任务,数据库里两张表各多几行?删掉它之后,清单项还剩几行?真实结果(第 3 幕):</p>
+  <pre><code>POST   /v2/tasks      → 201,Location: /tasks/3
+       {"id":3,"title":"接上 PostgreSQL","done":false,"checklist":[{"text":"装 pg","done":true},{"text":"写仓储","done":false}],"createdAt":"2026-11-04T13:54:25.975Z"}
+       数据库里:tasks 有 1 行,checklist_items 有 2 行
+PATCH  /v2/tasks/3    → 200 {"id":3,"title":"接上 PostgreSQL","done":true,"checklist":[{"text":"全部完成","done":true}],"createdAt":"2026-11-04T13:54:25.975Z"}
+PUT    /v2/tasks/3    → 409 https://nest-lab.example/problems/conflict/task-completed(Day 15 的 409 规则照样生效)
+DELETE /v2/tasks/3    → 204;清单项还剩 0 行(ON DELETE CASCADE)
+DELETE /v2/tasks/3    → 404 https://nest-lab.example/problems/not-found</code></pre>
+  <p>仓储里的写法就是 Day 26 准备好的那几样:<code>INSERT … RETURNING id</code> 拿到新 id;清单项用一条 <code>INSERT … SELECT … FROM unnest($2::text[], $3::boolean[]) WITH ORDINALITY</code> 一次写完;读的时候用 <code>LEFT JOIN LATERAL (… json_agg(… ORDER BY c.position) …)</code> + <code>coalesce(…, '[]')</code> 把清单拼成数组;<code>UPDATE</code> 影响 0 行就返回 <code>undefined</code>,Service 翻译成 404。</p>
+
+  <p><b>⑤ 动手验证 B:事务与约束。</b><code>/demo/raw-tasks</code> 是一个实验接口,它<b>绕过 DTO</b> 直接调用 Service,模拟「别的服务、脚本、有 bug 的代码绕过了前台」。✍️ <b>预测</b>:标题全是空格时回什么?一个任务的第二个清单项是空的,任务本身会不会被写进去?真实结果(第 4 幕):</p>
+  <pre><code>标题全是空格     → 422 {"type":"https://nest-lab.example/problems/validation-error","title":"请求内容未通过校验","status":422,"detail":"请求内容未通过数据库的校验","instance":"/demo/raw-tasks","requestId":"80b4cc12-…","errors":[{"pointer":"#/title","detail":"不符合数据规则"}]}
+第二个清单项是空的 → 422 {…,"errors":[{"pointer":"#/checklist","detail":"不符合数据规则"}]}
+任务总数:之前 2,之后 2;「带一个坏清单项的任务」在库里有 0 行
+✅ 约束违反 → 422 problem+json,pointer 指到字段
+✅ 第二张表写失败时,第一张表的 INSERT 也被回滚了
+✅ 响应里没有 PG 原文(表名、约束名、SQLSTATE)</code></pre>
+  <p>第二个请求里,<code>INSERT INTO tasks</code> 其实已经成功执行了,是接下来的 <code>INSERT INTO checklist_items</code> 撞上了 <code>checklist_items_text_check</code>。因为两条语句在同一个事务里,<code>ROLLBACK</code> 把任务那一行也撤销了,库里不会留下一个「清单只写了一半」的任务。<b>为什么一定要用 <code>pool.connect()</code> 拿同一个连接</b>:如果写成 <code>pool.query('BEGIN')</code>、<code>pool.query('INSERT …')</code>、<code>pool.query('COMMIT')</code>,三次调用可能被分给三位不同的伙计(三个不同的数据库进程),BEGIN 开的事务和 INSERT 根本不在一起。错误翻译按 Day 24 的约定(<code>docs/er-diagram.md</code>):<code>23514</code> / <code>23502</code> → 422,<code>23505</code> → 409,<code>23503</code> 插入时 422、删除时 409;判断依据是 SQLSTATE 和约束名,响应里不出现任何 PG 原文。</p>
+
+  <p><b>⑤ 动手验证 C:keyset 分页的真实 SQL。</b>Day 19 的书签在内存版里是 JS 比较,今天变成了 <code>WHERE</code> 条件。方向一致时用行值比较,方向混合时(Day 19 的遗留问题)展开成 OR:</p>
+  <pre><code>sort=-id(方向一致)  → (t.id) &lt; ($1::bigint)
+sort=-createdAt,title(方向混合)→ ((t.created_at &lt; $1::timestamptz) OR (t.created_at = $1::timestamptz AND t.title COLLATE "C" &gt; $2::text) OR (t.created_at = $1::timestamptz AND t.title COLLATE "C" = $2::text AND t.id &gt; $3::bigint))
+sort=-id              每页 7 条:6 页,看到 42 条,去重 42 条,翻页开始时共 42 条
+✅ sort=-id:不重复、不遗漏(途中新建的那条排在已翻过的位置,不会出现)
+sort=-createdAt,title 每页 7 条:7 页,看到 43 条,去重 43 条,翻页开始时共 43 条
+✅ sort=-createdAt,title:不重复、不遗漏(途中新建的那条排在已翻过的位置,不会出现)</code></pre>
+  <p>行值比较 <code>(a, b, id) &lt; ($1, $2, $3)</code> 只有一个方向,<code>-createdAt,title</code> 是「createdAt 降序、title 升序」,用不了,就逐列展开:前面的列相等、这一列按自己的方向比较。目前 <code>SORTABLE_FIELDS</code> 的所有组合(包括混合方向)都走这段代码,e2e 的分页测试在 PG 版上全部通过。<code>title</code> 加了 <code>COLLATE "C"</code>:按字节比较,和内存版的 JS 字符串比较结果一致,也不受数据库默认 locale 影响(Docker 的 <code>postgres</code> 镜像默认是 <code>en_US.utf8</code>,本机是 <code>C.UTF-8</code>,两者对标点、大小写的排序不同)。</p>
+
+  <p><b>⑤ 动手验证 D:fail fast。</b>(第 7 幕)</p>
+  <pre><code>TASKS_STORAGE=postgres,不设 DATABASE_URL → 退出码 1
+ERROR [ExceptionHandler] Error: 环境变量校验失败,拒绝启动:
+  - DATABASE_URL: TASKS_STORAGE=postgres 时必须设置 DATABASE_URL
+DATABASE_URL 指向一个没人监听的端口 → 退出码 1
+Error: connect ECONNREFUSED 127.0.0.1:5999</code></pre>
+  <p>第一种由 Day 12 的 env schema 拦下(<code>superRefine</code>:选了 postgres 就必须有连接串);第二种是 <code>PgTasksRepository.onModuleInit()</code> 启动时先 <code>SELECT 1</code>,数据库连不上就让应用启动失败,而不是等第一个请求才 500。</p>
+
+  <p><b>⑤ 动手验证 E:同一套 e2e,两种仓储。</b></p>
+  <pre><code>$ npm run test:e2e
+ Test Files  11 passed (11)
+      Tests  85 passed (85)
+
+$ npm run test:e2e:pg
+✅ schema app_test 已重建(sql/schema.sql)
+ Test Files  11 passed (11)
+      Tests  85 passed (85)
+
+# 证明 PG 版真的连了数据库:把端口改错再跑
+ Test Files  9 failed | 2 passed (11)
+      Tests  47 failed | 6 passed | 32 skipped (85)</code></pre>
+  <p><b>回答 Day 21 留下的思考题:「换成 PG 后,85 个 e2e 用例还应该全部通过吗?」</b>应该,而且实测确实全部通过,<b>一条断言都没改</b>。e2e 测的是 HTTP 契约(状态码、响应体、错误格式),不是存储方式;如果哪条挂了,说明两种实现的<b>行为</b>不一样,那正是 bug 所在。但让它们通过,需要三处测试<b>基础设施</b>的调整,都和「测试假设了什么」有关:</p>
+  <ol>
+    <li><b>每个测试都假设「开店时只有两条样品任务,下一个 id 是 3」</b>。内存版每创建一个 app 就是一个新数组;PG 版的数据会留在库里。所以加了 <code>DB_RESET_ON_START</code>:创建 app 时 <code>TRUNCATE … RESTART IDENTITY</code> 并写入同样的样品数据(样品的 <code>createdAt</code> 来自注入的 <code>CLOCK</code>,所以 <code>rest.e2e</code> 里写死的 <code>2026-01-01</code> 也对得上)。生产环境禁止打开这个开关。</li>
+    <li><b>内存版每个测试文件各有各的数组,可以并行</b>;PG 版共用一个库,所以 <code>fileParallelism: false</code>,表放在独立的 schema <code>app_test</code>。</li>
+    <li><b>直接调用 Service 的测试</b>(<code>pagination.e2e-spec.ts</code>)要加 <code>await</code>:这是接口改成异步带来的,编译器会指出来。另外,有两个用例(<code>tasks.e2e</code> 的「覆盖配置」、<code>openapi.e2e</code> 的「关闭文档」)整个替换了 <code>ConfigService</code>,里面没有 <code>TASKS_STORAGE</code>,在 PG 版里它们实际上还是用内存仓储。不影响结论,但要知道。</li>
+  </ol>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「换了仓库,菜的味道一模一样」——两种实现的行为并不完全相同。</b>观察脚本第 6 幕就是一个真实的例子:<code>PATCH {"title": null}</code> 能通过 DTO(<code>PartialType</code> 加的 <code>@IsOptional</code> 会放过 <code>null</code>),内存版把标题改成了 <code>null</code> 并返回 200;PG 版被 <code>NOT NULL</code> 约束拦下,返回 422(<code>"pointer":"#/title"</code>)。数据库约束替 DTO 补了一个漏洞,这正是 Day 24 说的「最后一道校验」;但它也说明 DTO 有一个真 bug(习题 3)。其他差异:排序规则(用 <code>COLLATE "C"</code> 对齐)、时间精度(PG 是微秒,这里写入的都是 JS 的毫秒)、<code>bigint</code> 被驱动读成字符串(仓储里 <code>Number()</code>)。这些差异 85 个用例都没覆盖到,所以「e2e 全过」不等于「行为完全一致」。</li>
+      <li><b>「一起送到就万无一失」——今天的事务只保证「两张表一起成功或一起失败」。</b>Service 的 <code>replace</code> / <code>update</code> 是「先查(检查 409 规则)、再改」两次往返,中间如果另一个请求改了同一条任务,检查的结论就过时了;两个请求同时 PATCH 同一条,后写的会覆盖先写的。并发下读到什么、怎么加锁、隔离级别,是 Week 6 的内容。</li>
+      <li><b>「仓库会告诉你哪里不对」——约束只认识它自己的规则。</b>Day 15 的「已完成的任务不能改标题」、Day 16 的「清单最多 20 项」,数据库都不知道,仍然靠 Service 和 DTO。约束错误的翻译表(<code>pg-errors.ts</code>)也只登记了 API 能碰到的约束;没登记的数据库错误一律当 500,并且不暴露原文。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>repository pattern</b>;<b>dependency inversion</b>;<b>leaky abstraction</b>(抽象泄漏);<b>transaction</b>(<code>BEGIN</code> / <code>COMMIT</code> / <code>ROLLBACK</code>,同一个连接);<b>atomicity</b>(ACID 的 A,Week 6);<b>SQLSTATE mapping / error translation</b>;<b>keyset pagination</b>(row value comparison vs expanded OR);<b>collation</b>(<code>COLLATE "C"</code>);<b>fail fast</b>;<b>test fixture / database reset</b>;<b>contract test</b>(同一套测试验证两个实现)。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <table>
+    <tr><th>命题</th><th>Node.js / TS(今天)</th><th>C# / .NET</th><th>Java</th><th>Go</th></tr>
+    <tr>
+      <td>参数化查询</td>
+      <td><code>pool.query('… WHERE id = $1', [id])</code></td>
+      <td>ADO.NET / Npgsql:<code>NpgsqlCommand</code> + <code>cmd.Parameters.AddWithValue("id", id)</code>;Dapper:<code>conn.Query&lt;Task&gt;("… WHERE id = @id", new { id })</code></td>
+      <td>JDBC <code>PreparedStatement</code>:<code>ps.setLong(1, id)</code>(SQL 里写 <code>?</code>);Spring <code>JdbcTemplate.query("… = ?", mapper, id)</code></td>
+      <td><code>database/sql</code>:<code>db.QueryContext(ctx, "… = $1", id)</code>;pgx:<code>pool.Query(ctx, "… = $1", id)</code></td>
+    </tr>
+    <tr>
+      <td>危险写法</td>
+      <td>模板字符串拼 SQL;Prisma <code>$queryRawUnsafe</code></td>
+      <td>EF Core:<code>FromSql($"… {id}")</code> 会把插值<b>自动变成参数</b>(安全);<code>FromSqlRaw("… " + id)</code> 拼字符串(危险)</td>
+      <td><code>Statement</code> + 字符串拼接</td>
+      <td><code>fmt.Sprintf</code> 拼 SQL</td>
+    </tr>
+    <tr>
+      <td>连接池</td>
+      <td><code>pg.Pool</code>(<code>max</code> 默认 10)</td>
+      <td>Npgsql 内置连接池,连接串里 <code>Maximum Pool Size</code>(默认 100)</td>
+      <td>HikariCP(Spring Boot 默认,<code>maximumPoolSize</code> 默认 10)</td>
+      <td><code>database/sql</code> 的 <code>SetMaxOpenConns</code>;<code>pgxpool</code></td>
+    </tr>
+    <tr>
+      <td>事务</td>
+      <td><code>pool.connect()</code> → <code>BEGIN</code> / <code>COMMIT</code> / <code>ROLLBACK</code> → <code>release()</code></td>
+      <td><code>using var tx = conn.BeginTransaction()</code>;EF Core <code>SaveChanges</code> 自带事务</td>
+      <td>Spring <code>@Transactional</code>(Week 7)</td>
+      <td><code>tx, _ := db.BeginTx(ctx, nil)</code>;<code>defer tx.Rollback()</code></td>
+    </tr>
+  </table>
+  <p>EF Core 那一格值得记住:<code>FromSql</code>(或旧名 <code>FromSqlInterpolated</code>)接收的是 C# 的插值字符串,EF 会把 <code>{id}</code> 变成参数;<code>FromSqlRaw</code> 接收普通字符串,你拼进去的就是 SQL。两个方法名只差一个单词,安全性完全不同。🔎 核实说明:跨语言表里的 API 名称和默认值(Npgsql 默认池大小 100、HikariCP 默认 10、<code>FromSql</code> 的插值参数化)是公认事实,<b>没有在本机实测</b>;<code>pg.Pool</code> 默认 <code>max</code> 10 来自 node-postgres 文档,今天的代码显式设置了它。</p>
+  <p>📌 roadmap 顶部对照表的「ORM / 数据访问」一行,前几天已经建议你在 Day 28 补关系写法和错误码;今天再补一句「不用 ORM 时:参数化查询 + 连接池」(<code>pg</code> / <code>pg.Pool</code> ↔ Npgsql / Dapper ↔ JDBC <code>PreparedStatement</code> / HikariCP ↔ <code>database/sql</code> / pgxpool),内容自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"What is SQL injection and why do parameterized queries prevent it? Can you parameterize ORDER BY? How do you size a connection pool?"</b>(或者:「什么是 SQL 注入?参数化为什么能防?ORDER BY 能参数化吗?连接池大小怎么定?」)你可以答:<br>
+    <b>"SQL 注入是把用户输入拼进 SQL 字符串,输入里的引号、OR、UNION、分号会改变语句本来的结构,轻则读到别人的数据,重则删表。参数化查询把 SQL 文本和参数分开发给数据库,文本先被解析成固定的结构,参数只作为值代入,不会再被当成 SQL 解析,所以不管输入是什么都改不了语句结构;在 PostgreSQL 里带参数的查询走扩展查询协议,一段文本里也只能有一条语句。但参数只能代替值,列名、表名、排序方向这类结构不能参数化,ORDER BY 必须用白名单把用户的选择映射成代码里写死的列名。连接池的作用是复用连接,PostgreSQL 每个连接是一个进程,建连接很贵,而且 max_connections 有限,所以池子要有上限;大小不是越大越好,数据库能同时有效干活的连接数大约和 CPU 核数同一个量级,还要乘以应用的副本数,不能超过数据库的上限,最终靠压测确定。连接数需求很大时会在前面加 PgBouncer。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:跟着跑一遍(动手,约 8 min)</h3>
+    <ol>
+      <li>先把第 3、4、5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day27</code> 批改。</li>
+      <li>在 <code>.env</code> 里设 <code>TASKS_STORAGE=postgres</code>,<code>npm run db:reset</code>,<code>npm run start:dev</code>,用 curl 建一个任务,然后<b>重启服务</b>再 GET 它。和 Day 22 开头那个「重启就没了」的实验对比。</li>
+      <li>把 <code>scripts/day27-try.mjs</code> 里的 <code>DB_POOL_MAX: '5'</code> 临时改成 <code>'1'</code>,再跑观察脚本第 1 幕的那 20 个请求。✍️ <b>预测</b>:总用时多少?会不会有请求因为等不到连接而超时(<code>connectionTimeoutMillis</code> 是 3 秒)?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:找出注入点(动笔,约 8 min)</h3>
+    <p>下面四段代码,哪些有注入风险?怎么改?</p>
+    <pre><code>// ①
+pool.query(`SELECT * FROM tasks WHERE id = ${Number(req.params.id)}`);
+// ②
+pool.query(`SELECT * FROM tasks ORDER BY ${req.query.sort} LIMIT $1`, [limit]);
+// ③
+pool.query('SELECT * FROM tasks WHERE title ILIKE $1', [`%${q}%`]);
+// ④
+pool.query(`SELECT * FROM tasks WHERE id IN (${ids.map((_, i) =&gt; `$${i + 1}`).join(',')})`, ids);</code></pre>
+    <p>✍️ 提示:① 看起来拼了字符串,但拼进去的是什么类型?它在什么情况下会出问题(<code>NaN</code>)?② 能不能把 <code>sort</code> 改成 <code>$2</code>?③ 安全吗?用户输入 <code>%</code> 会怎样?④ 拼进去的是什么?还有更简单的写法吗(提示:<code>= ANY($1::bigint[])</code>)?</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:修掉 DTO 的 null 漏洞(动手,约 9 min)</h3>
+    <ol>
+      <li>在内存版(默认)上复现:<code>PATCH /v2/tasks/2</code>,body <code>{"title": null}</code>,带上钥匙。✍️ <b>预测</b>:回几?响应里的 title 是什么?</li>
+      <li>原因:<code>UpdateTaskDto = PartialType(ReplaceTaskDto)</code>,<code>PartialType</code> 给每个字段加了 <code>@IsOptional()</code>,而 class-validator 的 <code>@IsOptional()</code> 对 <code>undefined</code> <b>和 <code>null</code></b> 都跳过校验。想一个修法(提示:<code>@ValidateIf((_, v) =&gt; v !== undefined)</code>,或者在 Controller / Service 里拒绝 <code>null</code>),并在 <code>test/validation.e2e-spec.ts</code> 加一个用例:<code>{"title": null}</code> → 422,<code>pointer</code> 是 <code>#/title</code>。</li>
+      <li>修完以后,内存版和 PG 版对这个请求的行为一致了吗?这次修改会改变 <code>openapi.json</code> 吗?算不算破坏性变更(Day 19)?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/27-nest-postgres/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「我知道用模板字符串拼 HTML(<code>el.innerHTML = `&lt;b&gt;${name}&lt;/b&gt;`</code>)会有 XSS。SQL 注入是一回事吗?为什么『参数化』能防住,而『把单引号替换掉』不够?」用填写栏和操作栏的比喻讲清楚,并说出这个比喻在哪里会骗人。</li>
+      <li>连接池解决什么问题?池子大小怎么定,为什么不是越大越好?事务为什么必须用 <code>pool.connect()</code> 拿同一个连接?</li>
+      <li>Day 9 说「换仓储只改一行」,今天实际改了哪些地方、为什么?同一套 e2e 在两种仓储上都通过,说明了什么、没说明什么?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里补上你自己的改动(比如习题 3 的修复);确认 <code>git status</code> 里没有 <code>.env</code>(里面有 <code>DATABASE_URL</code> 和密码)、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>连接池复用连接、给总连接数封顶</b>:实测池上限 5 时,20 个并发请求只用了 5 个后端进程、总用时约 1.3 秒。池子不是越大越好,多副本时要乘以副本数;<code>pool.connect()</code> 借的连接必须 <code>release()</code>;关店时 <code>pool.end()</code>。</li>
+    <li><b>SQL 注入是「数据被当成了指令」</b>:拼接字符串时,永真条件、UNION、多语句删表全部实测成功;参数化后同样的输入都只是值。参数只能代替值,ORDER BY 的列名和方向必须走白名单;LIKE 的通配符要转义。</li>
+    <li><b>换仓储靠的是 Day 9 的「依赖接口」</b>:业务规则、Controller、DTO、错误格式都没改,同一套 85 个 e2e 在内存版和 PG 版上都通过;唯一的泄漏是同步接口,改成 Promise 后由编译器指出所有调用点。两张表一起写要用同一个连接的事务;约束违反按 SQLSTATE 翻译成 problem+json,不暴露原文。</li>
+    <li><b>两种实现的行为不完全一样</b>:<code>{"title": null}</code> 内存版 200、PG 版 422;排序规则、时间精度、bigint 也要对齐。e2e 全过不等于行为一致,数据库约束会替上层兜住漏掉的规则。配置缺失和数据库连不上都在启动时失败。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>池子上限 5、20 个请求各占 300 ms,为什么总用时约 1.2 秒?请求结束后连接为什么还在?</li>
+    <li><code>' OR 1=1 --</code> 为什么能读到 Bob 的笔记?<code>--</code> 起什么作用?</li>
+    <li>为什么拼接版能执行 <code>DROP TABLE</code>,而带参数的查询塞两条语句会报 <code>42601</code>?</li>
+    <li><code>ORDER BY $1</code> 为什么排不了序?nest-lab 用什么代替?</li>
+    <li>如果把事务写成三次 <code>pool.query()</code>,可能发生什么?</li>
+    <li><code>-createdAt,title</code> 的 keyset 条件为什么不能写成一个行值比较?</li>
+    <li>PG 版 e2e 为什么需要 <code>DB_RESET_ON_START</code> 和 <code>fileParallelism: false</code>?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 28</b>:Week 4 复盘(格式同 Day 21)。画出「一个 <code>POST /v2/tasks</code> 从 HTTP 一路走到 PostgreSQL 磁盘上」的全景图,把 Day 22–27 连起来;默写六张概念卡;用 <code>docs/er-diagram.md</code> 做一次数据库设计 review;补 roadmap 对照表里这周建议你补的几行;整理 Week 4 遗留清单,包括今天发现的 DTO null 漏洞、「先查后改」的竞态、users 迁移计划。</p>
+</section>
+
+<footer>
+  Day 27 · Phase 2 / Week 4 · 产出:<code>docs/27-nest-postgres/</code> 本文档 + <code>nest-lab/</code>(<code>pg</code> 连接池 Provider、<code>PgTasksRepository</code>、异步仓储接口、<code>TASKS_STORAGE</code> 等配置、<code>sql/schema.sql</code> / <code>seed.sql</code>、<code>npm run db:reset</code> / <code>test:e2e:pg</code> / <code>day27</code>、SQL 注入实验接口)+ <code>src/27-nest-postgres/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

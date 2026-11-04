@@ -4,6 +4,7 @@ import { compareBySort, sortTuple, type TaskQuery } from './task-query.js';
 import { TASKS_SEED, type TasksRepository } from './tasks.repository.js';
 
 // 仓储的第一个实现:内存数组(就是 Day 8 写在 TasksService 里的那个数组,今天搬到这里)。
+// Day 27:接口改成 async 之后,这里的方法也标成 async —— 逻辑一行没改,只是返回值包进了 Promise。
 @Injectable()
 export class InMemoryTasksRepository implements TasksRepository {
   private readonly rows: Task[];
@@ -15,36 +16,36 @@ export class InMemoryTasksRepository implements TasksRepository {
     this.nextId = seed.length + 1;
   }
 
-  findAll(): Task[] {
+  async findAll(): Promise<Task[]> {
     return this.rows;
   }
 
-  findById(id: number): Task | undefined {
+  async findById(id: number): Promise<Task | undefined> {
     return this.rows.find((t) => t.id === id);
   }
 
-  insert(data: Omit<Task, 'id'>): Task {
+  async insert(data: Omit<Task, 'id'>): Promise<Task> {
     const task: Task = { id: this.nextId++, ...data };
     this.rows.push(task);
     return task;
   }
 
-  remove(id: number): Task | undefined {
+  async remove(id: number): Promise<Task | undefined> {
     const index = this.rows.findIndex((t) => t.id === id);
     if (index === -1) return undefined;
     const [removed] = this.rows.splice(index, 1);
     return removed;
   }
 
-  update(id: number, changes: Partial<TaskWritable>): Task | undefined {
-    const task = this.findById(id);
+  async update(id: number, changes: Partial<TaskWritable>): Promise<Task | undefined> {
+    const task = this.rows.find((t) => t.id === id);
     if (!task) return undefined;
     Object.assign(task, changes); // id、createdAt 由服务器管理,不在 changes 的类型里
     return task;
   }
 
-  // Day 19:内存版的 WHERE / ORDER BY / LIMIT。每一步旁边写着 Week 4 换成 PostgreSQL 时对应的 SQL。
-  findPage(query: TaskQuery): Task[] {
+  // Day 19:内存版的 WHERE / ORDER BY / LIMIT。每一步旁边写着对应的 SQL(Day 27 的真实版本见 pg-tasks.repository.ts)。
+  async findPage(query: TaskQuery): Promise<Task[]> {
     const { filter, sort, limit, after, offset } = query;
     const q = filter.q?.toLowerCase();
     let rows = this.rows.filter(
