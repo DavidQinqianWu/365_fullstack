@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 17 - 统一错误格式 problem+json:所有分店用同一张投诉回执单</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 3</div>
+  <h1>Day 17 - 统一错误格式 problem+json:所有分店用同一张投诉回执单</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>RFC 9457 Problem Details · 错误类型目录(type URI)· 字段级 errors(JSON Pointer)· 所有错误走同一个 filter · 修复 requestId 为 null</b> ·
+    项目:<code>nest-lab/</code> 的 <code>AllExceptionsFilter</code> 改写为 <code>application/problem+json</code>,新增 <code>docs/problems.md</code> 错误目录 ·
+    今天没有新依赖
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">📮 接上回:nest-lab 的错误体换了五次衣服</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:Problem Details —— 标准投诉回执单的五个栏目</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:错误类型目录 —— 投诉类别编号表</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:字段级 errors 与补发桌号牌</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>📮 接上回:nest-lab 的错误体换了五次衣服</h2>
+  <p>同一个「任务不存在」,nest-lab 在不同的日子里是这样回答的(都是讲义里出现过的真实输出):</p>
+  <table>
+    <tr><th>时间</th><th>错误体</th></tr>
+    <tr><td>Day 8(Nest 默认)</td><td><code>{"message":"没有 id 为 999 的任务","error":"Not Found","statusCode":404}</code></td></tr>
+    <tr><td>Day 10(自己的 filter)</td><td><code>{"statusCode":404,"error":"NOT_FOUND","message":"没有 id 为 999 的任务","path":"/tasks/999"}</code></td></tr>
+    <tr><td>Day 13(加桌号)</td><td>同上,再加 <code>"requestId":"…"</code></td></tr>
+    <tr><td>Day 16(校验错误)</td><td><code>"message"</code> 有时是字符串,有时是 <code>["title must be a string", …]</code> 数组</td></tr>
+    <tr><td><b>Day 17(今天)</b></td><td><b><code>{"type":"…/problems/not-found","title":"资源不存在","status":404,"detail":"没有 id 为 999 的任务","instance":"/tasks/999","requestId":"…"}</code></b></td></tr>
+  </table>
+  <p>每改一次,调用方的错误处理代码就要跟着改一次。而且现在的格式还有三个毛病:<code>message</code> 的类型不固定(字符串 / 数组);只能靠 <code>statusCode</code> 区分错误,两种 409 分不清;<code>Content-Type</code> 是普通的 <code>application/json</code>,调用方看响应头分不出「这是正常数据还是错误」。换到别家 API 更乱:有的叫 <code>code</code>、有的叫 <code>errcode</code>、有的叫 <code>error.reason</code>,前端为每个后端各写一套解析。</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    连锁店开到第一百家,发现每家分店的投诉回执单长得都不一样:有的写「问题」,有的写「原因」,有的干脆手写一段话。总部没法统计「哪类投诉最多」,顾客换一家店就看不懂回执了。于是总部印了<b>一张标准投诉回执单</b>:固定五个栏目 ——<b>投诉类别编号、类别名称、状态章、这次具体发生了什么、在哪张桌子上发生的</b>,再加上本店的桌号牌。所有分店、所有类型的投诉都用这一张。这张单子在 HTTP 世界里有现成的国际标准,叫 <b>RFC 9457 Problem Details</b>。
+  </div>
+  <p>Day 6 你手写过一次 problem+json(当时的 <code>sendProblem</code>),今天把它正式落到 nest-lab 的每一个错误上。今天<b>只管错误响应</b>:成功响应的 <code>{ data, timestamp }</code> 包装要不要保留,是 Day 18 的话题;分页、版本化是 Day 19。</p>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+npm test             # 单元测试:错误树 → JSON Pointer
+npm run test:e2e     # e2e:新增 test/problem.e2e-spec.ts(9 种状态码逐一检查结构)
+npm run day17        # 观察脚本:12 种错误各打一次,自动校验是否都是合格的 problem+json
+
+# 手动试:JSON 语法错误,看响应头和错误体里的 requestId
+curl -i -X POST localhost:3000/tasks -H 'x-demo-key: let-me-in' \
+  -H 'content-type: application/json' -H 'x-request-id: my-trace' -d '{bad'</code></pre>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用(投诉台版)</th></tr>
+    <tr><td><code>src/common/problems/problem-types.ts</code></td><td>新增</td><td><b>投诉类别编号表</b>:9 种错误类型的 <code>type</code> / <code>title</code> / <code>status</code>;没登记的状态码回 <code>about:blank</code></td></tr>
+    <tr><td><code>src/common/problems/problem.exception.ts</code></td><td>新增</td><td><code>ProblemException</code>:知道自己属于哪个类别的异常,可带扩展字段</td></tr>
+    <tr><td><code>src/common/problems/validation-exception.factory.ts</code></td><td>新增</td><td>ValidationPipe 的 <code>exceptionFactory</code>:class-validator 的错误树 → <code>errors: [{ pointer, detail }]</code></td></tr>
+    <tr><td><code>src/common/all-exceptions.filter.ts</code></td><td>改写</td><td>输出 <code>application/problem+json</code>;500 只给通用说明,真实原因进日志;没有桌号牌时<b>兜底补发</b></td></tr>
+    <tr><td><code>src/common/request-context/request-context.middleware.ts</code></td><td>修改</td><td>「沿用或生成 requestId」抽成 <code>resolveRequestId()</code>,发牌 middleware 和 filter 共用</td></tr>
+    <tr><td><code>src/common/validation/validation.options.ts</code>、<code>zod-validation.pipe.ts</code></td><td>修改</td><td>加 <code>exceptionFactory</code>;zod 对照版也输出同样的 problem</td></tr>
+    <tr><td><code>src/tasks/tasks.service.ts</code>、<code>tasks.controller.ts</code></td><td>修改</td><td>409 改抛 <code>ProblemException(ProblemTypes.taskCompleted, …)</code>;<code>PATCH {}</code> 改抛 validation-error</td></tr>
+    <tr><td><code>docs/problems.md</code></td><td>新增</td><td><b>一页错误目录</b>:每个 <code>type</code> 的含义、何时出现、调用方该怎么做</td></tr>
+    <tr><td><code>src/problem-demo/</code>(2 个文件)</td><td>新增</td><td>一个故意抛错的 <code>GET /problem-demo/boom</code>,演示 500;不挂进 AppModule</td></tr>
+    <tr><td><code>test/problem.e2e-spec.ts</code>、<code>src/common/problems/validation-exception.factory.spec.ts</code></td><td>新增</td><td>结构统一性、requestId 修复、500 不泄露、JSON Pointer 转义</td></tr>
+    <tr><td><code>test/tasks.e2e-spec.ts</code>、<code>test/validation.e2e-spec.ts</code>、<code>src/tasks/dto/task-dto.spec.ts</code></td><td>修改</td><td>断言改成 problem+json 结构</td></tr>
+    <tr><td><code>scripts/day16-try.mjs</code></td><td>修改(小)</td><td>错误打印改为读 <code>errors</code> / <code>detail</code></td></tr>
+    <tr><td><code>scripts/day17-try.mjs</code> + <code>package.json</code> 的 <code>day17</code>、<code>README.md</code></td><td>新增 / 修改</td><td>观察脚本;README 加「错误格式」一节和成长日志</td></tr>
+  </table>
+  <p>(<code>npm run day08</code>–<code>day16</code> 都照样能跑,只是所有错误体都变成了 problem+json;Day 16 观察脚本里的校验错误现在显示成 <code>[{"pointer":"#/title","detail":"…"}]</code>。)</p>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:Problem Details —— 标准投诉回执单的五个栏目</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    RFC 9457 规定了 HTTP API 报错时响应体<b>长什么样</b>:<code>Content-Type: application/problem+json</code>,固定五个字段(<code>type</code> / <code>title</code> / <code>status</code> / <code>detail</code> / <code>instance</code>),需要的话再加自己的扩展字段。
+  </div>
+
+  <h3>② 生活类比:标准投诉回执单</h3>
+  <pre><code>HTTP/1.1 404 Not Found
+Content-Type: application/problem+json; charset=utf-8
+x-request-id: 1aa9c79f-7496-4591-b27f-46175848b9e8
+
+{
+  "type": "https://nest-lab.example/problems/not-found",   ← 投诉类别编号(查得到说明)
+  "title": "资源不存在",                                     ← 类别名称(同类永远一样)
+  "status": 404,                                             ← 状态章
+  "detail": "没有 id 为 999 的任务",                          ← 这次具体发生了什么
+  "instance": "/tasks/999",                                  ← 在哪张桌子上发生的
+  "requestId": "1aa9c79f-7496-4591-b27f-46175848b9e8"        ← 本店加的栏目:桌号牌
+}</code></pre>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>回执单栏目</th><th>字段</th><th>规则</th></tr>
+    <tr><td>投诉类别编号</td><td><b><code>type</code></b></td><td>一个 URI,标识「哪一类错误」;调用方用它做程序判断。不写时默认是 <code>about:blank</code>,意思是「除了状态码本身,没有更多语义」</td></tr>
+    <tr><td>类别名称</td><td><b><code>title</code></b></td><td>简短的人类可读标题,<b>同一个 type 永远相同</b>;<code>about:blank</code> 时应该就是状态码的标准短语(如 <code>Payload Too Large</code>)</td></tr>
+    <tr><td>状态章</td><td><b><code>status</code></b></td><td>和响应行的状态码一致(只是方便阅读,以响应行为准)</td></tr>
+    <tr><td>这次发生了什么</td><td><b><code>detail</code></b></td><td>这一次的具体说明,给人看的;帮助客户端解决问题,而不是调试信息</td></tr>
+    <tr><td>在哪张桌子</td><td><b><code>instance</code></b></td><td>这一次出错的 URI(nest-lab 用请求路径)</td></tr>
+    <tr><td>本店加的栏目</td><td>扩展字段</td><td>任意名字,但不能和标准字段重名;nest-lab 加了 <code>requestId</code> 和校验错误的 <code>errors</code></td></tr>
+  </table>
+
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    有了统一格式,前端的 axios 拦截器只需要写一次:<code>if (res.headers['content-type']?.startsWith('application/problem+json'))</code> 就弹 <code>problem.title</code> / <code>problem.detail</code>;遇到 <code>422</code> 把 <code>errors</code> 映射到表单(卡 #3);遇到某个特定 <code>type</code>(比如 <code>…/conflict/task-completed</code>)再做特殊处理,比如弹出「重新打开任务」按钮。不用再为每个接口写不同的解析,也不用去解析 <code>detail</code> 里的中文。
+  </div>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「有了标准回执单,该盖什么章也就定了」——RFC 9457 只规定格式,不规定状态码。</b>用 400 还是 422、404 还是 403,仍然是 Day 15 / 16 的决定;problem+json 只是保证不管你选了什么,错误体长得都一样。它也不能替代状态码:代理、缓存、监控仍然只看响应行。</li>
+      <li><b>「类别名称写详细点更友好」——<code>title</code> 不能塞具体细节。</b>如果写成「任务 999 不存在」,同一类错误就有无数种 title,监控面板没法按类别统计、告警规则也没法写。具体信息放 <code>detail</code>(或扩展字段);程序判断看 <code>type</code>,<b>不要</b>去解析 <code>detail</code> 里的文字。</li>
+      <li><b>「回执单格式统一了,成功的小票也该一样」——那是两套东西。</b>problem+json 只用于错误;成功响应现在是 Day 10 的 <code>{ data, timestamp }</code> 包装。两者都用会让客户端先看状态码、再决定按哪种格式解析。要不要保留成功包装,是 Day 18 要讨论的事(很多团队的答案是「不包装,直接返回资源」)。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>RFC 9457 Problem Details for HTTP APIs</b>(2023,取代 2016 年的 <b>RFC 7807</b>,字段完全兼容,主要新增了多个问题的表达方式、类型注册表,并澄清了 <code>about:blank</code>);媒体类型 <b><code>application/problem+json</code></b>(还有 <code>application/problem+xml</code>);<b>extension members</b>(扩展字段)。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:观察脚本一共打 12 种错误(422、两种 400 JSON 语法错、400 路径参数、403、两种 404、405、406、409、415、500)。它们的 <code>Content-Type</code> 都一样吗?哪几个的 <code>type</code> 相同?</p>
+  <pre><code>cd nest-lab
+npm run day17</code></pre>
+  <p>真实运行结果(每个响应压成一行;requestId 每次不同):</p>
+  <pre><code>400 路径参数不是整数  →  400  [application/problem+json; charset=utf-8]
+  {"type":"https://nest-lab.example/problems/bad-request","title":"请求格式错误","status":400,"detail":"Validation failed (numeric string is expected)","instance":"/tasks/abc","requestId":"e2b8d9af-…"}
+403 没带钥匙  →  403  [application/problem+json; charset=utf-8]
+  {"type":"https://nest-lab.example/problems/forbidden","title":"没有权限执行此操作","status":403,"detail":"Forbidden resource","instance":"/tasks","requestId":"d3cd799d-…"}
+404 资源不存在  →  404  [application/problem+json; charset=utf-8]
+  {"type":"https://nest-lab.example/problems/not-found","title":"资源不存在","status":404,"detail":"没有 id 为 999 的任务","instance":"/tasks/999","requestId":"1aa9c79f-…"}
+404 路由不存在  →  404  [application/problem+json; charset=utf-8]
+  {"type":"https://nest-lab.example/problems/not-found","title":"资源不存在","status":404,"detail":"Cannot GET /nope","instance":"/nope","requestId":"fee24d96-…"}
+405 方法不支持  →  405  [application/problem+json; charset=utf-8]
+  {"type":"https://nest-lab.example/problems/method-not-allowed","title":"该资源不支持此 HTTP 方法","status":405,"detail":"/tasks 不支持 PATCH,支持:GET, HEAD, POST, OPTIONS","instance":"/tasks","requestId":"8b4f757a-…"}
+406 Accept 只要 XML  →  406  [application/problem+json; charset=utf-8]
+  {"type":"https://nest-lab.example/problems/not-acceptable","title":"无法提供客户端要求的响应格式","status":406,"detail":"只能返回 application/json,你的 Accept 是:application/xml","instance":"/tasks/1","requestId":"f4cca2f3-…"}
+409 已完成的任务改标题  →  409  [application/problem+json; charset=utf-8]
+  {"type":"https://nest-lab.example/problems/conflict/task-completed","title":"已完成的任务不能修改标题","status":409,"detail":"任务 1 已完成,不能改标题;请先把 done 改为 false","instance":"/tasks/1","requestId":"0021c770-…"}
+415 请求体不是 JSON  →  415  [application/problem+json; charset=utf-8]
+  {"type":"https://nest-lab.example/problems/unsupported-media-type","title":"不支持的请求体格式","status":415,"detail":"请求体只接受 application/json,你发来的是:text/plain","instance":"/tasks","requestId":"77ffd14d-…"}
+
+========== 自动校验:12 个错误响应是否都是合格的 problem+json ==========
+✅ 422 校验失败(字段级 errors)               …/validation-error
+✅ 400 JSON 语法错误(不带 x-request-id)     …/bad-request
+✅ 400 JSON 语法错误(带 x-request-id: trace-400) …/bad-request
+✅ 400 路径参数不是整数                       …/bad-request
+✅ 403 没带钥匙                           …/forbidden
+✅ 404 资源不存在                          …/not-found
+✅ 404 路由不存在                          …/not-found
+✅ 405 方法不支持                          …/method-not-allowed
+✅ 406 Accept 只要 XML                  …/not-acceptable
+✅ 409 已完成的任务改标题                      …/conflict/task-completed
+✅ 415 请求体不是 JSON                     …/unsupported-media-type
+✅ 500 代码 bug                         …/internal
+结论:✅ 12 个错误响应结构完全一致,requestId 全部与响应头一致,500 没有泄露内部信息</code></pre>
+  <p>(为了排版,requestId 只保留了前 8 位,真实输出是完整 UUID。)自动校验检查了每个响应:<code>Content-Type</code> 是 problem+json、六个字段齐全且类型正确、<code>status</code> 和响应行一致、<code>requestId</code> 和响应头一致、没有残留 <code>statusCode</code> / <code>message</code> 旧字段、<code>type</code> 在目录里、500 的响应里找不到数据库地址和密码。注意两种 404 共用一个 <code>type</code>(同一类错误),靠 <code>detail</code> 和 <code>instance</code> 区分这一次的具体情况。</p>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:错误类型目录 —— 投诉类别编号表</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    给系统里每一<b>类</b>错误起一个稳定的名字(<code>type</code> URI),登记在一张公开的目录里,写清「什么时候出现、调用方该怎么做」;业务代码抛错时指明类别,投诉台照着目录填回执单。
+  </div>
+
+  <h3>② 生活类比:投诉类别编号表</h3>
+  <p>总部发给每家分店一本<b>投诉类别编号表</b>:「A-404 菜品不存在」「C-409-1 菜已上桌不能改口味」「Z-500 后厨故障」…… 每个编号下面写着处理建议。服务员填回执单时只写编号和这次的情况,不自己发明类别。顾客(调用方)拿到编号,翻表就知道该怎么办。</p>
+
+  <h3>比喻 ↔ 真实 对照:nest-lab 的错误目录(<code>docs/problems.md</code>)</h3>
+  <table>
+    <tr><th>type(省略前缀 <code>https://nest-lab.example/problems/</code>)</th><th>status</th><th>title</th><th>调用方该怎么做</th></tr>
+    <tr><td><code>bad-request</code></td><td>400</td><td>请求格式错误</td><td>修正请求拼装代码,不要原样重试</td></tr>
+    <tr><td><code>forbidden</code></td><td>403</td><td>没有权限执行此操作</td><td>检查凭证 / 角色</td></tr>
+    <tr><td><code>not-found</code></td><td>404</td><td>资源不存在</td><td>刷新列表、检查 URL</td></tr>
+    <tr><td><code>method-not-allowed</code></td><td>405</td><td>该资源不支持此 HTTP 方法</td><td>按 <code>Allow</code> 头改用正确方法</td></tr>
+    <tr><td><code>not-acceptable</code></td><td>406</td><td>无法提供客户端要求的响应格式</td><td>接受 JSON</td></tr>
+    <tr><td><code>conflict/task-completed</code></td><td>409</td><td>已完成的任务不能修改标题</td><td>先把任务重新打开</td></tr>
+    <tr><td><code>unsupported-media-type</code></td><td>415</td><td>不支持的请求体格式</td><td>改发 JSON</td></tr>
+    <tr><td><code>validation-error</code></td><td>422</td><td>请求内容未通过校验</td><td>按 <code>errors[].pointer</code> 显示到输入框</td></tr>
+    <tr><td><code>internal</code></td><td>500</td><td>服务器内部错误</td><td>稍后重试;带上 <code>requestId</code> 联系维护者</td></tr>
+    <tr><td><code>about:blank</code></td><td>其他</td><td>状态码标准短语</td><td>按状态码的通用语义处理</td></tr>
+  </table>
+  <pre><code>// src/common/problems/problem-types.ts(节选)
+export const ProblemTypes = {
+  notFound:      define('not-found', '资源不存在', 404),
+  taskCompleted: define('conflict/task-completed', '已完成的任务不能修改标题', 409),
+  validation:    define('validation-error', '请求内容未通过校验', 422),
+  internal:      define('internal', '服务器内部错误', 500),
+  // …
+} as const;
+
+// 业务代码指明类别(Service 里的 409)
+throw new ProblemException(ProblemTypes.taskCompleted, `任务 ${current.id} 已完成,不能改标题;请先把 done 改为 false`);
+// 其他 HttpException(NotFoundException、ForbiddenException……)由 filter 按状态码归到默认类别
+// 目录里没登记的状态码(比如 413)→ type: about:blank,title 用标准短语</code></pre>
+  <p><b>type URI 怎么起名?</b>RFC 9457 说它是一个 URI,可以是绝对的(<code>https://…</code>)也可以是相对的(<code>/problems/not-found</code>,相对于请求地址解析)。nest-lab 用绝对 URI + <code>example</code> 域名占位:<code>.example</code> 是 RFC 2606 保留的域名,永远不会有人注册,避免碰巧指向别人的网站;真正上线时换成自己的文档站,让每个 URI 都能打开 <code>docs/problems.md</code> 对应的那一段。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「编号表随时可以改版」——<code>type</code> 一旦发布就是对外契约。</b>调用方会写 <code>if (problem.type.endsWith('/conflict/task-completed'))</code>,你把它改名成 <code>…/task-already-done</code>,他们的代码就悄悄失效了,而且不会报错。规则:<b>只增不改</b>;语义变了就新建一个 type,旧的保留。<code>title</code> 同理(有人拿它做统计)。</li>
+      <li><b>「编号必须能打开」——不必,但最好能。</b><code>type</code> 首先是一个<b>标识符</b>,客户端不应该在出错时去请求这个 URL(它可能根本不存在,比如今天的 <code>nest-lab.example</code>)。但如果它能打开、并且指向一页说明,接入方遇到陌生错误时就能自助查到原因,这正是 RFC 推荐的做法。</li>
+      <li><b>「投诉台要把后厨发生的事如实告诉顾客」——对外要克制。</b>500 的 <code>detail</code> 永远是一句固定的通用说明,不能把数据库地址、SQL、调用栈带出去(观察脚本里那个 bug 的原话带着 <code>password=hunter2</code>,响应里一个字都没有)。真实原因只写进带 <code>requestId</code> 的服务端日志 —— 但请注意,今天的日志里<b>也出现了那个密码</b>(见下方日志节选)。日志同样不该保存密钥,这需要「脱敏」(redaction),Week 15 可观测性和 Week 20 安全周会处理。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>problem type</b>(问题类型)与 <b>type URI</b>;<b><code>about:blank</code></b>;IANA 的 <b>HTTP Problem Types 注册表</b>(RFC 9457 新增,用来登记通用的 type);<b>error catalog</b>(错误目录);对外信息最小化(OWASP:不要在错误信息里暴露实现细节)。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:<code>GET /problem-demo/boom</code> 里抛的是 <code>new Error('connect ECONNREFUSED 10.0.3.7:5432 (user=nestlab password=hunter2)')</code>。响应体里会出现这个地址或密码吗?服务端日志里呢?</p>
+  <p>真实运行结果(响应体;以及脚本末尾的服务端日志节选,500 那一行后面还跟着完整的调用栈,这里只显示第一行):</p>
+  <pre><code>500 代码 bug  →  500  [application/problem+json; charset=utf-8]
+  {"type":"https://nest-lab.example/problems/internal","title":"服务器内部错误","status":500,"detail":"服务器出了点问题,请稍后重试;如果持续出现,请带上 requestId 联系我们","instance":"/problem-demo/boom","requestId":"b5cf00c8-3779-4191-b9e6-f92d25938a27"}
+
+========== 服务端日志节选:JSON 语法错误与 500 ==========
+[b5cf00c8]   ⑤-2 Filter 投诉处理台:未预期的错误 → 500:Error: connect ECONNREFUSED 10.0.3.7:5432 (user=nestlab password=hunter2)</code></pre>
+  <p>顾客只拿到 <code>requestId</code>;维护者用 <code>b5cf00c8</code> 去日志里一搜,就能找到真实原因。另外,目录里没登记的状态码会落到 <code>about:blank</code>,我用一个超过 100KB 的请求体实测过(Express 默认的 body 上限):</p>
+  <pre><code>{"type":"about:blank","title":"Payload Too Large","status":413,"detail":"request entity too large","instance":"/tasks","requestId":"2297181d-e5da-4204-923b-fdc665bfdd3c"}</code></pre>
+  <p>(第一次实测时 title 是 <code>PAYLOAD_TOO_LARGE</code>:我当时用的是 Nest 的 <code>HttpStatus</code> 枚举名。RFC 要求 <code>about:blank</code> 的 title 用状态码的标准短语,于是改成了 Node 的 <code>http.STATUS_CODES[413]</code>。)</p>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:字段级 errors 与补发桌号牌</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    校验错误要告诉前端「<b>哪个字段</b>、<b>什么问题</b>」,用 JSON Pointer 指明位置;另外,有些错误发生在发桌号牌之前,投诉台要能<b>当场补发一张</b>,保证每张回执单都有桌号。
+  </div>
+
+  <h3>② 生活类比:在单子上圈出错的格子 + 补发桌号牌</h3>
+  <p>报关单(Day 16)被退回时,海关不再只说「你填错了三处」,而是<b>在单子上把每个错的格子圈出来</b>:「第 2 张子表格的第 1 栏:不能为空」。顾客照着圈改就行。另一件事:有的顾客一进门就把单子扔在地上(JSON 语法错误),门口的接单员(body parser)当场就拒收了,这时他<b>还没走到发牌员那里</b>,手上没有桌号牌。投诉台发现回执单上桌号是空的,就按同样的规则<b>补发一张</b>(客户带了 <code>x-request-id</code> 就沿用,没带就新发),写在回执单上、也贴到顾客身上(响应头)。</p>
+  <pre><code>// src/common/problems/validation-exception.factory.ts —— 错误树压平成 JSON Pointer 列表
+export function flattenValidationErrors(errors: ValidationError[], parent = ''): ProblemFieldError[] {
+  return errors.flatMap((e) =&gt; {
+    const pointer = `${parent}/${escapePointer(e.property)}`;           // checklist → 1 → text
+    const own = Object.values(e.constraints ?? {}).map((detail) =&gt; ({ pointer: `#${pointer}`, detail }));
+    return [...own, ...flattenValidationErrors(e.children ?? [], pointer)];
+  });
+}
+// validation.options.ts:exceptionFactory: validationExceptionFactory
+
+// src/common/all-exceptions.filter.ts —— 没有桌号牌时兜底补发
+if (!this.context.requestId) {
+  const requestId = resolveRequestId(req);                // 和发牌 middleware 同一个函数、同一套规则
+  if (!res.headersSent) res.setHeader(REQUEST_ID_HEADER, requestId);
+  requestContext.run({ requestId, startedAt: performance.now() }, () =&gt; this.respond(exception, req, res));
+  return;
+}</code></pre>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th></tr>
+    <tr><td>在单子上圈出错的格子</td><td><code>errors: [{ pointer, detail }]</code> 扩展字段</td></tr>
+    <tr><td>「第 2 张子表格第 1 栏」</td><td><b>JSON Pointer</b>(RFC 6901):<code>#/checklist/1/text</code>;<code>/</code> 和 <code>~</code> 要转义成 <code>~1</code>、<code>~0</code></td></tr>
+    <tr><td>海关把检查结果交给投诉台</td><td>ValidationPipe 的 <b><code>exceptionFactory</code></b>:把 <code>ValidationError[]</code> 树变成 <code>ProblemException</code></td></tr>
+    <tr><td>门口接单员当场拒收</td><td>body parser(<code>express.json()</code>)在 Nest 初始化时挂到 Express 上,跑在所有模块 middleware 之前</td></tr>
+    <tr><td>投诉台补发桌号牌</td><td>filter 里 <code>resolveRequestId()</code> + 回写响应头 + <code>requestContext.run()</code></td></tr>
+  </table>
+  <p><b>为什么 Day 16 时 requestId 是 null?</b>Express 里中间件按注册顺序执行:Nest 在 <code>app.init()</code> 时先挂上 body parser,然后才挂各模块 <code>configure()</code> 里的 middleware(发牌员就在那里)。JSON 一坏,body parser 直接把错误交给错误处理,发牌员根本没机会运行。修法有三种:</p>
+  <table>
+    <tr><th>修法</th><th>做法</th><th>为什么没选 / 为什么选</th></tr>
+    <tr><td>A. 发牌提前</td><td>在 <code>main.ts</code> 里用 <code>app.use()</code> 发牌(它比 body parser 更早)</td><td>e2e 测试和观察脚本不走 <code>main.ts</code>,会再次出现 Day 10 / 13 踩过的「测试里没有这个切面」的坑</td></tr>
+    <tr><td>B. 推迟 body parser</td><td><code>NestFactory.create(AppModule, { bodyParser: false })</code>,在 <code>configure()</code> 里发牌之后再挂 <code>json()</code></td><td>每个创建 app 的地方(main、每个 e2e、每个脚本)都要记得传 <code>bodyParser: false</code>,漏一个就退回原样</td></tr>
+    <tr><td><b>C. 投诉台兜底</b>(nest-lab 的选择)</td><td>filter 发现没有桌号就补发</td><td>只改一个文件,所有创建 app 的方式都生效;规则和发牌员共用 <code>resolveRequestId()</code>,不会两套逻辑跑偏</td></tr>
+  </table>
+
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    react-hook-form 有 <code>setError(name, { message })</code>。拿到 422 之后,把 pointer 换成表单字段名就能标红:<code>problem.errors.forEach(e =&gt; setError(e.pointer.slice(2).replaceAll('/', '.'), { message: e.detail }))</code>,<code>#/checklist/1/text</code> 正好变成 <code>checklist.1.text</code>,也就是 <code>useFieldArray</code> 里第 2 项的 <code>text</code> 输入框。没有字段级明细时,前端只能弹一个笼统的「提交失败」。
+  </div>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「圈出来的格子就是表单上的输入框」——pointer 指向的是<u>请求体</u>里的位置。</b>它和前端表单的字段名常常一致,但不保证:前端可能把「开始日期 + 结束日期」两个输入框合成一个 <code>range</code> 字段发给后端。映射规则要前后端约定好。<code>#/id</code> 这种「多余字段」错误在表单上也找不到对应的输入框,只能整体提示。</li>
+      <li><b>「补发了桌号牌,这个请求就和其他请求一样完整了」——只补了投诉台之后的部分。</b>JSON 语法错误的请求没经过发牌员,也没经过登记员,所以日志里<b>没有「进门 / 出门」两行</b>,只有投诉台那一行(带着补发的桌号)。补发能保证「回执单上有桌号、响应头里有桌号、投诉台的日志带桌号」,但前面那几站确实没发生过。</li>
+      <li><b>「<code>errors</code> 是标准字段」——它是本项目选的扩展。</b>RFC 9457 附录里的示例用的就是 <code>errors</code> + <code>pointer</code> + <code>detail</code>,但没有强制。ASP.NET Core 的 <code>ValidationProblemDetails</code> 用的是字典 <code>"errors": {"Title": ["…"]}</code>,Spring 默认没有字段明细。接入别家 API 时要看它的文档,别假设所有 problem+json 的扩展都一样。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>JSON Pointer</b>(RFC 6901,<code>#</code> 开头的是 URI fragment 形式);ValidationPipe 的 <b><code>exceptionFactory</code></b>;class-validator 的 <b><code>ValidationError</code></b> 树(<code>property</code> / <code>constraints</code> / <code>children</code>);Express 中间件的<b>注册顺序 = 执行顺序</b>;Nest 的 <code>bodyParser: false</code> 选项和 <code>app.useBodyParser()</code>。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:请求体 <code>{"title":"   ","id":7,"checklist":[{"text":"买菜","done":true},{"text":"","done":"no"}]}</code> 会得到几条 <code>errors</code>?pointer 分别是什么?JSON 语法错误时(带和不带 <code>x-request-id</code>),错误体里的 <code>requestId</code> 是什么?</p>
+  <p>真实运行结果(<code>npm run day17</code> 的 422 和两个 400):</p>
+  <pre><code>422 校验失败(字段级 errors)  →  422  [application/problem+json; charset=utf-8]
+{
+  "type": "https://nest-lab.example/problems/validation-error",
+  "title": "请求内容未通过校验",
+  "status": 422,
+  "detail": "有 4 处不符合要求",
+  "instance": "/tasks",
+  "requestId": "52819b01-5505-44ab-91c9-090eeaa101b0",
+  "errors": [
+    { "pointer": "#/id", "detail": "property id should not exist" },
+    { "pointer": "#/title", "detail": "title 不能为空或全是空白" },
+    { "pointer": "#/checklist/1/text", "detail": "text 不能为空或全是空白" },
+    { "pointer": "#/checklist/1/done", "detail": "done must be a boolean value" }
+  ]
+}
+
+400 JSON 语法错误(不带 x-request-id)  →  400  [application/problem+json; charset=utf-8]
+  {"type":"https://nest-lab.example/problems/bad-request","title":"请求格式错误","status":400,"detail":"Unexpected token '坏', \"{\"title\": 坏掉的 json\" is not valid JSON","instance":"/tasks","requestId":"ca7f45cc-4236-4e19-9eec-988230af044e"}
+400 JSON 语法错误(带 x-request-id: trace-400)  →  400  [application/problem+json; charset=utf-8]
+  {"type":"https://nest-lab.example/problems/bad-request","title":"请求格式错误","status":400,"detail":"Expected property name or '}' in JSON at position 1 (line 1 column 2)","instance":"/tasks","requestId":"trace-400"}
+
+服务端日志节选:
+[ca7f45cc]   ⑤-2 Filter 投诉处理台:BadRequestException → 400 bad-request
+[trace-40]   ⑤-2 Filter 投诉处理台:BadRequestException → 400 bad-request</code></pre>
+  <p>(422 的 <code>errors</code> 为了排版改成了每项一行,内容未改。)Day 16 的 <code>requestId: null</code> 没有了:不带头时补发了一个新 UUID,带头时沿用了 <code>trace-400</code>,两种情况下日志行也都带上了桌号(前缀只显示前 8 位)。JSON 语法错误的 <code>detail</code> 是 JSON 解析器的原话:Nest 的 Express 适配器已经把 <code>SyntaxError</code> 包成了 <code>BadRequestException</code>,这句话不含敏感信息,保留下来能帮调用方定位。</p>
+  <p>测试的真实结果:<code>npm test</code> 35 个通过,<code>npm run test:e2e</code> 53 个通过(新增 <code>test/problem.e2e-spec.ts</code> 12 个用例:9 种状态码各自的结构检查、JSON 语法错误时沿用 <code>x-request-id</code>、字段级 errors、500 不泄露)。</p>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p>Problem Details 是 IETF 标准,.NET 和 Spring 都已内置;它们和今天手写的版本,区别主要在「开箱默认做了多少」:</p>
+  <table>
+    <tr><th>命题</th><th>NestJS(教具)</th><th>C# / ASP.NET Core</th><th>Java / Spring Boot</th><th>Go</th></tr>
+    <tr>
+      <td>开启</td>
+      <td>自己写 <code>@Catch()</code> 全局 filter(<code>APP_FILTER</code>)</td>
+      <td><b><code>builder.Services.AddProblemDetails()</code></b> + <code>app.UseExceptionHandler()</code> + <code>app.UseStatusCodePages()</code></td>
+      <td><b><code>spring.mvc.problemdetails.enabled=true</code></b>(Boot 3),或 <code>@ControllerAdvice</code> 继承 <code>ResponseEntityExceptionHandler</code></td>
+      <td>手写一个 <code>Problem</code> 结构体 + 统一的 <code>writeProblem(w, p)</code>;或用第三方库</td>
+    </tr>
+    <tr>
+      <td>类型 / 对象</td>
+      <td>自己的 <code>ProblemDetails</code> 接口 + <code>ProblemException</code></td>
+      <td><code>ProblemDetails</code> / <code>ValidationProblemDetails</code>;<code>Results.Problem(...)</code></td>
+      <td><code>ProblemDetail.forStatusAndDetail(...)</code>;异常实现 <code>ErrorResponse</code> / 抛 <code>ErrorResponseException</code></td>
+      <td>自定义 struct,<code>Content-Type</code> 手动设</td>
+    </tr>
+    <tr>
+      <td>统一处理异常</td>
+      <td><code>ExceptionFilter</code></td>
+      <td><b><code>IExceptionHandler</code></b>(.NET 8)/ <code>IProblemDetailsService</code></td>
+      <td><code>@ExceptionHandler</code> 返回 <code>ProblemDetail</code></td>
+      <td>一个包住 handler 的 middleware,<code>recover()</code> + 统一写错误</td>
+    </tr>
+    <tr>
+      <td>校验错误明细</td>
+      <td>扩展字段 <code>errors: [{pointer, detail}]</code>(今天自己写)</td>
+      <td><code>[ApiController]</code> 自动 400 + <code>ValidationProblemDetails</code>,<code>errors: {"Title": ["…"]}</code></td>
+      <td>默认没有字段明细,要自己在 <code>handleMethodArgumentNotValid</code> 里 <code>setProperty("errors", …)</code></td>
+      <td>自己组装</td>
+    </tr>
+    <tr>
+      <td>请求 / 追踪 ID</td>
+      <td>扩展字段 <code>requestId</code></td>
+      <td>默认就带 <b><code>traceId</code></b> 扩展</td>
+      <td>默认 <code>instance</code> 为请求路径,追踪 ID 要自己加</td>
+      <td>自己加</td>
+    </tr>
+  </table>
+  <p>📌 roadmap 顶部对照表建议你在 Day 21 复盘时补一行<b>「统一错误格式」</b>(RFC 9457 problem+json:Nest 全局 filter ↔ <code>AddProblemDetails</code> / <code>IExceptionHandler</code> ↔ <code>ProblemDetail</code> + <code>@ControllerAdvice</code> ↔ Go 手写)。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"How do you design error responses for a REST API?"</b>(或者 .NET 面试:「你们怎么统一处理异常和返回错误?用过 ProblemDetails 吗?」)你可以答:<br>
+    <b>"我会用 RFC 9457 的 Problem Details 统一所有错误:Content-Type 是 application/problem+json,固定包含 type、title、status、detail、instance。type 是错误类别的 URI,调用方用它做程序判断,所以要维护一份公开的错误目录,并且发布后只增不改;title 同类固定,不放具体信息,方便统计;detail 说明这一次发生了什么。扩展字段里放 request ID,用户报错时可以直接按 ID 查日志;校验错误用 errors 列表,每一项带 JSON Pointer 指向出错的字段,前端可以直接映射到表单。实现上是一个全局异常处理器,把所有异常,包括框架抛的 404、405、校验失败,以及未预期的 500,都翻译成这个格式;500 只返回通用说明,真实原因只写进日志。这和 ASP.NET Core 的 AddProblemDetails、Spring 6 的 ProblemDetail 是同一个标准。"</b><br>
+    自己练一遍:合上文档 45 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+  <p>预测都写进 <code>src/17-problem-json/notes.md</code> 的预测区,先写,再运行,再批改。</p>
+
+  <div class="task">
+    <h3>习题 1:十二张回执单(动手,约 8 min)</h3>
+    <p>✍️ <b>预测(先写再运行)</b>:观察脚本的 12 种错误,每一种的 <code>status</code> 和 <code>type</code>(只写最后一段,如 <code>not-found</code>);422 那个请求会有几条 <code>errors</code>。然后:</p>
+    <pre><code>cd nest-lab
+npm run day17</code></pre>
+    <p>逐条批改。再自己试一个脚本里没有的:发一个超过 100KB 的请求体(提示:<code>python3 -c "import json;print(json.dumps({'title':'x'*200000}))" &gt; big.json</code>,再 <code>curl --data-binary @big.json</code>),先预测 <code>type</code> 和 <code>title</code>。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:登记一个新类别(动手,约 10 min)</h3>
+    <p>(a)把习题 1 里那个 413 正式登记进目录:在 <code>problem-types.ts</code> 里加 <code>payloadTooLarge: define('payload-too-large', '请求体过大', 413)</code>,在 <code>docs/problems.md</code> 里补一行(写清「调用方该怎么做」)。✍️ <b>预测</b>:不改 filter,同样的请求现在 <code>type</code> 会变吗?为什么?(提示:<code>problemTypeForStatus</code> 是怎么建表的。)跑一次验证,并在 <code>test/problem.e2e-spec.ts</code> 里加一个用例。</p>
+    <p>(b)写一段前端伪代码(不用真的跑):在 axios 响应拦截器里,遇到 problem+json 时 ① 422 把 <code>errors</code> 交给 react-hook-form 的 <code>setError</code>;② <code>…/conflict/task-completed</code> 弹一个「重新打开任务」按钮;③ 其他错误弹 <code>title</code>,并在角落小字显示 <code>requestId</code>。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:三种「回执单写错了」(思考,约 7 min)</h3>
+    <ol>
+      <li>同事把 409 的 title 改成了 <code>`任务 ${id} 已完成,不能修改标题`</code>。上线一周后,监控面板上「错误类别 Top 10」出了什么问题?</li>
+      <li>产品经理觉得 <code>conflict/task-completed</code> 不好听,要改成 <code>task-locked</code>。你会怎么做才不打坏已有的调用方?</li>
+      <li>观察脚本的服务端日志里出现了 <code>password=hunter2</code>。日志和响应体,哪个该改?改成什么样?(只写思路)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/17-problem-json/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「我在 axios 拦截器里统一弹错误、表单里把错误显示到对应输入框,后端的 problem+json 能帮我什么?」用投诉回执单的比喻讲清楚,并说出这个比喻在哪里会骗人。</li>
+      <li>problem+json 的五个标准字段各是什么意思?<code>type</code> 和 <code>title</code> 为什么不能随便改?<code>about:blank</code> 是什么意思?</li>
+      <li>为什么 JSON 语法错误时 requestId 曾经是 <code>null</code>?nest-lab 选了哪种修法,另外两种为什么没选?500 的时候对外说什么、对内记什么?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里补上你自己做的改动(包括习题 2 新增的错误类别);确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>所有错误都用同一张回执单</b>:RFC 9457 problem+json,<code>Content-Type: application/problem+json</code>,<code>type</code> / <code>title</code> / <code>status</code> / <code>detail</code> / <code>instance</code> + 扩展字段(<code>requestId</code>、<code>errors</code>)。它只规定格式,不规定状态码。</li>
+    <li><b><code>type</code> 是对外契约</b>:维护一份公开的错误目录,只增不改;<code>title</code> 同类固定,具体信息放 <code>detail</code>;程序判断看 <code>type</code>,不解析 <code>detail</code>;没登记的状态码用 <code>about:blank</code>。</li>
+    <li><b>校验错误按字段给出</b>:<code>exceptionFactory</code> 把错误树压平成 <code>errors: [{ pointer: '#/checklist/1/text', detail }]</code>,前端能直接映射到输入框。</li>
+    <li><b>对外克制,对内详尽;每张回执单都有桌号</b>:500 只给通用说明,真实原因进日志(日志本身也要脱敏);body parser 跑在发牌员之前,所以 filter 兜底补发 requestId。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>不看代码,写出 <code>GET /tasks/999</code> 的完整 problem+json 响应(含响应头)</li>
+    <li>两种 404(任务不存在、路由不存在)的 <code>type</code> 一样吗?靠什么区分?</li>
+    <li>请求体 <code>{"checklist":[{"text":"a"},{"text":"b","done":"x"}]}</code> 的 errors 里会有哪些 pointer?</li>
+    <li>Express 里中间件的执行顺序由什么决定?为什么发牌员拿不到 JSON 语法错误的请求?</li>
+    <li>ASP.NET Core 的 <code>ValidationProblemDetails</code> 和 nest-lab 的 <code>errors</code> 格式有什么不同?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 18</b>:响应 DTO 与序列化。今天把「进错误」统一了,明天管「出数据」:为什么不能直接把内部对象返回出去、怎么用 <code>ClassSerializerInterceptor</code> + <code>@Exclude()</code> 防止把 <code>passwordHash</code> 这种字段带出去,以及成功响应的 <code>{ data, timestamp }</code> 包装要不要保留。</p>
+</section>
+
+<footer>
+  Day 17 · Phase 1 / Week 3 · 产出:<code>docs/17-problem-json/</code> 本文档 + <code>nest-lab/</code>(<code>src/common/problems/</code>、problem+json 版 <code>AllExceptionsFilter</code>、字段级 errors、requestId 兜底、<code>docs/problems.md</code> 错误目录、<code>npm run day17</code>)+ <code>src/17-problem-json/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

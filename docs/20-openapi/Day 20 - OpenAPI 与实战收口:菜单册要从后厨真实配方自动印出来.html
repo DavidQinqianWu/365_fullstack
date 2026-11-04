@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 20 - OpenAPI 与实战收口:菜单册要从后厨真实配方自动印出来</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 3</div>
+  <h1>Day 20 - OpenAPI 与实战收口:菜单册要从后厨真实配方自动印出来</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>OpenAPI 3.x · code-first vs contract-first · @nestjs/swagger · CLI 插件实测 · 文档即契约 · 前端类型生成</b> ·
+    项目:<code>nest-lab/</code> 挂上 <code>/docs</code> 与 <code>/docs-json</code>,提交 <code>openapi.json</code>,新增 <code>docs/api-design.md</code> ·
+    新依赖:<code>@nestjs/swagger@12.1.0</code>、dev 依赖 <code>openapi-typescript@7.13.0</code>
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:前端同事问「接口文档在哪?」</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:OpenAPI —— 全行业通用格式的「标准菜单册」</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:@nestjs/swagger —— 印刷机只认贴了标签的配方</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:文档即契约 —— 菜单册存档、比对、交给外卖平台</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结、Week 3 收口与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:前端同事问「接口文档在哪?」</h2>
+  <p>这一周我们给任务管理 API 定了很多规矩:Day 15 的状态码和 <code>Location</code>,Day 16 的 422 校验,Day 17 的 problem+json,Day 18 的响应 DTO,Day 19 的 <code>{ items, nextCursor }</code> 和 v1 弃用。可是如果一个前端同事今天要来对接,他得翻 README、翻 <code>docs/problems.md</code>、翻 Controller 源码,还要猜:<code>PATCH</code> 哪些字段可选?<code>nextCursor</code> 会不会是 <code>null</code>?错误响应长什么样?</p>
+  <p>你做了 7 年前端,一定接过「文档是三个月前的 Word,和真实接口对不上」的活。这种文档最大的问题不是写得不好,而是<b>它和代码是两份东西</b>:代码改了,没人记得改文档。</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    连锁餐厅有一本<b>标准菜单册</b>:每道菜叫什么、有哪些配料、过敏提示、哪些套餐快停售,格式全行业通用,外卖平台拿到就能自动上架。最好的菜单册不是文案手写的,而是<b>从后厨真实配方自动印出来的</b>:配方改了,重新印一次,菜单就跟着变。今天我们给 nest-lab 装上这台印刷机,并且把「菜单和配方是否一致」变成一个会自动变红的检查。
+  </div>
+  <p>今天做三件事:认识 OpenAPI;用 <code>@nestjs/swagger</code> 从代码生成它(包括一个关于 CLI 插件的真实实验);把它当成契约来检查、存档、交给前端生成类型。最后写一份语言无关的 <code>docs/api-design.md</code>,Week 3 的 REST API 到此收口。</p>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+npm install              # 新依赖 @nestjs/swagger、openapi-typescript
+npm run test:e2e         # 新增 test/openapi.e2e-spec.ts(7 个用例)
+npm run day20            # 观察脚本:拉取文档 → 接口清单 → 抽查 schema → 自动检查 → 生成前端类型 → 生产环境不开放
+npm run openapi:check    # 提交的 openapi.json 和代码是否一致
+
+npm run start:dev        # 然后浏览器打开 http://localhost:3000/docs</code></pre>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用</th></tr>
+    <tr><td><code>src/openapi.ts</code></td><td>新增</td><td><code>buildOpenApiDocument()</code>:<code>DocumentBuilder</code>(标题、说明、版本、<code>x-demo-key</code> 安全方案)+ <code>SwaggerModule.createDocument</code>(只收录 tasks / users,operationId 规则,不重复登记无版本别名);<code>setupSwagger()</code> 挂 <code>/docs</code> 和 <code>/docs-json</code></td></tr>
+    <tr><td><code>src/app.setup.ts</code></td><td>修改</td><td><code>configureApp()</code> 在 <code>enableVersioning</code> 之后按配置挂文档</td></tr>
+    <tr><td><code>src/config/env.schema.ts</code>、<code>.spec.ts</code>、<code>.env.example</code></td><td>修改</td><td>新增 <code>SWAGGER_ENABLED</code>:不写时生产环境 <code>false</code>,其他环境 <code>true</code></td></tr>
+    <tr><td><code>src/tasks/dto/*.dto.ts</code>、<code>src/users/dto/create-user.dto.ts</code></td><td>修改</td><td>每个字段贴 <code>@ApiProperty</code> / <code>@ApiPropertyOptional</code>(说明、例子);<code>PickType</code> / <code>PartialType</code> 改从 <code>@nestjs/swagger</code> 导入</td></tr>
+    <tr><td><code>src/tasks/dto/task-response.ts</code>、<code>task-page.ts</code>、<code>src/users/dto/user-response.ts</code></td><td>修改</td><td>响应类型从 <code>interface</code> 改成 <code>class</code>:同一个类既是映射函数的返回类型,又是文档里的 schema</td></tr>
+    <tr><td><code>src/common/problems/problem.schema.ts</code></td><td>新增</td><td><code>ProblemDetailsDto</code> / <code>ValidationProblemDto</code> / <code>FieldErrorDto</code> + 组合装饰器 <code>@ApiProblemResponses(400, 404, …)</code></td></tr>
+    <tr><td><code>tasks.controller.ts</code>、<code>v1/tasks-v1.controller.ts</code>、<code>users.controller.ts</code></td><td>修改</td><td><code>@ApiTags</code> / <code>@ApiOperation</code> / <code>@ApiOkResponse</code> / <code>@ApiSecurity</code> / <code>@ApiHeader</code>;v1 标 <code>deprecated: true</code>;405 兜底路由 <code>@ApiExcludeEndpoint()</code></td></tr>
+    <tr><td><code>openapi.json</code> + <code>scripts/openapi.mjs</code></td><td>新增</td><td>生成出来的契约文件(提交进 git);<code>npm run openapi:generate</code> / <code>openapi:check</code></td></tr>
+    <tr><td><code>docs/api-design.md</code></td><td>新增</td><td>Week 3 的 API 设计约定,语言无关</td></tr>
+    <tr><td><code>test/openapi.e2e-spec.ts</code></td><td>新增</td><td>文档 = 提交的文件;每个写接口有 422;v1 都 deprecated;没有 passwordHash;schema 字段 = 映射函数输出字段;关掉开关后 404</td></tr>
+    <tr><td><code>scripts/day20-try.mjs</code>、<code>package.json</code>、<code>README.md</code></td><td>新增 / 修改</td><td>观察脚本与三个新命令;README 加「API 文档」一节和成长日志</td></tr>
+  </table>
+  <p>(依赖变化:<code>@nestjs/mapped-types</code> 不再是直接依赖,它的 <code>PickType</code> / <code>PartialType</code> 换成了 <code>@nestjs/swagger</code> 里的同名函数,原因在第 4 节。<code>npm run day08</code>–<code>day19</code> 都照样能跑,运行行为没有变化:<code>@Api*</code> 装饰器只写给文档看。)</p>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:OpenAPI —— 全行业通用格式的「标准菜单册」</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    OpenAPI 是一种<b>用 JSON / YAML 描述 HTTP API 的标准格式</b>:有哪些路径、每个路径支持哪些方法、要什么参数和请求体、会回哪些状态码和响应体。因为格式统一,一份文件可以同时喂给文档页面、前端类型生成器、mock 服务器和测试工具。
+  </div>
+
+  <h3>② 生活类比:连锁餐厅的标准菜单册</h3>
+  <p>菜单册每一页是一道菜:菜名、价格、配料表、过敏提示;同一种配料(比如「秘制酱汁」)只在附录里写一次,各道菜引用它。格式是全行业统一的,所以<b>点菜平板、外卖平台、营养师、品控</b>都能直接读。菜单册有两种做法:<b>先由总部设计好菜单,后厨照着做</b>;或者<b>后厨先有配方,从配方自动印出菜单</b>。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>nest-lab 里</th></tr>
+    <tr><td>菜单册</td><td><b>OpenAPI document</b>(一个 JSON / YAML 文件)</td><td><code>openapi.json</code>,运行时 <code>GET /docs-json</code></td></tr>
+    <tr><td>行业统一的菜单格式</td><td><b>OpenAPI Specification 3.x</b>(前身叫 Swagger 2.0)</td><td><code>@nestjs/swagger</code> 输出 <code>"openapi": "3.0.0"</code>(实测)</td></tr>
+    <tr><td>每一页的一道菜</td><td><b>path + operation</b>(<code>paths["/v2/tasks"].post</code>)</td><td>11 个操作(第 ⑤ 步实测)</td></tr>
+    <tr><td>附录里的配料表,各道菜引用</td><td><b>components.schemas</b> + <b><code>$ref</code></b></td><td><code>TaskResponse</code>、<code>ProblemDetailsDto</code> 等 14 个 schema</td></tr>
+    <tr><td>「即将停售」标签</td><td><code>deprecated: true</code></td><td><code>/v1/...</code> 两个操作</td></tr>
+    <tr><td>「需出示会员卡」</td><td><b>securitySchemes</b> + operation 的 <code>security</code></td><td><code>demo-key</code>(请求头 <code>x-demo-key</code>)</td></tr>
+    <tr><td>总部先设计菜单,后厨照做</td><td><b>contract-first</b>(design-first):先手写 OpenAPI,再生成 / 实现代码</td><td>—</td></tr>
+    <tr><td>从后厨配方自动印菜单</td><td><b>code-first</b>:从代码(装饰器 / 类型)生成 OpenAPI</td><td>nest-lab 选这种</td></tr>
+    <tr><td>点菜平板</td><td><b>Swagger UI</b> / Redoc / Scalar:读 OpenAPI 渲染成能「Try it out」的页面</td><td><code>/docs</code></td></tr>
+    <tr><td>外卖平台照菜单自动上架</td><td><b>代码生成</b>:前端 TS 类型(openapi-typescript)、SDK(openapi-generator、orval)</td><td>第 5 节实测</td></tr>
+    <tr><td>照菜单做的样品菜</td><td><b>mock server</b>(如 Prism):后端没写完,前端先对着假数据开发</td><td>习题 3 思考</td></tr>
+  </table>
+
+  <p><b>code-first 还是 contract-first?</b>两种都是正经做法,区别在于「谁是唯一的真相」:</p>
+  <table>
+    <tr><th></th><th>contract-first(先写契约)</th><th>code-first(从代码生成)</th></tr>
+    <tr><td>真相在哪</td><td>手写的 <code>openapi.yaml</code></td><td>代码;OpenAPI 是产物</td></tr>
+    <tr><td>适合</td><td>多团队并行(前端、后端、合作方先对齐契约,各自开发);对外的公开 API</td><td>一个团队前后端节奏一致;框架装饰器 / 类型已经描述了大部分信息</td></tr>
+    <tr><td>风险</td><td>实现偏离契约 → 需要契约测试或从契约生成服务端骨架</td><td>文档只和装饰器一样准;容易「改代码不看文档 diff」</td></tr>
+  </table>
+  <p>nest-lab 选 code-first:DTO 已经带着 class-validator 规则,再贴上文档标签就能印出菜单。为了补上它的风险,今天把生成的 <code>openapi.json</code> <b>提交进 git</b>(PR 里能直接看到契约变化),并且加了「过期就变红」的检查(第 5 节)。</p>
+
+  <p><b>3.0 和 3.1 差在哪?</b>OpenAPI 3.1(2021)和 JSON Schema 2020-12 完全对齐,3.0 只是「JSON Schema 的一个变体」。最常碰到的差别是 null:3.0 写 <code>"type": "string", "nullable": true</code>,3.1 写 <code>"type": ["string", "null"]</code>。<code>@nestjs/swagger@12.1.0</code> 生成的是 <b>3.0.0</b>,nest-lab 的 <code>nextCursor</code> 就是 <code>"nullable": true</code>(下面的真实输出里能看到)。工具一般两种都认,但如果你要拿 schema 直接给 JSON Schema 校验器(比如 Ajv)用,3.0 的 <code>nullable</code> 它不认识。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「菜单上写了,厨房就一定这样做」——文档描述的是「应该」,不保证实现。</b>菜单册说「过敏原:无花生」,不等于厨师今天没换酱料。OpenAPI 里写着「失败时回 422 problem+json」,服务器完全可能回一个 500 HTML。code-first 让文档和<b>装饰器</b>一致,不是和<b>真实行为</b>一致。真实行为要靠契约测试保证:nest-lab 的 e2e(Day 15–19 写的那些)发真实请求、检查真实响应;今天又加了「schema 字段 = 映射函数真实输出」的测试。业界还有 Schemathesis 这类「按 OpenAPI 自动生成请求、检查响应是否符合文档」的工具,Week 11 讲测试体系时可以拿来对照。</li>
+      <li><b>「自动印出来的菜单一定对」——印刷机只能印配方卡上写着的东西。</b><code>@ApiOkResponse({ type: TaskResponse })</code> 写成了 <code>UserResponse</code>,文档就会一本正经地错;一个字段忘了贴 <code>@ApiProperty</code>,文档里就少一个字段(第 4 节实测)。「自动生成」消灭的是「忘了同步」,消灭不了「写错」。</li>
+      <li><b>「菜单册就该摆在门口」——对外界来说,它也是一张完整的攻击面地图。</b>每个路径、参数、哪里要钥匙,一目了然,还附带一个能直接发请求的页面。公开 API 当然可以公开文档;但内部服务、后台接口在生产环境默认不该开放。nest-lab 用配置 <code>SWAGGER_ENABLED</code> 控制,<code>NODE_ENV=production</code> 时默认关闭(第 5 节实测 404)。关掉文档不是安全措施本身(接口照样能被扫),鉴权才是,这是 Week 10 的事。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>OpenAPI Specification (OAS) 3.0 / 3.1</b>(Linux 基金会旗下 OpenAPI Initiative 维护;Swagger 2.0 是它的前身,「Swagger」现在主要指 SmartBear 的工具);<b>Paths / Operation / Parameter / Request Body / Response</b>;<b>Components</b>(<code>schemas</code>、<code>securitySchemes</code>);<b><code>$ref</code></b>;<b>operationId</b>(代码生成器拿它当函数名);<b>tags</b>(文档分组);<b>design-first / API-first / code-first</b>;<b>contract testing</b>。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:文档里一共会有几个操作?<code>/tasks</code>(不带版本)、<code>/v2/tasks</code>、<code>/v1/tasks</code> 会各出现一次吗?Day 15 为了回 405 写的 <code>@All()</code> 兜底路由会出现在文档里吗?<code>PATCH /v2/tasks/{id}</code> 声明了哪些状态码?</p>
+  <pre><code>npm run day20</code></pre>
+  <p>真实运行结果(第 1、2 幕):</p>
+  <pre><code>========== 第 1 幕:GET /docs-json 与 GET /docs ==========
+/docs-json → openapi 3.0.0,标题「nest-lab 任务管理 API」,版本 2.0.0
+/docs      → 200 text/html; charset=utf-8(Swagger UI 页面)
+
+========== 第 2 幕:接口清单(方法 路径 [弃用] 声明的状态码) ==========
+GET    /v2/tasks        200 400 406 422  列出任务(cursor 分页、过滤、排序)
+POST   /v2/tasks        201 400 403 406 415 422  🔑  新建任务
+GET    /v2/tasks/{id}   200 400 404 406  查看一个任务
+PUT    /v2/tasks/{id}   200 400 403 404 406 409 415 422  🔑  整体替换一个任务
+PATCH  /v2/tasks/{id}   200 400 403 404 406 409 415 422  🔑  部分更新一个任务
+DELETE /v2/tasks/{id}   204 400 403 404 406  🔑  删除一个任务(仅管理员)
+GET    /v1/tasks        [deprecated] 200  【已弃用】列出全部任务(不分页)
+GET    /v1/tasks/{id}   [deprecated] 200 400 404  【已弃用】查看一个任务
+GET    /users           200 406  列出用户
+POST   /users           201 400 403 406 415 422  🔑  新建用户
+GET    /users/{id}      200 400 404 406  查看一个用户</code></pre>
+  <p>读结果:</p>
+  <ul>
+    <li><b>11 个操作,没有 <code>/tasks</code></b>。tasks 控制器登记在 <code>['2', VERSION_NEUTRAL]</code> 两个版本下,<code>@nestjs/swagger</code> 默认会把 <code>/v2/tasks</code> 和 <code>/tasks</code> 各登记一次(第一次生成时就是 8 个 path),同一个操作出现两次会让前端生成两套重复的函数。<code>src/openapi.ts</code> 里只保留 <code>/v2/...</code> 这一份,文档说明里写着「不带版本号的路径等同 v2」。</li>
+    <li><b>没有 OPTIONS / HEAD / 「PATCH /v2/tasks」这类兜底路由</b>:它们贴了 <code>@ApiExcludeEndpoint()</code>。405 是「这个方法不存在」,不该作为一道菜登记进菜单。</li>
+    <li><b>🔑 = 写接口要求 <code>demo-key</code></b>。在 Swagger UI 右上角点 Authorize 填入 <code>let-me-in</code>,「Try it out」发出的请求就会带上 <code>x-demo-key</code>。</li>
+    <li><b>每个操作都有 406</b>(类级别的 <code>@ApiProblemResponses(406)</code>,因为 Day 15 的内容协商中间件对所有路由生效);写接口都有 415 和 422。这些状态码不是 Nest 自动推断的,全部是我们按 Day 15–19 的真实行为声明的。</li>
+  </ul>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:@nestjs/swagger —— 印刷机只认贴了标签的配方</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <code>@nestjs/swagger</code> 在启动时扫描所有 Controller 和 DTO 上的<b>装饰器元数据</b>,拼出一份 OpenAPI。路由、路径参数、请求体类型它能从 <code>@Get()</code>、<code>@Body()</code> 推出来;<b>DTO 有哪些字段、什么类型,它必须看到 <code>@ApiProperty</code> 这样的标签</b>,因为 TypeScript 的类型在编译后就消失了。
+  </div>
+
+  <h3>② 生活类比:印刷机只认配方卡上的标签</h3>
+  <p>印刷机看不懂厨师的手写配方,只认配方卡上贴的标准标签:「配料:面粉,必需」「辣度:可选」。厨房里有一个<b>贴标签助手</b>(CLI 插件),会在配方定稿时自动给每一行配料贴标签,省得厨师手贴。问题是:这个助手只在<b>正式厨房</b>上班,隔壁的<b>试菜间</b>他不来。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>nest-lab 里</th></tr>
+    <tr><td>印刷机</td><td><code>SwaggerModule.createDocument(app, config)</code></td><td><code>src/openapi.ts</code></td></tr>
+    <tr><td>菜单封面(店名、说明、会员规则)</td><td><code>DocumentBuilder</code>:<code>setTitle</code> / <code>setDescription</code> / <code>setVersion</code> / <code>addApiKey</code></td><td>同上</td></tr>
+    <tr><td>配方卡上的标签</td><td><code>@ApiProperty</code> / <code>@ApiPropertyOptional</code>(字段)、<code>@ApiOperation</code> / <code>@ApiResponse</code> / <code>@ApiTags</code> / <code>@ApiHeader</code> / <code>@ApiQuery</code> / <code>@ApiSecurity</code>(操作)</td><td>DTO 和 3 个控制器</td></tr>
+    <tr><td>贴标签助手</td><td><b>Nest CLI 插件</b> <code>@nestjs/swagger/plugin</code>:<code>nest build</code> 时用 TypeScript 编译器读类型,自动注入元数据</td><td><b>没开</b>(下面是理由)</td></tr>
+    <tr><td>正式厨房 / 试菜间</td><td><code>nest build</code>(经过 Nest CLI 的编译器)/ vitest(用自己的转换器,不经过 Nest CLI)</td><td><code>npm run build</code> / <code>npm test</code></td></tr>
+    <tr><td>挂在门口的菜单架</td><td><code>SwaggerModule.setup('docs', app, document, { jsonDocumentUrl: 'docs-json' })</code></td><td><code>configureApp()</code> 里按 <code>SWAGGER_ENABLED</code> 挂</td></tr>
+  </table>
+
+  <p><b>装在哪里?</b>和 Day 19 的 <code>enableVersioning</code> 一样,<code>SwaggerModule.setup</code> 需要 app 实例,没有对应的 <code>APP_*</code> token,所以放进统一装配点 <code>configureApp()</code>,而且必须在 <code>enableVersioning</code> <b>之后</b>,否则生成文档时还不知道 <code>/v2</code> 前缀:</p>
+  <pre><code>// src/app.setup.ts
+export function configureApp(app: INestApplication): INestApplication {
+  app.enableVersioning({ type: VersioningType.URI });
+  // 必须在 enableVersioning 之后:生成文档时要知道版本前缀
+  if (swaggerEnabled(app)) setupSwagger(app);
+  return app;
+}</code></pre>
+
+  <h3>实验:要不要开 CLI 插件?</h3>
+  <p>官方文档推荐打开 CLI 插件(在 <code>nest-cli.json</code> 里加 <code>"plugins": ["@nestjs/swagger"]</code>),它会根据 TS 类型和 class-validator 装饰器自动生成字段的 schema,可以少写很多 <code>@ApiProperty</code>。✍️ <b>预测</b>:nest-lab 是 ESM + vitest,打开插件之后,下面三种情况的 <code>ReplaceTaskDto</code> schema 各是什么样?① 不开插件、不写 <code>@ApiProperty</code>;② 开插件、<code>nest build</code> 后生成;③ 开插件、在 vitest 里生成。</p>
+  <p>我在写今天的代码之前做了这个实验(临时改 <code>nest-cli.json</code>,做完已恢复)。真实结果:</p>
+  <pre><code>== 无插件、无 @ApiProperty
+CreateTaskDto: {"type":"object","properties":{}}
+ReplaceTaskDto: {"type":"object","properties":{}}
+UpdateTaskDto: {"type":"object","properties":{}}
+ChecklistItemDto: "(没有这个 schema)"
+CreateUserDto: {"type":"object","properties":{}}
+GET tasks 的 query 参数:[]
+
+== 开插件、无 @ApiProperty(nest build 之后从 dist 生成)
+CreateTaskDto: {"type":"object","properties":{}}
+ReplaceTaskDto: {"type":"object","properties":{"title":{"type":"string","maxLength":100},"done":{"type":"boolean"},"checklist":{"maxItems":20,"type":"array","items":{"$ref":"#/components/schemas/ChecklistItemDto"}}},"required":["title","done"]}
+UpdateTaskDto: {"type":"object","properties":{}}
+ChecklistItemDto: {"type":"object","properties":{"text":{"type":"string","maxLength":100},"done":{"type":"boolean"}},"required":["text","done"]}
+CreateUserDto: {"type":"object","properties":{"email":{"type":"string","format":"email"},"displayName":{"type":"string","maxLength":50},"password":{"type":"string","minLength":8,"maxLength":128},"role":{"type":"string","enum":["user","admin"]}},"required":["email","displayName","password"]}
+GET tasks 的 query 参数:[]
+
+== 开插件、在 vitest 里生成
+VITEST ReplaceTaskDto: {"type":"object","properties":{}}</code></pre>
+  <p>三个发现:</p>
+  <ol>
+    <li><b>不贴标签,菜单就是空白</b>:6 个 DTO 的 schema 都是 <code>"properties": {}</code>,列表接口的 query 参数一个都没有。前端拿到这份文档,生成出来的类型全是空对象。</li>
+    <li><b>插件在 <code>nest build</code> 下确实有效</b>,连 class-validator 的 <code>@MaxLength(100)</code>、<code>@IsEmail()</code> 都翻译成了 <code>maxLength</code>、<code>format: email</code>。但 <code>CreateTaskDto</code> / <code>UpdateTaskDto</code> 仍然是空的:它们当时是用 <code>@nestjs/mapped-types</code> 的 <code>PickType</code> / <code>PartialType</code> 派生的,这个包只复制校验元数据,不复制文档元数据。<b>修法:改从 <code>@nestjs/swagger</code> 导入同名函数</b>,它两种元数据都复制(今天已经改了,并去掉了 <code>@nestjs/mapped-types</code> 这个直接依赖)。</li>
+    <li><b>vitest 里插件不工作</b>:插件是挂在 Nest CLI 编译流程上的,vitest 用自己的转换器编译 TS,根本不经过它。结果就是<b>测试里生成的文档和 build 出来的文档不一样</b>。对 nest-lab 这是硬伤:今天的 e2e 测试要比对「代码生成的文档 = 提交的 <code>openapi.json</code>」,两边不一致,这个测试就没法写。(社区有给 vitest 配 SWC 并接入插件的做法,但又多一层要维护的编译配置。)</li>
+  </ol>
+  <p><b>结论:nest-lab 不开插件,每个字段显式写 <code>@ApiProperty</code></b>。代价是多写几行;换来的是 <code>nest build</code>、vitest、<code>npm run openapi:generate</code> 三处生成的文档<b>完全一致</b>(e2e 里的比对测试通过就是证明),而且每个字段的说明和例子都是自己写的,比插件推断的更有用:</p>
+  <pre><code>// src/tasks/dto/replace-task.dto.ts(节选)
+@ApiProperty({ description: '标题,首尾空格会被去掉,不能全是空白', maxLength: 100, example: '学 OpenAPI' })
+@Transform(({ value }) =&gt; (typeof value === 'string' ? value.trim() : value))
+@IsString()
+@IsNotBlank()
+@MaxLength(100)
+title!: string;
+
+// src/tasks/dto/create-task.dto.ts —— 从 @nestjs/swagger 导入,校验规则和文档说明一起「挑」过来
+import { PickType } from '@nestjs/swagger';
+export class CreateTaskDto extends PickType(ReplaceTaskDto, ['title', 'checklist'] as const) {}</code></pre>
+  <p>注意 <code>@ApiProperty({ maxLength: 100 })</code> 和 <code>@MaxLength(100)</code> 是<b>两份</b>:一份给菜单,一份给海关(Day 16 的 ValidationPipe)。它们可能不一致,这是显式写法要付的代价,插件能自动同步的恰好就是这部分。查询参数用的也是同一套写法:<code>ListTasksQueryDto</code> 的字段贴 <code>@ApiPropertyOptional</code>,<code>@Query()</code> 收的是 DTO,Nest 就会把每个字段展开成一个 query 参数。<code>@ApiQuery</code> 用在没有 DTO、单独 <code>@Query('x')</code> 取参数的场合。</p>
+
+  <h3>响应文档和真实响应,怎么保证是同一份?</h3>
+  <p>Day 18 的响应类型是 <code>interface</code>。interface 编译后不存在,印刷机看不到,所以今天把 <code>TaskResponse</code>、<code>UserResponse</code>、<code>TaskPage</code> 改成了 <code>class</code>,并且<b>让同一个类同时承担两个角色</b>:</p>
+  <pre><code>// src/tasks/dto/task-response.ts
+export class TaskResponse {                      // ② 菜单册的 schema
+  @ApiProperty({ example: 1 }) id!: number;
+  @ApiProperty({ example: '学 OpenAPI' }) title!: string;
+  @ApiProperty({ example: false }) done!: boolean;
+  @ApiProperty({ type: () =&gt; [ChecklistItemResponse] }) checklist!: ChecklistItemResponse[];
+  @ApiProperty({ format: 'date-time', example: '2026-01-01T00:00:00.000Z' }) createdAt!: string;
+}
+
+export function toTaskResponse(task: Task): TaskResponse {   // ① 映射函数的返回类型
+  return { id: task.id, title: task.title, done: task.done,
+           checklist: task.checklist.map((i) =&gt; ({ text: i.text, done: i.done })), createdAt: task.createdAt };
+}</code></pre>
+  <p>✍️ <b>预测</b>:在 <code>toTaskResponse</code> 返回的对象里多写一个 <code>internal: 'x'</code> 会怎样?删掉 <code>createdAt</code> 呢?把 <code>createdAt</code> 上的 <code>@ApiProperty</code> 删掉呢?三个实验的真实结果(都做完已恢复):</p>
+  <pre><code># 多一个字段 → 编译失败(对象字面量的多余属性检查)
+src/tasks/dto/task-response.ts(33,5): error TS2353: Object literal may only specify known properties, and 'internal' does not exist in type 'TaskResponse'.
+
+# 少一个字段 → 编译失败
+src/tasks/dto/task-response.ts(27,3): error TS2741: Property 'createdAt' is missing in type '{ id: number; title: string; done: boolean; checklist: { text: string; done: boolean; }[]; }' but required in type 'TaskResponse'.
+
+# 字段在,标签忘了贴 → 编译通过!由 e2e 抓住
+     × 提交的 openapi.json 与代码一致(代码改了却没重新生成 → 这里变红;修法:npm run openapi:generate) 33ms
+     × 文档 schema 的字段 = 映射函数真实输出的字段(防止「忘了贴 @ApiProperty」) 1ms
+AssertionError: expected [ 'checklist', 'done', 'id', 'title' ] to deeply equal [ 'checklist', 'createdAt', …(3) ]
+      Tests  2 failed | 5 passed (7)</code></pre>
+  <p>所以一致性靠三层:<b>TypeScript</b> 保证映射函数的输出和类的字段一致;<b>e2e 测试</b>拿映射函数的真实输出和文档 schema 的字段比对(用 admin 视图,字段最全),兜住「忘了贴标签」;<b>提交的 <code>openapi.json</code></b> 让任何字段变化都出现在 PR diff 里。错误响应同理:<code>ProblemDetailsDto</code> 的字段和 Day 17 <code>AllExceptionsFilter</code> 组装的 <code>ProblemDetails</code> 一一对应,Day 17 的观察脚本和 e2e 已经在检查真实错误体的结构。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「标签贴了就算数」——<code>@Api*</code> 装饰器不改变任何运行时行为。</b><code>@ApiProperty({ maxLength: 100 })</code> 不会拦截 101 个字的标题,拦截靠 <code>@MaxLength(100)</code>;<code>@ApiResponse({ status: 409 })</code> 不会让接口回 409。印刷机贴的标签和厨房的真实做法是两套东西,这正是第 3 节边界 1 的具体表现。</li>
+      <li><b>「插件是官方推荐,开就对了」——要看你的编译链。</b>插件依赖 Nest CLI 的编译流程;如果测试、脚本、打包工具(vitest、esbuild、SWC)有任何一个不经过它,不同入口生成的文档就会不同。对用 Jest + ts-jest 也能配插件的 CommonJS 项目,开插件很合理;nest-lab 的选择是因为 ESM + vitest,并且我们要把文档当测试对象。</li>
+      <li><b>「class 就是 schema」——class 只描述字段,不描述「谁看到哪些字段」。</b><code>UserResponse</code> 的 <code>internalNote</code> 只有 admin 能看到,文档里只能标成可选并写说明;OpenAPI 没法表达「取决于请求头 <code>x-demo-role</code>」。同一个资源按角色返回不同字段时,文档总会比真实行为粗糙一些。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b><code>DocumentBuilder</code> / <code>SwaggerModule.createDocument</code> / <code>SwaggerModule.setup</code></b>;<b><code>@ApiProperty</code> / <code>@ApiPropertyOptional</code> / <code>@ApiExtraModels</code> / <code>getSchemaPath</code></b>;<b><code>@ApiTags</code> / <code>@ApiOperation</code> / <code>@ApiResponse</code>(及 <code>@ApiOkResponse</code> 等简写)/ <code>@ApiQuery</code> / <code>@ApiHeader</code> / <code>@ApiSecurity</code> / <code>@ApiExcludeEndpoint</code></b>;<b>mapped types</b>(<code>PickType</code> / <code>PartialType</code> / <code>OmitType</code> / <code>IntersectionType</code>,要从 <code>@nestjs/swagger</code> 导入才带文档元数据);<b>CLI plugin</b>(编译期 AST 转换,<code>introspectComments</code> 还能把 JSDoc 注释变成 description);<b>operationIdFactory</b>。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测</b>:<code>CreateTaskDto</code> 的必填字段是哪些?<code>UpdateTaskDto</code> 呢?<code>GET /v2/tasks</code> 的参数有几个,哪些来自 query、哪些来自 header?</p>
+  <p>真实运行结果(第 3 幕):</p>
+  <pre><code>========== 第 3 幕:抽查几个 schema ==========
+CreateTaskDto   必填:["title"]  全部字段:title, checklist
+UpdateTaskDto   必填:[]  全部字段:title, done, checklist
+TaskPage        {"type":"object","properties":{"items":{"type":"array","items":{"$ref":"#/components/schemas/TaskResponse"}},"nextCursor":{"type":"string","nullable":true,"description":"下一页的 cursor;null 表示已经是最后一页。不透明,原样传回 ?cursor=","example":"eyJ2IjoxLCJzIjoiaWQiLCJmIjp7fSwiayI6WzIwXSwiaWQiOjIwfQ"}},"required":["items","nextCursor"]}
+ProblemDetailsDto 字段:type, title, status, detail, instance, requestId
+ValidationProblemDto:{"type":"object","properties":{"type":{"type":"string","description":"错误类别的 URI,程序判断请看它。目录见 docs/problems.md","example":"https://nest-lab.example/problems/not-f…
+GET /v2/tasks 的参数:x-request-id(header), done(query), q(query), sort(query), limit(query), cursor(query)</code></pre>
+  <p>和 Day 16 的规则对上了:POST 只有 <code>title</code> 必填(<code>done</code> 由服务器决定,所以根本不在 <code>CreateTaskDto</code> 里);PATCH 全部可选。<code>nextCursor</code> 是必填但可以为 <code>null</code>:「字段一定在,值可能是 null」,这和「字段可能不存在」是两回事,前端的类型也会不同(第 5 节)。<code>ValidationProblemDto</code> 继承了 <code>ProblemDetailsDto</code>,印出来是把父类字段平铺进去再加 <code>errors</code>。</p>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:文档即契约 —— 菜单册存档、比对、交给外卖平台</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    OpenAPI 不只是给人看的页面,它是<b>前后端之间的契约</b>:把它提交进 git、在 CI 里检查它有没有过期、用程序检查它有没有遵守团队约定、再让前端从它<b>生成类型</b>,契约就从「一份说明」变成了「会自动报警的东西」。
+  </div>
+
+  <h3>② 生活类比:总部的菜单档案柜和外卖平台</h3>
+  <p>每次印出新菜单,总部都要<b>存一份进档案柜</b>,和上一版对比:这次改了哪道菜?有没有哪家门店换了配方却没重新印菜单?品控还有一张<b>检查清单</b>:「每道菜都要写过敏原」「停售套餐必须有标签」「菜单上不许出现内部成本价」。外卖平台则直接<b>读菜单册自动上架</b>,不用人工录入。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>nest-lab 里</th></tr>
+    <tr><td>存进档案柜的那一版</td><td>提交进 git 的 <b><code>openapi.json</code></b></td><td>仓库根目录,36 KB</td></tr>
+    <tr><td>「换了配方没重印」检查</td><td><b>过期检查</b>:重新生成,和提交的文件逐字节比较</td><td><code>npm run openapi:check</code>(退出码 1);e2e 里同样的比对</td></tr>
+    <tr><td>品控检查清单</td><td>对 OpenAPI 做 <b>lint / 规则检查</b>(业界常用 Spectral、Redocly CLI)</td><td><code>day20</code> 第 4 幕 + <code>test/openapi.e2e-spec.ts</code></td></tr>
+    <tr><td>外卖平台自动上架</td><td><b>openapi-typescript</b>:从 OpenAPI 生成前端 TS 类型(配合 <code>openapi-fetch</code> 可以得到类型安全的请求函数)</td><td><code>day20</code> 第 5 幕</td></tr>
+    <tr><td>后厨的统一规矩手册(不管哪国菜系)</td><td><b>API 设计约定</b>(API style guide)</td><td><code>docs/api-design.md</code></td></tr>
+  </table>
+
+  <p><b>把 Week 3 的约定写进菜单册:</b></p>
+  <ul>
+    <li><b>错误(Day 17)</b>:组合装饰器 <code>@ApiProblemResponses(400, 403, 415, 422)</code> 一行声明一组错误,内容类型都是 <code>application/problem+json</code>,422 引用 <code>ValidationProblemDto</code>(带 <code>errors[]</code>),其余引用 <code>ProblemDetailsDto</code>;文档说明里链接 <code>docs/problems.md</code> 的错误类型目录。它和 Day 11 的 <code>@AdminOnly()</code> 是同一个套路:<code>applyDecorators</code>。</li>
+    <li><b>分页(Day 19)</b>:<code>limit</code> 写明 1–100、默认 20;<code>cursor</code> 写明「不透明,原样传回」;400 的说明写着「cursor 无效」;响应是 <code>TaskPage { items, nextCursor }</code>。</li>
+    <li><b>版本(Day 19)</b>:v1 的操作 <code>deprecated: true</code>,summary 前缀【已弃用】,成功响应声明了 <code>Deprecation</code> / <code>Sunset</code> / <code>Link</code> 三个响应头。</li>
+    <li><b>安全(Day 11)</b>:<code>addApiKey(..., 'demo-key')</code> + 写接口 <code>@ApiSecurity('demo-key')</code>;DELETE 额外声明 <code>x-demo-role</code> 请求头。</li>
+  </ul>
+
+  <p>✍️ <b>预测</b>:第 4 幕的 8 条自动检查,哪条最可能失败?</p>
+  <p>真实运行结果(第 4 幕):</p>
+  <pre><code>========== 第 4 幕:自动检查 ==========
+✅ 每个写接口(4 个)都声明了 422 + application/problem+json
+✅ 所有声明的 4xx 都是 application/problem+json
+✅ v1 的 2 个操作都标了 deprecated
+✅ v2 / users 的操作都没有标 deprecated
+✅ 所有 schema 里都没有 passwordHash 字段
+✅ 写接口都声明了 demo-key 安全要求
+✅ 没有把 @All 兜底路由写进文档
+✅ operationId 全部唯一 —— Tasks_findAll_v2 Tasks_create_v2 Tasks_findOne_v2 Tasks_replace_v2 Tasks_update_v2 Tasks_remove_v2 TasksV1_findAll_v1 TasksV1_findOne_v1 Users_findAll Users_create Users_findOne
+结论:✅ 全部通过</code></pre>
+  <p>全部通过是改过两处之后的结果。<b>脚本第一次跑时有两件事值得一说</b>:</p>
+  <ol>
+    <li><b>「文档里没有 passwordHash」失败了</b>。我最初写的是在整份文档的 JSON 字符串里搜这个词,结果命中的是 <code>POST /users</code> 的说明文字「响应里永远没有 password / passwordHash」。文档没有泄露,是<b>检查写得太粗</b>。改成只在 <code>components.schemas</code> 里搜之后通过(e2e 测试一开始就是这样写的)。检查本身也要设计:查的范围太大会误报,太小会漏报。</li>
+    <li><b>operationId 长成了 <code>Tasks_findAll[0]_vv2</code></b>。同一个方法登记在两个版本下时,Nest 传给 <code>operationIdFactory</code> 的方法名带 <code>[0]</code> 序号,版本参数本身已经是 <code>'v2'</code>。检查「唯一」通过了,但这种名字生成到前端就是很难看的函数名。修好以后是 <code>Tasks_findAll_v2</code>。这说明自动检查只能检查你想到的规则,<b>人还是要看一眼生成的东西</b>。</li>
+  </ol>
+
+  <p><b>过期检查</b>:✍️ <b>预测</b>:把「新建任务」的 summary 改一个字,不重新生成 <code>openapi.json</code>,<code>npm run openapi:check</code> 会怎样?真实结果(做完已恢复):</p>
+  <pre><code>❌ openapi.json 已过期:第 215 行开始不同
+   提交的:        "summary": "新建任务",
+   代码的:        "summary": "新建一个任务",
+   请运行 npm run openapi:generate 并提交
+
+# 恢复之后
+✅ openapi.json 与代码一致</code></pre>
+  <p>连一句说明文字都能抓住,字段变化当然更抓得住。这个检查同时在 e2e 测试里(第一个用例),所以只要跑 <code>npm run test:e2e</code> 就不会漏。<b>为什么要提交一个生成出来的文件?</b>平时我们不提交 <code>dist/</code>,但 <code>openapi.json</code> 是契约:代码评审时,审阅者在 diff 里看到「<code>TaskResponse</code> 少了一个字段」,比在一堆装饰器改动里找要容易得多;前端仓库也可以直接引用这个文件,不需要启动后端。</p>
+
+  <p><b>生成前端类型</b>:真实运行结果(第 5 幕,节选):</p>
+  <pre><code>========== 第 5 幕:openapi-typescript 生成的前端类型(节选) ==========
+生成了 982 行类型定义;下面是 TaskPage、ProblemDetailsDto 两段:
+        TaskPage: {
+            items: components["schemas"]["TaskResponse"][];
+            /**
+             * @description 下一页的 cursor;null 表示已经是最后一页。不透明,原样传回 ?cursor=
+             * @example eyJ2IjoxLCJzIjoiaWQiLCJmIjp7fSwiayI6WzIwXSwiaWQiOjIwfQ
+             */
+            nextCursor: string | null;
+        };
+        ProblemDetailsDto: {
+            /**
+             * @description 错误类别的 URI,程序判断请看它。目录见 docs/problems.md
+             * @example https://nest-lab.example/problems/not-found
+             */
+            type: string;
+            ...(省略 title / status / detail / instance / requestId,格式相同)
+        };</code></pre>
+  <p><code>"nullable": true</code> 变成了 <code>string | null</code>,而不是 <code>nextCursor?: string</code>;<code>@ApiProperty</code> 里写的 description 和 example 变成了 JSDoc,前端在编辑器里悬停就能看到。命令行版本:<code>npx openapi-typescript openapi.json -o api.d.ts</code>(实测输出 <code>✨ openapi-typescript 7.13.0</code>,986 行;比脚本里多 4 行是 CLI 加的文件头注释)。</p>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你可能用过手写 <code>interface Task { ... }</code> 再配 axios 的写法,类型和后端靠「人记得同步」。从 OpenAPI 生成有两种常见路线:<b>只生成类型</b>(openapi-typescript + <code>openapi-fetch</code>,请求时 <code>client.GET('/v2/tasks/{id}', { params: { path: { id: 1 } } })</code>,路径、参数、响应全有类型);或者<b>生成整套请求函数</b>(orval、openapi-generator 的 typescript-axios,函数名来自 operationId,所以今天要把它修干净)。不管哪条路线,把「生成」放进前端的 CI,后端改了契约,前端编译就会报错,而不是上线后才发现。
+  </div>
+
+  <p><b>生产环境</b>:真实运行结果(第 6 幕,子进程用 <code>NODE_ENV=production</code> 启动,不设 <code>SWAGGER_ENABLED</code>):</p>
+  <pre><code>========== 第 6 幕:NODE_ENV=production 启动(不设 SWAGGER_ENABLED) ==========
+GET /docs-json         → 404
+GET /docs              → 404
+GET /v2/tasks?limit=1  → 200</code></pre>
+  <p>默认值写在 Day 12 的 zod 配置里:<code>SWAGGER_ENABLED</code> 不写时等于 <code>NODE_ENV !== 'production'</code>。默认值依赖另一个字段,所以写在 <code>.transform()</code> 里,<code>z.infer</code> 推出来的类型是 <code>boolean</code> 而不是 <code>boolean | undefined</code>。真的要在生产开放文档(比如公开 API),显式设 <code>SWAGGER_ENABLED=true</code>。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「档案柜里的菜单和门店一致,就说明门店做得对」——<code>openapi:check</code> 只比较文档和装饰器。</b>它证明的是「提交的 <code>openapi.json</code> 就是当前代码会印出来的那份」,对「接口的真实行为符合文档」一个字都没证明。这件事仍然靠 e2e(现在一共 85 个用例,大部分在 Day 15–19 写的)和以后的契约测试。</li>
+      <li><b>「外卖平台上架了,顾客收到的就一定是这道菜」——生成的 TS 类型只在编译时存在。</b>前端写 <code>const page: TaskPage = await res.json()</code>,TypeScript 只是「相信」了它;如果线上后端版本和前端生成类型时用的文档不同(部署时间差、灰度、缓存),运行时照样拿到别的形状。对不能出错的地方,前端仍然要在运行时校验(比如用 zod 解析响应),或者至少容忍多余字段、处理缺失字段。</li>
+      <li><b>「检查清单全打勾,菜单就没问题」——清单只检查写在清单上的规则。</b>第 4 幕的两次「意外」已经说明了:检查范围写错会误报;operationId 难看但唯一,检查照样通过。自动检查是兜底,不是代替审阅。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>API contract</b>;<b>spec drift</b>(文档与实现漂移);<b>breaking change detection</b>(比较两版 OpenAPI 找出破坏性变更,工具如 oasdiff);<b>API linting</b>(Spectral 规则集);<b>API style guide</b>(Google AIP、Microsoft REST API Guidelines、Zalando RESTful API Guidelines);<b>codegen / client generation</b>;<b>runtime validation vs compile-time types</b>。
+  </div>
+
+  <h3>收口:<code>docs/api-design.md</code></h3>
+  <p>这一周的约定散落在 5 天的讲义、README、<code>problems.md</code> 和代码注释里。今天把它们收进一份<b>和语言无关</b>的设计文档:换成 ASP.NET Core、Spring、Go 实现同一个服务,也照它来。9 节:资源与 URI · 方法与状态码 · 内容协商 · 校验(400 vs 422 的分界线)· 错误格式 · 响应表示 · 集合(分页 / 过滤 / 排序)· 版本化与弃用 · 契约文档。每条都写了「对应代码」,并说明哪些推迟到了 Week 12(<code>Idempotency-Key</code>、<code>ETag</code> / 412)。<b>OpenAPI 描述「接口是什么样」,设计文档说明「为什么这样、以后的新接口也要这样」</b>,两者都要有。</p>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <table>
+    <tr><th>命题</th><th>NestJS(教具)</th><th>C# / ASP.NET Core</th><th>Java / Spring</th><th>Go</th></tr>
+    <tr>
+      <td>从代码生成 OpenAPI</td>
+      <td><code>@nestjs/swagger</code>:装饰器 + 可选 CLI 插件</td>
+      <td><b>.NET 9 起内置 <code>Microsoft.AspNetCore.OpenApi</code></b>:<code>builder.Services.AddOpenApi()</code> + <code>app.MapOpenApi()</code>,默认在 <code>/openapi/v1.json</code>;Web API 模板从 .NET 9 起<b>不再包含 Swashbuckle</b>(Swashbuckle 本身仍在维护,也可以继续用)。类型信息来自 C# 运行时反射,不用额外贴字段标签</td>
+      <td><b>springdoc-openapi</b>:加依赖即可,默认 <code>/v3/api-docs</code>;注解 <code>@Operation</code> / <code>@ApiResponse</code> / <code>@Schema</code>(<code>io.swagger.v3.oas.annotations</code>);Bean Validation 注解(<code>@NotBlank</code>、<code>@Size</code>)会被读进 schema</td>
+      <td><b>swaggo/swag</b>:在 handler 上方写注释 <code>// @Summary</code> <code>// @Param</code> <code>// @Success</code>,运行 <code>swag init</code> 生成(输出 Swagger 2.0)</td>
+    </tr>
+    <tr>
+      <td>文档页面</td>
+      <td>Swagger UI(<code>/docs</code>)</td>
+      <td>内置包只生成 JSON,不带 UI;常见搭配 <b>Scalar</b>(<code>Scalar.AspNetCore</code>,<code>app.MapScalarApiReference()</code>,通常只在开发环境挂)或继续用 Swagger UI</td>
+      <td>Swagger UI(<code>/swagger-ui.html</code>,springdoc 自带)</td>
+      <td>gin-swagger / http-swagger 挂 Swagger UI</td>
+    </tr>
+    <tr>
+      <td>contract-first:从契约生成代码</td>
+      <td>少见(可以用 openapi-generator 生成 TS 服务端骨架)</td>
+      <td>NSwag(也能生成 C# / TS 客户端)、Kiota(微软的客户端生成器)</td>
+      <td><b>openapi-generator</b> 的 <code>spring</code> 生成器(生成 Controller 接口,你来实现)</td>
+      <td><b>oapi-codegen</b>:从 OpenAPI 生成 Go 类型和服务端接口,Go 社区做 contract-first 的主流选择</td>
+    </tr>
+    <tr>
+      <td>生产环境开关</td>
+      <td><code>SWAGGER_ENABLED</code>(nest-lab 自定义)</td>
+      <td>模板里写在 <code>if (app.Environment.IsDevelopment())</code> 里</td>
+      <td><code>springdoc.api-docs.enabled=false</code>、<code>springdoc.swagger-ui.enabled=false</code></td>
+      <td>自己用构建标签或配置决定是否注册路由</td>
+    </tr>
+  </table>
+  <p>📌 一个值得注意的趋势:ASP.NET Core 和 Spring 都能从<b>语言自身的类型</b>推出 schema(C# 和 Java 的类型在运行时还在),所以不用像 Nest 那样给每个字段贴标签;TypeScript 的类型编译后就没了,才需要装饰器或编译期插件。这和 Nest 的依赖注入要靠 <code>emitDecoratorMetadata</code> 把构造函数参数类型留到运行时,是同一个根源(Day 9)。Go 的 swag 走注释路线,所以 Go 社区很多团队干脆反过来,用 oapi-codegen 做 contract-first。</p>
+  <p>📌 roadmap 顶部对照表建议你在 Day 21 复盘时补一行<b>「API 文档」</b>(<code>@nestjs/swagger</code> ↔ <code>Microsoft.AspNetCore.OpenApi</code> + Scalar ↔ springdoc-openapi ↔ swag / oapi-codegen)。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"How do you document your APIs, and how do you keep the docs in sync with the code?"</b>(或者:「你们的接口文档怎么做?怎么保证文档不过时?」)你可以答:<br>
+    <b>"我们用 OpenAPI 3 描述接口,code-first:从 Controller 和 DTO 上的注解生成,不手写。生成出来的 openapi.json 提交进仓库,CI 里重新生成并比较,过期就失败,这样契约变化在代码评审的 diff 里一目了然。我们对文档本身也有检查:每个写接口必须声明 422,所有错误都是 problem+json,弃用的接口必须标 deprecated,响应 schema 里不能有敏感字段。但文档只说明接口应该是什么样,不保证实现真的这样,所以还有 e2e 和契约测试发真实请求去验证。前端从这份 OpenAPI 生成 TypeScript 类型,后端一改契约,前端编译就会报错。文档页面只在非生产环境开放。如果是多个团队或者对外的 API,我会考虑 contract-first,先评审 OpenAPI 再实现。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:点菜平板上手(动手,约 8 min)</h3>
+    <ol>
+      <li>先把第 3、4、5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day20</code> 批改。</li>
+      <li><code>npm run start:dev</code>,浏览器打开 <code>http://localhost:3000/docs</code>。✍️ <b>预测</b>:不点 Authorize,直接用「Try it out」发 <code>POST /v2/tasks</code>,会回几?点 Authorize 填 <code>let-me-in</code> 后,发一个 <code>{"title": ""}</code> 呢?发一个正常的请求,响应头里的 <code>Location</code> 是什么?</li>
+      <li>在页面上找到 <code>/v1/tasks</code>,它看起来和其他接口有什么不同?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:加一个响应字段,走完整流程(动手,约 10 min)</h3>
+    <p>需求:任务响应加 <code>checklistDone</code>(已完成的清单项数量,整数)。</p>
+    <ol>
+      <li>✍️ <b>预测</b>:只改 <code>toTaskResponse</code>(返回对象里加这个字段),不改 <code>TaskResponse</code> 类,会在哪一步失败?只改类加字段但不贴 <code>@ApiProperty</code> 呢?都改了但不重新生成 <code>openapi.json</code> 呢?</li>
+      <li>按正确顺序改完:类 + <code>@ApiProperty</code> → 映射函数 → <code>npm run openapi:generate</code> → <code>npm run test:e2e</code>。看一眼 <code>git diff openapi.json</code>,它是不是你在代码评审时想看到的东西?</li>
+      <li>这是兼容变更还是破坏性变更?需要发 v3 吗?(对照 <code>docs/api-design.md</code> 第 6、8 节。)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:选 code-first 还是 contract-first(思考,约 7 min)</h3>
+    <ol>
+      <li>场景:后端还要两周才能写完新的「项目」接口,前端想现在就开始做页面。用 contract-first 怎么做?(提示:先写 OpenAPI 评审、mock server、前端生成类型。)nest-lab 现在的 code-first 做法能做到吗,要怎么变通?</li>
+      <li>如果 nest-lab 改成 contract-first(手写 <code>openapi.yaml</code> 为唯一真相),今天的 <code>openapi:check</code> 应该反过来检查什么?</li>
+      <li>文档里的 <code>@ApiProperty({ maxLength: 100 })</code> 和校验用的 <code>@MaxLength(100)</code> 是两份。你会怎么防止它们不一致?(至少说两种办法,并说出各自的代价。)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/20-openapi/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「我能不能从后端的 OpenAPI 自动生成 axios 请求函数和 TS 类型,不再手写 interface?生成出来的类型能保证运行时拿到的数据就是这个形状吗?」用菜单册的比喻讲清楚,并说出这个比喻在哪里会骗人。</li>
+      <li>code-first 和 contract-first 的区别是什么?nest-lab 为什么不开 <code>@nestjs/swagger</code> 的 CLI 插件?</li>
+      <li>nest-lab 用哪几层手段保证「文档、代码、真实响应」一致?每一层分别防住了什么、防不住什么?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里补上你自己做的改动;如果做了习题 2,确认 <code>npm run openapi:check</code> 通过;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交(<code>openapi.json</code> 要一起提交)。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结、Week 3 收口与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>OpenAPI 是 HTTP API 的标准菜单册</b>:paths + operations + components.schemas,一份文件同时驱动文档页面、前端类型 / SDK、mock 和测试。3.1 与 JSON Schema 完全对齐,<code>@nestjs/swagger</code> 输出的是 3.0(<code>nullable: true</code>)。</li>
+    <li><b>code-first 的文档只和装饰器一样准</b>:TS 类型运行时不存在,字段要贴 <code>@ApiProperty</code>;CLI 插件在 vitest 下不生效,nest-lab 选择显式标注,保证所有入口生成同一份文档。mapped types 要从 <code>@nestjs/swagger</code> 导入。</li>
+    <li><b>响应类既是映射函数的返回类型又是 schema</b>:多字段、少字段由编译器拦,忘贴标签由 e2e 拦,所有变化出现在提交的 <code>openapi.json</code> diff 里;<code>openapi:check</code> 抓过期。</li>
+    <li><b>文档描述「应该」,不保证「真的」</b>:真实行为靠 e2e / 契约测试;生成的前端类型只在编译时有效;文档页面生产环境默认关闭(<code>SWAGGER_ENABLED</code>)。</li>
+  </ol>
+
+  <h3>Week 3 收口:任务管理 REST API 现在有什么</h3>
+  <table>
+    <tr><th>Day</th><th>能力</th><th>写在哪</th></tr>
+    <tr><td>15</td><td>资源 / 方法语义,201 + Location、204、405 + Allow、409,406 / 415</td><td><code>api-design.md</code> §1–3</td></tr>
+    <tr><td>16</td><td>DTO 校验,422 vs 400,拒绝未知字段</td><td>§4</td></tr>
+    <tr><td>17</td><td>problem+json + 错误类型目录 + requestId</td><td>§5、<code>problems.md</code></td></tr>
+    <tr><td>18</td><td>响应 DTO + 显式映射,不包装,不泄露</td><td>§6</td></tr>
+    <tr><td>19</td><td>cursor 分页、过滤排序白名单、URI 版本化与弃用</td><td>§7–8</td></tr>
+    <tr><td>20</td><td>OpenAPI 契约 + 过期检查 + 自动规则检查 + 前端类型</td><td>§9、<code>openapi.json</code></td></tr>
+  </table>
+  <p>还没做、已经排期的:<code>Idempotency-Key</code>、<code>ETag</code> / 412(Week 12);鉴权从演示钥匙换成 JWT(Week 10);数据从内存搬进 PostgreSQL(Week 4)。明天复盘时会把这一周留下的问题列成清单。</p>
+
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>为什么 <code>@nestjs/swagger</code> 不贴 <code>@ApiProperty</code> 就看不到 DTO 的字段,而 ASP.NET Core 不需要?</li>
+    <li><code>nextCursor: string | null</code> 和 <code>nextCursor?: string</code> 在 OpenAPI 里分别怎么写?对前端有什么区别?</li>
+    <li>CLI 插件实验里,为什么开了插件 <code>CreateTaskDto</code> 还是空的?怎么修?</li>
+    <li><code>npm run openapi:check</code> 通过,能说明什么,不能说明什么?</li>
+    <li>为什么同一个操作在文档里不该出现两次(<code>/tasks</code> 和 <code>/v2/tasks</code>)?operationId 对前端有什么用?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 21</b>:Week 3 复盘。用 <code>docs/api-design.md</code> 逐条回顾这一周,整理遗留问题清单(哪些安全问题留给 Week 10、哪些留给 Week 4 的数据库),补 roadmap 的跨语言对照表,再做一次不看文档的「从零设计一个资源的 API」练习。</p>
+</section>
+
+<footer>
+  Day 20 · Phase 1 / Week 3 · 产出:<code>docs/20-openapi/</code> 本文档 + <code>nest-lab/</code>(<code>@nestjs/swagger</code>、<code>/docs</code> 与 <code>/docs-json</code>、<code>SWAGGER_ENABLED</code>、响应类 + <code>@ApiProblemResponses</code>、提交的 <code>openapi.json</code> 与 <code>openapi:generate</code> / <code>openapi:check</code>、<code>docs/api-design.md</code>、<code>test/openapi.e2e-spec.ts</code>、<code>npm run day20</code>)+ <code>src/20-openapi/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

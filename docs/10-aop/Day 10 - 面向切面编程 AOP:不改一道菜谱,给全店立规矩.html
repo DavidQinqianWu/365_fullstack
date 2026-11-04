@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 10 - 面向切面编程 AOP:不改一道菜谱,给全店立规矩</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 2</div>
+  <h1>Day 10 - 面向切面编程 AOP:不改一道菜谱,给全店立规矩</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>横切关注点 · AOP 三个词(切面 / 通知 / 切点)· Nest 管线五件套 · 异常短路</b> ·
+    项目:<code>nest-lab/</code> 加上计时 / 包装 interceptor、guard、pipe、全局 exception filter ·
+    手写实验:<code>src/10-aop/</code> 不用框架的「切面」·
+    预告:Day 11 自定义装饰器 + 元数据(今天不碰 <code>SetMetadata</code> / <code>Reflector</code>)
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">📋 接上回:每道菜谱都写一遍「洗手」?</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:横切关注点与 AOP —— 店规不写进菜谱</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:管线五件套 —— 登记员、保安、领班、核单员、投诉台</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:异常短路 —— 哪一站出事,就从哪一站直奔投诉台</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>📋 接上回:每道菜谱都写一遍「洗手」?</h2>
+  <p>Day 9 我们让总部人事部(IoC 容器)负责招人和接线,前台、后厨只管自己的活。今天来了新要求:老板想知道<b>每个接口</b>花了多少时间、想让<b>每个</b>成功响应都长成同一种格式、想给<b>新建任务</b>加一道门禁、想让<b>所有</b>报错都用同一种格式答复客人。</p>
+  <p>不用新工具,最直接的写法是在每个 handler 里复制粘贴:</p>
+  <pre><code>@Get(':id')
+findOne(@Param('id') idText: string) {
+  const start = performance.now();                          // 计时(每个方法都抄一遍)
+  try {
+    const id = Number(idText);
+    if (!Number.isInteger(id)) throw new BadRequestException(); // 参数转换(每个带 id 的方法都抄)
+    const data = this.tasksService.findOne(id);
+    return { data, timestamp: new Date().toISOString() };    // 包装(每个方法都抄)
+  } finally {
+    console.log(`findOne 用时 ${performance.now() - start} ms`);
+  }
+}
+@Post()
+create(@Body() body, @Headers('x-demo-key') key: string) {
+  if (key !== 'let-me-in') throw new ForbiddenException();   // 门禁(每个要保护的方法都抄)
+  const start = performance.now();                           // 计时,又抄一遍……
+  /* …… */
+}</code></pre>
+  <p>真正的业务只有一行 <code>this.tasksService.findOne(id)</code>,其余全是「<b>每个接口都要、但不属于任何一个接口</b>」的东西。接口一多,有人忘抄、有人抄错,计时格式五花八门。</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    连锁店里,每道菜都要「洗手、计时、出餐打包、出事走投诉流程」。如果把这些写进<b>每一道菜谱</b>,一百道菜就要写一百遍,改个打包规则要改一百处。聪明的总部会把它们写成<b>店规(标准作业流程 SOP)</b>,贴在门口、出餐口、投诉台,由固定岗位在固定时间执行。菜谱里只写菜怎么做。这就是今天的 <b>AOP(Aspect-Oriented Programming,面向切面编程)</b>。
+  </div>
+  <p>Day 8 那张生命周期图上空着的 ② 和 ⑤ 号站,今天全部填上:</p>
+  <table>
+    <tr><th>站</th><th>餐厅里的岗位</th><th>真实组件</th><th>状态</th></tr>
+    <tr><td>①</td><td>门口登记员</td><td>Middleware</td><td>Day 8 已有</td></tr>
+    <tr><td>②-1</td><td><b>保安</b></td><td><b>Guard</b></td><td><b>今天</b></td></tr>
+    <tr><td>②-2 / ⑤-1</td><td><b>领班</b>(掐表、出餐打包)</td><td><b>Interceptor</b>(去程 / 回程)</td><td><b>今天</b></td></tr>
+    <tr><td>②-3</td><td><b>核单员</b></td><td><b>Pipe</b></td><td><b>今天</b></td></tr>
+    <tr><td>③ / ④</td><td>前台 / 后厨</td><td>Controller / Service</td><td>Day 8–9</td></tr>
+    <tr><td>⑤-2</td><td><b>投诉处理台</b></td><td><b>Exception Filter</b></td><td><b>今天换成自己写的</b></td></tr>
+    <tr><td>⑥</td><td>端出门</td><td>响应发出(登记员的 <code>'finish'</code>)</td><td>Day 8 已有</td></tr>
+  </table>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+npm test             # 单元测试:guard、包装 interceptor 可以脱离 HTTP 单独测
+npm run test:e2e     # e2e:包装格式、X-Response-Time、403、400、404 格式
+npm run day10        # 观察脚本:五个请求各走过哪些站、停在哪一站
+
+# 手动试:POST 现在要带钥匙
+curl -i -X POST localhost:3000/tasks -H 'content-type: application/json' \
+  -H 'x-demo-key: let-me-in' -d '{"title":"学 AOP"}'</code></pre>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用(餐厅版)</th></tr>
+    <tr><td><code>src/common/timing.interceptor.ts</code></td><td>新增</td><td>领班掐表:所有接口打印耗时 + 设置 <code>X-Response-Time</code> 头(全局)</td></tr>
+    <tr><td><code>src/common/wrap-response.interceptor.ts</code></td><td>新增</td><td>领班打包:成功返回值包成 <code>{ data, timestamp }</code>,时间来自 Day 9 注入的 <code>CLOCK</code>(Controller 级)</td></tr>
+    <tr><td><code>src/common/demo-key.guard.ts</code></td><td>新增</td><td>保安:请求头 <code>x-demo-key</code> 不是 <code>let-me-in</code> 就拦下(只挂在 <code>POST /tasks</code> 上)</td></tr>
+    <tr><td><code>src/common/traced-parse-int.pipe.ts</code></td><td>新增</td><td>核单员:就是 Nest 自带的 <code>ParseIntPipe</code>,多打一行日志方便观察</td></tr>
+    <tr><td><code>src/common/all-exceptions.filter.ts</code></td><td>新增</td><td>投诉处理台:所有异常统一成 <code>{ statusCode, error, message, path }</code>(Week 3 升级成 problem+json)</td></tr>
+    <tr><td><code>src/app.setup.ts</code></td><td>新增</td><td><code>configureApp(app)</code>:全局店规(middleware + 计时 interceptor + filter)集中在一个函数里</td></tr>
+    <tr><td><code>src/main.ts</code></td><td>修改</td><td>改为调用 <code>configureApp(app)</code></td></tr>
+    <tr><td><code>src/tasks/tasks.controller.ts</code></td><td>修改</td><td>类上 <code>@UseInterceptors(WrapResponseInterceptor)</code>;<code>POST</code> 上 <code>@UseGuards(DemoKeyGuard)</code>;<code>@Param('id', TracedParseIntPipe) id: number</code>。<b>业务逻辑一行没改</b></td></tr>
+    <tr><td><code>src/common/wrap-response.interceptor.spec.ts</code>、<code>src/common/demo-key.guard.spec.ts</code></td><td>新增</td><td>切面的单元测试</td></tr>
+    <tr><td><code>test/tasks.e2e-spec.ts</code></td><td>修改</td><td>调用 <code>configureApp</code>;断言改成包装格式;新增 403 / 400 / 响应头用例;POST 带钥匙</td></tr>
+    <tr><td><code>scripts/day10-try.mjs</code> + <code>package.json</code> 的 <code>day10</code></td><td>新增</td><td>观察脚本</td></tr>
+    <tr><td><code>README.md</code></td><td>修改</td><td>成长日志加 Day 10 一行</td></tr>
+  </table>
+  <div class="warn">
+    <span class="tag">⚠️ 接口行为变了(nest-lab 在长大):</span>
+    成功响应现在是 <code>{ data, timestamp }</code>;<code>POST /tasks</code> 不带 <code>x-demo-key: let-me-in</code> 会 403。<code>npm run day08</code> 还能跑,但它<b>没有调用 <code>configureApp</code></b>,所以你会看到「成功响应被包装了,错误却还是 Nest 默认格式、POST 全是 403」—— 为什么会这样,是习题 3 的题目。
+  </div>
+  <p>今天的切面挂在三个不同的范围上:</p>
+  <pre><code>// src/app.setup.ts —— 全局:所有 Controller 的所有方法
+export function configureApp(app: INestApplication) {
+  app.use(requestLogger);                              // ① middleware(Day 8)
+  app.useGlobalInterceptors(new TimingInterceptor());  // 全局 interceptor
+  app.useGlobalFilters(new AllExceptionsFilter());     // 全局 filter
+  return app;
+}
+
+// src/tasks/tasks.controller.ts —— Controller 级 / 方法级 / 参数级
+@UseInterceptors(WrapResponseInterceptor)               // 这个 Controller 的所有方法
+@Controller('tasks')
+export class TasksController {
+  @Get(':id')
+  findOne(@Param('id', TracedParseIntPipe) id: number) { /* 业务没变 */ }   // 只这一个参数
+
+  @UseGuards(DemoKeyGuard)                              // 只这一个方法
+  @Post()
+  create(@Body() body: { title: string }) { /* 业务没变 */ }
+}</code></pre>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:横切关注点与 AOP —— 店规不写进菜谱</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    把「每个接口都要做、但跟业务无关」的事(日志、计时、鉴权、错误处理)<b>从业务代码里抽出来写一次</b>,再声明「对哪些接口、在什么时候」自动套上去。
+  </div>
+
+  <h3>② 生活类比:店规 = 三句话</h3>
+  <p>每一条店规都能拆成三句话:<b>做什么</b>(掐表记录出餐时间)、<b>什么时候做</b>(上菜前开始、上菜后结束)、<b>对哪些菜</b>(全店 / 只有热菜部 / 只有这一道招牌菜)。菜谱完全不用改,厨师甚至不知道有人在掐表。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>AOP 术语</th><th>nest-lab 里</th></tr>
+    <tr><td>一条店规(整件事)</td><td><b>aspect(切面)</b>:一个横切关注点的完整实现</td><td><code>TimingInterceptor</code>、<code>DemoKeyGuard</code>……</td></tr>
+    <tr><td>「做什么 + 什么时候做」</td><td><b>advice(通知)</b>:before(之前)/ after returning(正常返回后)/ after throwing(抛异常后)/ after(无论成败)/ <b>around(包住全程)</b></td><td>guard ≈ before;interceptor = around;filter ≈ after throwing</td></tr>
+    <tr><td>「对哪些菜」</td><td><b>pointcut(切点)</b>:选中哪些方法</td><td>挂在哪里:全局 / Controller / 方法 / 参数</td></tr>
+    <tr><td>每一次「做一道菜」</td><td><b>join point(连接点)</b>:切面可以插进去的执行点</td><td>Nest 里就是「一次 handler 调用」</td></tr>
+    <tr><td>把店规落实到流程里</td><td><b>weaving(织入)</b></td><td>Nest 启动时把切面和 handler 组装成管线</td></tr>
+    <tr><td>菜谱</td><td>业务代码 / 核心关注点</td><td><code>TasksService</code>、Controller 方法体</td></tr>
+  </table>
+
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你早就用过 AOP:<b>axios 拦截器</b>(<code>axios.interceptors.request.use</code> 给每个请求加 token、<code>response.use</code> 统一处理 401)就是 before / after advice;<b>React 高阶组件</b> <code>withAuth(Page)</code> 是 around advice:一个函数包住另一个组件;<b>Error Boundary</b> 是 after throwing。Next.js 的 <code>middleware.ts</code> 则对应今天的 ① 号站:它在路由匹配之前跑,不知道最后会渲染哪个页面组件。
+  </div>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「店规是另外的人在执行,厨师不受影响」——错。</b>切面代码还是<b>同一个服务员(event loop)</b>在同一次请求里执行的,只是你没在业务方法里看见它。每个请求都多跑了这些代码:切面里写一个慢操作(同步读文件、算哈希),<b>所有被它套住的接口一起变慢</b>。</li>
+      <li><b>「店规对店里发生的一切都生效」——不是。</b>Nest 的切面只套在「<b>经过 Nest 管线的那次 handler 调用</b>」上。你在 <code>TasksService</code> 里直接调用另一个 Service 的方法,不会经过任何 interceptor / guard。Spring AOP 用代理对象能切到 Service 方法级,但也有「类内部自己调自己不生效」的坑。</li>
+      <li><b>「切点 = 一条规则表达式」——在 Nest 里不是。</b>Spring 能写 <code>execution(* com.shop..*Service.*(..))</code> 这种表达式,按名字批量选方法;Nest 的切点就是「你把它挂在哪」(全局 / 类 / 方法 / 参数)。想让切面按「标签」决定做不做(比如「标了 <code>@Public()</code> 的接口不查钥匙」),要靠 Day 11 的自定义装饰器 + 元数据。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>cross-cutting concern(横切关注点)</b>:日志、计时、鉴权、缓存、事务、异常处理、限流 —— 「横着」切过所有业务模块;<b>separation of concerns(关注点分离)</b>:业务代码只关心业务。AOP 的本质很朴素:<b>高阶函数</b>,一个函数接收「原来的 handler」,返回一个「包了一层的新 handler」。Nest 把这件事做成了固定的五种站,按固定顺序织入。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>不用框架,自己写三个切面(logging、timing、errorToResponse)和一个 <code>weave(目标, 切点, 切面列表)</code>。✍️ <b>预测(先写再运行)</b>:</p>
+  <ol>
+    <li>第 2 幕套了 <code>[logging, timing]</code>(第一个在最外层),「进」「用时」「出」三行的顺序?</li>
+    <li>第 3 幕 <code>findOne(999)</code> 抛错,logging 的「出」还会打印吗?调用方最后拿到什么?</li>
+    <li>第 4 幕切点是 <code>/^find/</code>,<code>create</code> 会被计时吗?</li>
+  </ol>
+  <pre><code>npx tsx src/10-aop/ex1-aop-by-hand.ts</code></pre>
+  <p>真实运行结果(用时每次不同):</p>
+  <pre><code>========== 第 1 幕:裸业务函数 ==========
+{ id: 1, title: '学 AOP' }
+
+========== 第 2 幕:套上 [logging, timing] ==========
+  [logging] 进 findOne(1)
+  [timing]  findOne 用时 0.009 ms
+  [logging] 出 findOne
+{ id: 1, title: '学 AOP' }
+
+========== 第 3 幕:再加一层 errorToResponse,让 findOne(999) 抛错 ==========
+  [logging] 进 findOne(999)
+  [timing]  findOne 用时 0.066 ms
+{ statusCode: 404, message: '没有 id 为 999 的任务' }
+
+========== 第 4 幕:切点 /^find/ 只选中 find 开头的方法 ==========
+  [timing]  findOne 用时 0.003 ms
+{ id: 1, title: '学 AOP' }
+{ id: 2, title: '没被计时' }</code></pre>
+  <p>三个发现:① 切面像<b>洋葱</b>,外层先进后出;② 第 3 幕 logging 的「出」<b>没打印</b> —— 异常一抛,后面的步骤全被跳过,只有写在 <code>finally</code> 里的 timing 和最外层负责接异常的 errorToResponse 还在工作;③ 业务函数 <code>handlers</code> 一个字没改。Nest 的 interceptor 和 filter 做的就是这件事,只是换成了 RxJS 和固定的站。</p>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:管线五件套 —— 登记员、保安、领班、核单员、投诉台</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    Nest 把「什么时候做」固定成五种站,每种站<b>拿到的信息不同、能做的事不同</b>,你按需求选对站,挂到对的范围上。
+  </div>
+
+  <h3>② 生活类比:五个岗位各管一段</h3>
+  <ul>
+    <li><b>门口登记员(middleware)</b>:人一进门就登记。他<b>只看得到客人本身</b>,不知道客人订的是哪个包间。</li>
+    <li><b>保安(guard)</b>:手里有订座表,知道客人要去<b>哪个包间(哪个 handler)</b>,只做一个决定:进,还是不进。</li>
+    <li><b>领班(interceptor)</b>:从上菜前一直跟到上菜后,<b>一个人包住全程</b>:开始掐表、菜出来后打包装盘、记下用时。他甚至可以换掉菜(改返回值)或者嫌太慢直接撤单(超时)。</li>
+    <li><b>核单员(pipe)</b>:把单子上手写的「三」改成数字 3;看不懂的单子直接退回(400)。他只管<b>单子上的某一栏(某一个参数)</b>。</li>
+    <li><b>投诉处理台(exception filter)</b>:不管哪一站出事,都由这里给客人一个格式统一的答复。</li>
+  </ul>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>站</th><th>什么时候</th><th>能拿到什么</th><th>能做什么</th><th>适合放</th></tr>
+    <tr><td>① Middleware</td><td>最早,<b>路由匹配之前</b>也会跑</td><td>只有原始 <code>req / res / next</code></td><td>改 req、提前结束响应、调 <code>next()</code> 放行</td><td>请求日志、CORS、body 解析、请求 ID</td></tr>
+    <tr><td>②-1 Guard</td><td>middleware 之后、interceptor 之前</td><td><b><code>ExecutionContext</code></b>:知道要去哪个类的哪个方法</td><td>返回 <code>true</code> 放行 / <code>false</code> 拦下(自动 403)</td><td>鉴权、权限、功能开关</td></tr>
+    <tr><td>②-2 / ⑤-1 Interceptor</td><td><b>包住</b> pipe + handler</td><td><code>ExecutionContext</code> + <code>CallHandler</code>(<code>next.handle()</code> 返回一个 RxJS <code>Observable</code>)</td><td>前后各做事、<code>map</code> 改返回值、<code>tap</code> 计时、<code>timeout</code> 超时、<code>catchError</code> 换异常</td><td>计时、统一响应格式、缓存、超时</td></tr>
+    <tr><td>②-3 Pipe</td><td>紧挨着 handler 之前,每个参数一次</td><td>参数的值 + <code>ArgumentMetadata</code>(哪种参数、什么类型)</td><td>转换(<code>'2'</code> → <code>2</code>)、校验(不合格抛 400)</td><td>类型转换、DTO 校验(Week 3)</td></tr>
+    <tr><td>⑤-2 Exception Filter</td><td>任何一站抛异常之后</td><td>异常对象 + <code>ArgumentsHost</code>(能拿到 req / res)</td><td>决定错误响应的状态码和格式</td><td>统一错误格式、错误日志、上报</td></tr>
+  </table>
+
+  <figure style="margin:20px 0;">
+  <svg viewBox="0 0 680 270" width="100%" role="img" aria-label="interceptor 像洋葱一样包住 pipe 和 handler" style="background:#fff;border:1px solid #e5e1d8;border-radius:12px;">
+    <g font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="13">
+      <rect x="20" y="20" width="640" height="200" rx="14" fill="#fff3ec" stroke="#c2410c" stroke-width="2"/>
+      <text x="36" y="44" fill="#c2410c" font-weight="700">TimingInterceptor(全局,最外层)</text>
+      <text x="644" y="44" text-anchor="end" fill="#6b7280" font-size="12">去程:计时开始 · 回程:计时结束 + X-Response-Time</text>
+      <rect x="50" y="58" width="580" height="140" rx="12" fill="#fdf8f2" stroke="#c2410c" stroke-dasharray="6 4"/>
+      <text x="66" y="82" fill="#c2410c" font-weight="700">WrapResponseInterceptor(Controller 级)</text>
+      <text x="614" y="82" text-anchor="end" fill="#6b7280" font-size="12">回程:map 成 { data, timestamp }</text>
+      <rect x="80" y="98" width="200" height="80" rx="10" fill="#fff" stroke="#6b7280"/>
+      <text x="180" y="132" text-anchor="middle" fill="#1f2430" font-weight="700">②-3 Pipe</text>
+      <text x="180" y="154" text-anchor="middle" fill="#6b7280" font-size="12">'1' → 1</text>
+      <rect x="320" y="98" width="280" height="80" rx="10" fill="#fff" stroke="#6b7280"/>
+      <text x="460" y="132" text-anchor="middle" fill="#1f2430" font-weight="700">③ Controller → ④ Service</text>
+      <text x="460" y="154" text-anchor="middle" fill="#6b7280" font-size="12">return task</text>
+      <line x1="280" y1="138" x2="318" y2="138" stroke="#6b7280" stroke-width="2"/>
+      <text x="20" y="246" fill="#1f2430" font-size="12">外层先进后出:回程时 Wrap 先包装,Timing 后结束(所以计时包含了包装的时间)。</text>
+      <text x="20" y="264" fill="#6b7280" font-size="12">Guard 不在洋葱里:它在最外层之前就做完决定了。</text>
+    </g>
+  </svg>
+  <figcaption style="color:#6b7280;font-size:14px;text-align:center;">图:interceptor 是「包住」handler 的一层,不是前后两个独立的站。</figcaption>
+  </figure>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「领班有两个,一个在上菜前,一个在上菜后」——是同一个人、同一个函数。</b>Day 8 图上画成 ②-2 和 ⑤-1 两站,是为了看清时间顺序;代码里只有一个 <code>intercept()</code>:<code>next.handle()</code> 之前的代码是去程,<code>.pipe(tap(...))</code> 里的是回程,两边共享同一个 <code>start</code> 变量。</li>
+      <li><b>「谁先注册谁先执行」——只对同一种站成立。</b>不同种类的顺序是 Nest <b>写死的</b>:middleware → guard → interceptor → pipe → handler,就算你在代码里先写 <code>@UseInterceptors</code> 再写 <code>@UseGuards</code>,guard 也永远先跑。只有<b>同一种</b>的多个之间,才按「全局 → Controller → 方法」和数组顺序排(今天 Timing 是全局、Wrap 是 Controller 级,所以 Timing 在外层)。</li>
+      <li><b>「登记员也看得到订座表」——看不到。</b>middleware 跑的时候还没有 <code>ExecutionContext</code>,它不知道请求会去哪个 handler,甚至请求可能根本没有匹配的路由(Day 8 的 <code>GET /nope</code> 也经过了 ①)。要按「去哪个接口」做决定,就用 guard / interceptor。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <code>NestMiddleware</code> / 函数式 middleware;<code>CanActivate</code>(guard);<code>NestInterceptor</code> + <code>CallHandler</code>;<code>PipeTransform</code>(内置 <code>ParseIntPipe</code>、<code>ParseUUIDPipe</code>、<code>ValidationPipe</code>……);<code>ExceptionFilter</code> + <code>@Catch()</code>;<b><code>ExecutionContext</code></b>:继承自 <code>ArgumentsHost</code>,多了 <code>getClass()</code> / <code>getHandler()</code>(今天的日志里能看到 <code>TasksController.findOne</code>)。<br>
+    <b>绑定范围</b>:<code>app.useGlobalXxx(new X())</code>(全局,但在 DI 容器之外,不能注入依赖)/ <code>{ provide: APP_INTERCEPTOR, useClass: X }</code>(全局,在容器之内,可以注入,接 Day 9)/ <code>@UseXxx()</code> 挂在类或方法上 / pipe 还能挂在单个参数上。今天的 <code>WrapResponseInterceptor</code> 挂在 Controller 上,所以它由 <code>TasksModule</code> 的容器创建,能注入 <code>CLOCK</code>。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:<code>GET /tasks/1</code> 时,「包装成 { data, timestamp }」和「计时结束」哪一行先打印?Pipe 在计时开始之前还是之后?带钥匙的 <code>POST /tasks</code> 会经过 Pipe 吗?</p>
+  <p><code>npm run day10</code> 的真实输出(情况 1、2b;毫秒数和时间每次不同):</p>
+  <pre><code>========== 情况 1:正常请求 GET /tasks/1 ==========
+→ ① Middleware 进门:GET /tasks/1
+  ②-2 Interceptor(前) 计时开始 → TasksController.findOne
+  ②-3 Pipe 核单:'1' → 1
+  ③ Controller 前台接单:GET /tasks/1
+   ④ Service    后厨做菜:findOne(1)
+  ⑤-1 Interceptor(后) 包装成 { data, timestamp }
+  ⑤-1 Interceptor(后) 计时结束:正常返回
+← ⑥ Middleware 出门:200(7.5 ms)
+   客户端收到:200 | X-Response-Time: 1.7ms
+   {"data":{"id":1,"title":"跑通 nest new","done":true,"createdAt":"2026-11-04T09:17:32.989Z"},"timestamp":"2026-11-04T09:17:33.022Z"}
+
+========== 情况 2b:带上钥匙 POST /tasks ==========
+→ ① Middleware 进门:POST /tasks
+  ②-1 Guard 保安查 x-demo-key → TasksController.create:放行
+  ②-2 Interceptor(前) 计时开始 → TasksController.create
+  ③ Controller 前台接单:POST /tasks
+   ④ Service    后厨做菜:create("学 AOP")
+  ⑤-1 Interceptor(后) 包装成 { data, timestamp }
+  ⑤-1 Interceptor(后) 计时结束:正常返回
+← ⑥ Middleware 出门:201(1.6 ms)
+   客户端收到:201 | X-Response-Time: 0.4ms
+   {"data":{"id":3,"title":"学 AOP","done":false,"createdAt":"2026-11-04T09:17:33.052Z"},"timestamp":"2026-11-04T09:17:33.052Z"}</code></pre>
+  <p>洋葱看得清清楚楚:<b>包装先于计时结束</b>(Wrap 在内层)。GET 没有挂 guard,所以没有 ②-1;POST 的参数是 <code>@Body()</code>,没有挂 pipe,所以没有 ②-3。还有一个细节:middleware 记的 7.5 ms 比 interceptor 的 1.7 ms 长,因为 middleware 包住的范围更大(第一个请求还包含了路由、body 解析等框架自己的开销)。</p>
+  <p>核心代码只有这几行(<code>src/common/timing.interceptor.ts</code>):</p>
+  <pre><code>intercept(context: ExecutionContext, next: CallHandler): Observable&lt;unknown&gt; {
+  const where = `${context.getClass().name}.${context.getHandler().name}`;  // 知道要去哪
+  const start = performance.now();                                          // 去程
+  return next.handle().pipe(                                                // 调用 handler(还没执行,是个 Observable)
+    tap({
+      next: () =&gt; stop('正常返回'),                                         // 回程:成功
+      error: (err) =&gt; stop(`抛出了 ${err.constructor.name}`),               // 回程:失败,错误继续往外抛
+    }),
+  );
+}</code></pre>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:异常短路 —— 哪一站出事,就从哪一站直奔投诉台</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    管线上任何一站抛异常,<b>后面的站全部跳过</b>,直接交给 exception filter 写错误响应;所以「请求停在哪一站」决定了哪些切面做了事、哪些没做。
+  </div>
+
+  <h3>② 生活类比:出事就走投诉通道</h3>
+  <p>保安拦下了客人,客人就不会见到领班和前台;核单员看不懂单子,后厨就不会开火;后厨发现没这道菜,领班的「打包装盘」就不做了(没有菜可打包),但他还是会在本子上记一笔「这单用了多久、结果是退单」。最后,所有出事的客人都被送到同一个投诉处理台,拿到一张格式统一的说明。</p>
+
+  <h3>比喻 ↔ 真实 对照:四种情况各走到哪一站(来自 <code>npm run day10</code> 的真实输出)</h3>
+  <table>
+    <tr><th>站</th><th>情况 1<br>GET /tasks/1</th><th>情况 2<br>POST 没带钥匙</th><th>情况 3<br>GET /tasks/999</th><th>情况 4<br>GET /tasks/abc</th></tr>
+    <tr><td>① Middleware 进门</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+    <tr><td>②-1 Guard</td><td>—(没挂)</td><td>❌ <b>拦下</b></td><td>—(没挂)</td><td>—(没挂)</td></tr>
+    <tr><td>②-2 Interceptor(前)</td><td>✅</td><td>⏭️ 跳过</td><td>✅</td><td>✅</td></tr>
+    <tr><td>②-3 Pipe</td><td>✅ '1' → 1</td><td>—(没挂)</td><td>✅ '999' → 999</td><td>❌ <b>不是整数</b></td></tr>
+    <tr><td>③ Controller</td><td>✅</td><td>⏭️ 跳过</td><td>✅</td><td>⏭️ 跳过</td></tr>
+    <tr><td>④ Service</td><td>✅</td><td>⏭️ 跳过</td><td>❌ <b>抛 NotFoundException</b></td><td>⏭️ 跳过</td></tr>
+    <tr><td>⑤-1 Interceptor(后)包装</td><td>✅</td><td>⏭️ 跳过</td><td>⏭️ 跳过</td><td>⏭️ 跳过</td></tr>
+    <tr><td>⑤-1 Interceptor(后)计时</td><td>✅ 正常返回</td><td>⏭️ 跳过</td><td>✅ 记录异常</td><td>✅ 记录异常</td></tr>
+    <tr><td>⑤-2 Filter</td><td>—</td><td>✅ → 403</td><td>✅ → 404</td><td>✅ → 400</td></tr>
+    <tr><td>⑥ Middleware 出门</td><td>✅ 200</td><td>✅ 403</td><td>✅ 404</td><td>✅ 400</td></tr>
+    <tr><td><code>X-Response-Time</code> 头</td><td>有</td><td><b>没有</b></td><td>有</td><td>有</td></tr>
+  </table>
+  <p>情况 2、3、4 的真实输出:</p>
+  <pre><code>========== 情况 2:没带钥匙 POST /tasks(被 Guard 拦下) ==========
+→ ① Middleware 进门:POST /tasks
+  ②-1 Guard 保安查 x-demo-key → TasksController.create:拦下
+  ⑤-2 Filter 投诉处理台:ForbiddenException → 403
+← ⑥ Middleware 出门:403(7.1 ms)
+   客户端收到:403 | X-Response-Time: (没有)
+   {"statusCode":403,"error":"FORBIDDEN","message":"Forbidden resource","path":"/tasks"}
+
+========== 情况 3:Service 抛异常 GET /tasks/999 ==========
+→ ① Middleware 进门:GET /tasks/999
+  ②-2 Interceptor(前) 计时开始 → TasksController.findOne
+  ②-3 Pipe 核单:'999' → 999
+  ③ Controller 前台接单:GET /tasks/999
+   ④ Service    后厨做菜:findOne(999)
+  ⑤-1 Interceptor(后) 计时结束:抛出了 NotFoundException
+  ⑤-2 Filter 投诉处理台:NotFoundException → 404
+← ⑥ Middleware 出门:404(1.7 ms)
+   客户端收到:404 | X-Response-Time: 0.8ms
+   {"statusCode":404,"error":"NOT_FOUND","message":"没有 id 为 999 的任务","path":"/tasks/999"}
+
+========== 情况 4:Pipe 转换失败 GET /tasks/abc ==========
+→ ① Middleware 进门:GET /tasks/abc
+  ②-2 Interceptor(前) 计时开始 → TasksController.findOne
+  ②-3 Pipe 核单:'abc' 不是整数 → 抛 BadRequestException
+  ⑤-1 Interceptor(后) 计时结束:抛出了 BadRequestException
+  ⑤-2 Filter 投诉处理台:BadRequestException → 400
+← ⑥ Middleware 出门:400(1.5 ms)
+   客户端收到:400 | X-Response-Time: 0.5ms
+   {"statusCode":400,"error":"BAD_REQUEST","message":"Validation failed (numeric string is expected)","path":"/tasks/abc"}</code></pre>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「出了事,领班总会记一笔」——只有在他包住的范围里出事才会。</b>Guard 在 interceptor <b>之前</b>,情况 2 被拦下时领班还没上岗,所以 403 响应<b>没有 <code>X-Response-Time</code></b>。想让「所有响应」都带这个头(包括被拦的),要放到更外层的 middleware 里(习题 3 的思考题)。</li>
+      <li><b>「投诉处理台是流水线的最后一站」——它是旁路。</b>正常请求(情况 1)根本不经过 filter;出事时,从出事那一站<b>直接跳</b>过去。所以包装 interceptor 的 <code>map</code> 只会包装<b>成功</b>的返回值:成功体是 <code>{ data, timestamp }</code>,错误体是 filter 写的 <code>{ statusCode, error, message, path }</code>,两种长得不一样。这不是 bug,而是要你有意识地设计:Week 3 会把错误体升级成 Day 6 手写过的 <b>problem+json(RFC 9457)</b>,并决定成功体要不要包装(很多团队选择<b>不包</b>,直接用 HTTP 状态码 + 原始资源)。</li>
+      <li><b>「投诉台接住了,问题就解决了」——它只是给客人一个体面的答复。</b><code>@Catch()</code> 不写参数会接住<b>所有</b>异常,包括代码 bug 抛的普通 <code>Error</code>:今天的 filter 会回 500 + <code>"Internal server error"</code>,<b>故意不把内部报错信息给客户端</b>(防止泄露实现细节),但 bug 本身还在,必须有日志 / 告警让你知道(Week 15 可观测性)。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>short-circuit(短路)</b>:一站失败,后续不再执行;<b>HttpException</b> 家族:<code>ForbiddenException</code>(guard 返回 false 时 Nest 自动抛)、<code>BadRequestException</code>(pipe 失败)、<code>NotFoundException</code>(你自己抛);<code>@Catch(HttpException)</code> 只接 HTTP 异常,<code>@Catch()</code> 接全部;<b>RxJS 错误通道</b>:handler 抛的异常会变成 Observable 的 <code>error</code> 通知,所以 interceptor 用 <code>tap({ error })</code> 能看见它、用 <code>catchError</code> 能把它换成别的,但 <code>map</code> 不会执行。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:在看上面的表之前,先自己填一遍「四种情况 × 十一行」的表(哪些 ✅、哪些跳过、哪一站 ❌、有没有 <code>X-Response-Time</code>),然后跑 <code>npm run day10</code> 对答案。e2e 测试把这些规律都写成了断言(<code>npm run test:e2e</code>,真实结果):</p>
+  <pre><code> ✓ test/scope-demo.e2e-spec.ts &gt; Provider 作用域 (e2e) &gt; singleton 永远同一个;request 每次请求一个新的;依赖 request 的 Controller 也被「传染」 54ms
+ ✓ test/app.e2e-spec.ts &gt; AppController (e2e) &gt; / (GET) 148ms
+ ✓ test/tasks.e2e-spec.ts &gt; Tasks (e2e) &gt; GET /tasks → 200 + { data: 任务数组, timestamp } 146ms
+ ✓ test/tasks.e2e-spec.ts &gt; Tasks (e2e) &gt; GET /tasks/1 → 200 + 包装后的单个任务 16ms
+ ✓ test/tasks.e2e-spec.ts &gt; Tasks (e2e) &gt; 所有经过 interceptor 的响应都带 X-Response-Time 头 13ms
+ ✓ test/tasks.e2e-spec.ts &gt; Tasks (e2e) &gt; GET /tasks/999 → 404(全局 filter 的统一错误格式,不被包装) 12ms
+ ✓ test/tasks.e2e-spec.ts &gt; Tasks (e2e) &gt; GET /tasks/abc → 400(ParseIntPipe 拦下,Controller 不会执行) 12ms
+ ✓ test/tasks.e2e-spec.ts &gt; Tasks (e2e) &gt; POST /tasks 不带 x-demo-key → 403,而且没有 X-Response-Time(Guard 在 interceptor 之前) 18ms
+ ✓ test/tasks.e2e-spec.ts &gt; Tasks (e2e) &gt; POST /tasks 带钥匙 → 201 + 新任务,之后能 GET 到 21ms
+      Tests  9 passed (9)</code></pre>
+  <p>注意 e2e 的 <code>beforeEach</code> 里多了一行 <code>configureApp(app)</code>:e2e 测试<b>不走 <code>main.ts</code></b>,用 <code>app.useGlobalXxx()</code> 挂的全局切面如果只写在 <code>main.ts</code> 里,测试就测不到它们。这就是今天把全局配置抽成 <code>src/app.setup.ts</code> 的原因。</p>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p>「请求管线 + 几种固定的拦截点」是所有企业级后端框架的共同结构,只是每家切的站数和名字不同:</p>
+  <table>
+    <tr><th>Nest 的站</th><th>C# / ASP.NET Core</th><th>Java / Spring Boot</th><th>Go(net/http / Gin)</th></tr>
+    <tr>
+      <td>① Middleware</td>
+      <td>Middleware(<code>app.Use(...)</code>,<code>await next()</code> 前后各做事)</td>
+      <td>Servlet <code>Filter</code>(<code>chain.doFilter()</code>)</td>
+      <td><code>func(next http.Handler) http.Handler</code>;Gin 的 <code>c.Next()</code></td>
+    </tr>
+    <tr>
+      <td>②-1 Guard</td>
+      <td>Authorization filter / <code>[Authorize]</code> + 授权策略</td>
+      <td>Spring Security 过滤器链;<code>HandlerInterceptor.preHandle()</code> 返回 false</td>
+      <td>鉴权 middleware 里 <code>c.AbortWithStatus(403)</code></td>
+    </tr>
+    <tr>
+      <td>②-2 / ⑤-1 Interceptor</td>
+      <td>Action filter(<code>OnActionExecuting</code> / <code>OnActionExecuted</code>,或 <code>IAsyncActionFilter</code> 包住 <code>next()</code>);Result filter 改结果</td>
+      <td><b>Spring AOP</b>:<code>@Aspect</code> + <code>@Around("execution(...)")</code>(<code>pjp.proceed()</code> 就是 <code>next.handle()</code>)、<code>@Before</code>、<code>@AfterReturning</code>;改响应体用 <code>ResponseBodyAdvice</code></td>
+      <td>还是 middleware 包 handler;没有「知道去哪个 handler」的专门站</td>
+    </tr>
+    <tr>
+      <td>②-3 Pipe</td>
+      <td>Model binding + 验证(<code>[FromRoute] int id</code> 转不了自动 400)</td>
+      <td>参数解析 + <code>@Valid</code>(Bean Validation)</td>
+      <td>手动 <code>strconv.Atoi(c.Param("id"))</code></td>
+    </tr>
+    <tr>
+      <td>⑤-2 Exception Filter</td>
+      <td>Exception filter;更常用 <code>UseExceptionHandler</code> middleware + <code>ProblemDetails</code></td>
+      <td><code>@ControllerAdvice</code> + <code>@ExceptionHandler</code>(Spring 6 内置 <code>ProblemDetail</code>)</td>
+      <td><code>recover()</code> middleware + 自己写错误响应</td>
+    </tr>
+    <tr>
+      <td>绑定范围</td>
+      <td>全局 <code>options.Filters.Add(...)</code> / Controller 或 Action 上的 Attribute</td>
+      <td>切点表达式按包名、方法名、注解批量选</td>
+      <td>挂在 router / 路由分组 / 单个路由上</td>
+    </tr>
+  </table>
+  <p>📌 两个值得记的差异:Spring AOP 的切点是<b>表达式</b>,能切到任意 Bean 的方法(包括 Service),Nest 只切 HTTP handler;Go 没有框架管线,<b>一切都是「函数包函数」</b>,而这恰好就是 AOP 最本质的样子(习题 1 你手写的 <code>weave</code>)。</p>
+  <p>📌 roadmap 顶部对照表的「请求管线 / 中间件」行已经有了;建议你在 Day 14 复盘时自己补一行<b>「AOP / 横切关注点」</b>(Nest interceptor ↔ ASP.NET Core Action Filter ↔ Spring <code>@Aspect @Around</code> ↔ Go middleware 包 handler)。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"What's the difference between middleware, guards, interceptors and pipes in NestJS?"</b>(或者 .NET 面试:「Middleware 和 Filter 有什么区别?」)你可以答:<br>
+    <b>"它们都是处理横切关注点的 AOP 工具,区别在执行时机和能拿到的信息。Middleware 最早执行,只有原始的请求和响应,不知道请求会路由到哪个 handler,适合日志、CORS 这类通用处理。Guard 拿得到 ExecutionContext,知道目标 handler,只决定放行还是拒绝,用于鉴权。Interceptor 用 Observable 包住 handler,前后都能做事,可以计时、改返回值、做缓存或超时。Pipe 针对单个参数做转换和校验。任何一步抛异常都会短路,交给 exception filter 统一生成错误响应。顺序是框架固定的:middleware、guard、interceptor、pipe、handler。这和 ASP.NET Core 的 middleware 加 authorization、action、exception filter,以及 Spring 的 Filter、HandlerInterceptor、@Around 切面、@ControllerAdvice 是一一对应的。"</b><br>
+    自己练一遍:合上文档 45 秒说完,重点是说清「时机」和「能拿到什么」。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+  <p>预测都写进 <code>src/10-aop/notes.md</code> 的预测区,先写,再运行,再批改。</p>
+
+  <div class="task">
+    <h3>习题 1:不用框架手写切面(动手,约 7 min)</h3>
+    <p>文件:<code>src/10-aop/ex1-aop-by-hand.ts</code>,顶部有 3 道 ✍️ 预测题。</p>
+    <pre><code>npx tsx src/10-aop/ex1-aop-by-hand.ts</code></pre>
+    <p>对完答案后,用一句话分别指出 <code>logging</code>、<code>timing</code>、<code>errorToResponse</code> 各是哪一种 advice(before / after returning / after / after throwing / around),再说出它们各自对应 Nest 的哪一站。</p>
+    <p>进阶(可选):把第 3 幕的顺序改成 <code>[logging, errorToResponse, timing]</code>,✍️ 先预测 logging 的「出」这次会不会打印,再运行。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:四种情况走到哪一站(动手,约 8 min)</h3>
+    <p>✍️ <b>预测(先写再运行)</b>:不看第 5 节的表,自己画出「四种情况 × 各站」的表,并预测每种情况有没有 <code>X-Response-Time</code> 头。然后:</p>
+    <pre><code>cd nest-lab
+npm run day10</code></pre>
+    <p>逐格批改。再加一个你自己的情况:<code>POST /tasks</code> 带一个<b>错的</b>钥匙(<code>x-demo-key: wrong</code>),先预测再用 curl 试(<code>npm run start:dev</code> 起服务,终端里能看到同样的足迹)。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:挪动店规的位置(动手 + 思考,约 10 min)</h3>
+    <p>(a)✍️ <b>预测</b>:把 <code>@UseGuards(DemoKeyGuard)</code> 从 <code>create</code> 方法上挪到 <code>TasksController</code> 类上,<code>GET /tasks</code> 会怎样?运行 <code>npm run test:e2e</code>,看哪几个测试变红、为什么。改回来。</p>
+    <p>(b)跑一次 <code>npm run day08</code>。成功响应<b>被包装了</b>,可 404 却还是 Nest 默认的 <code>{"message":...,"error":"Not Found","statusCode":404}</code>,<code>POST</code> 全是 403。用今天学的「绑定范围」解释:哪些切面挂在 Controller 上(所以 day08 也有),哪些挂在 <code>configureApp</code> 里(所以 day08 没有)?</p>
+    <p>(c)思考题(不用写代码):想让被 guard 拦下的 403 也带上 <code>X-Response-Time</code>,计时应该放在哪一站?代价是什么?(提示:那一站知道请求去哪个 handler 吗?)</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/10-aop/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「AOP 是啥?Nest 的 interceptor 和 axios 拦截器、Express 中间件、React 高阶组件像吗?」用餐厅比喻给他讲清楚,并说出比喻在哪里会骗人。</li>
+      <li>按执行顺序说出 Nest 管线的五种站,每种站「能拿到什么」「适合放什么」;为什么 middleware 做不了「按接口决定放不放行」?</li>
+      <li><code>GET /tasks/abc</code> 和没带钥匙的 <code>POST /tasks</code> 分别停在哪一站?为什么前者有 <code>X-Response-Time</code>、后者没有?为什么错误响应没有被包装成 <code>{ data, timestamp }</code>?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里补上你自己做的改动,确认 <code>git status</code> 里没有 <code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>横切关注点 = 每个接口都要、但不属于任何接口的事</b>(日志、计时、鉴权、错误处理);AOP 把它们写一次,用「做什么(advice)+ 对哪些(pointcut)」自动套上去。本质就是<b>函数包函数</b>。</li>
+    <li><b>Nest 管线五件套,顺序固定</b>:middleware(只有 req/res)→ guard(知道去哪,只决定进不进)→ interceptor(包住全程,能改返回值)→ pipe(管单个参数)→ handler;出事走 exception filter。</li>
+    <li><b>interceptor 的「前」「后」是同一个函数</b>,外层先进后出;同种站之间按「全局 → Controller → 方法」排,不同种站之间的顺序由框架写死。</li>
+    <li><b>异常会短路</b>:从出事那一站直接跳到 filter,后面的站全跳过;所以 guard 拦下的请求没有计时头,包装只包成功体。全局切面要在 e2e 里也挂上(<code>configureApp</code>)。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>说出 aspect / advice / pointcut 三个词,并各举一个 nest-lab 里的例子</li>
+    <li>为什么 <code>GET /tasks/1</code> 的日志里「包装」在「计时结束」之前?如果把 Timing 改成 Controller 级、写在 Wrap 后面,顺序会怎样变?</li>
+    <li>计时、只允许管理员访问、把 <code>'42'</code> 转成数字、所有报错统一格式、给每个请求生成请求 ID —— 各放哪一站?</li>
+    <li><code>app.useGlobalInterceptors(new X())</code> 和 <code>{ provide: APP_INTERCEPTOR, useClass: X }</code> 有什么区别?(提示:Day 9 的容器)</li>
+    <li>把今天的计时 interceptor 翻译成 Spring 的 <code>@Around</code> 或 ASP.NET Core 的 Action Filter,说出 <code>next.handle()</code> 在那边叫什么</li>
+  </ul>
+  <p>🔮 明天 Day 11:今天的 <code>DemoKeyGuard</code> 只能「挂上去就查」。如果想让 Controller 上挂一个全局保安,只有贴了 <code>@Public()</code> 标签的接口免查,该怎么办?答案是 Day 8 的「便利贴」+ 今天的 guard:用 <code>SetMetadata</code> 贴标签、用 <code>Reflector</code> 在 guard 里读标签 —— 这就是 AOP 在 Nest 里的完整闭环。</p>
+</section>
+
+<footer>
+  Day 10 · Phase 1 / Week 2 · 产出:<code>docs/10-aop/</code> 本文档 + <code>nest-lab/</code>(计时 / 包装 interceptor、DemoKeyGuard、ParseIntPipe、全局 exception filter、<code>configureApp</code>、<code>npm run day10</code>)+ <code>src/10-aop/</code> 手写切面与 notes 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

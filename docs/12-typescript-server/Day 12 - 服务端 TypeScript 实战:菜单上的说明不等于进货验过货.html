@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 12 - 服务端 TypeScript 实战:菜单上的说明不等于进货验过货</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 2</div>
+  <h1>Day 12 - 服务端 TypeScript 实战:菜单上的说明不等于进货验过货</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>类型 ≠ 校验 · zod「一份定义两用」· 类型安全的 env 配置(fail fast)· DI token 的类型安全</b> ·
+    项目:<code>nest-lab/</code> 接入 <code>@nestjs/config</code> + <code>zod</code>,钥匙改从配置读 ·
+    手写实验:<code>src/12-typescript-server/</code>(纯 TS:类型怎么骗过编译器)·
+    语言不是重点:只讲服务端真正用得上的那几招,不讲 TS 语法大全
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🧾 接上回:钥匙写死在代码里</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:类型 ≠ 校验 —— 菜单说明 vs 进货验货</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:类型安全的 env 配置 —— 开店检查单</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:DI token 的类型安全 —— 工牌号上印岗位</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🧾 接上回:钥匙写死在代码里</h2>
+  <p>Day 11 的全局保安认的钥匙是 <code>'let-me-in'</code>,<b>直接写在代码里</b>。这会带来三个问题:换钥匙要改代码重新发布;开发环境和生产环境用的是同一把钥匙;钥匙跟着代码进了 git,谁能看代码谁就能开门。</p>
+  <p>正确做法是把这类「每个环境不一样」的东西放进<b>环境变量</b>(<code>process.env</code>)。但环境变量有个大坑:它来自<b>外部世界</b>(部署平台、<code>.env</code> 文件、你的终端),TypeScript 管不着。</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    菜单上写着「本店牛排均为 200 克」,这是<b>说明</b>(类型)。说明写得再清楚,也不能保证供应商今天送来的肉真的是 200 克,所以后厨收货时要<b>上秤验货</b>(运行时校验)。连锁店开门前还有一张<b>开店检查单</b>:煤气、电、营业执照逐项核对,有一项不合格<b>就不开门</b>,而不是营业到一半才发现没有煤气。今天就是给 nest-lab 加上「验货」和「开店检查单」。
+  </div>
+  <table>
+    <tr><th>Week 2 前几天</th><th>今天和它的关系</th></tr>
+    <tr><td>Day 9:<code>CLOCK</code>、<code>TASKS_REPOSITORY</code> 是 Symbol token</td><td>token 本身不知道该配什么类型 → 今天给它「印上岗位」</td></tr>
+    <tr><td>Day 10:<code>configureApp</code> 集中挂全局店规</td><td>今天它读配置决定要不要开进出门日志(<code>LOG_REQUESTS</code>)</td></tr>
+    <tr><td>Day 11:<code>DemoKeyGuard</code> 读 <code>@Public()</code> 标签</td><td>今天它还要读配置里的钥匙 <code>DEMO_KEY</code></td></tr>
+  </table>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+npm install          # 新依赖:@nestjs/config 12.0.1、zod 4.6.7
+cp .env.example .env # 可选:不建 .env 也能跑,每一项都有开发用的默认值
+npm test             # 单元测试:检查单(env schema)本身也要测
+npm run test:e2e     # e2e:覆盖配置后钥匙跟着变
+npm run day12        # 观察脚本:env 写错 → 拒绝启动;写对 → 类型正确、钥匙来自配置
+
+# 手动试:生产模式不设钥匙,看它拒绝启动
+NODE_ENV=production npm run start</code></pre>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用(餐厅版)</th></tr>
+    <tr><td><code>package.json</code></td><td>修改</td><td>新增依赖 <code>@nestjs/config@^12.0.1</code>、<code>zod@^4.6.7</code>;新增 <code>day12</code> 脚本</td></tr>
+    <tr><td><code>src/config/env.schema.ts</code></td><td>新增</td><td><b>开店检查单</b>:zod schema(<code>NODE_ENV</code> / <code>PORT</code> / <code>DEMO_KEY</code> / <code>LOG_REQUESTS</code>)+ <code>z.infer</code> 推导出的 <code>Env</code> 类型 + <code>validateEnv()</code></td></tr>
+    <tr><td><code>src/config/env.schema.spec.ts</code></td><td>新增</td><td>检查单的单元测试(默认值、类型转换、各种写错)</td></tr>
+    <tr><td><code>src/app.module.ts</code></td><td>修改</td><td><code>ConfigModule.forRoot({ isGlobal: true, validate: validateEnv })</code></td></tr>
+    <tr><td><code>src/common/demo-key.guard.ts</code></td><td>修改</td><td>注入 <code>ConfigService&lt;Env, true&gt;</code>,钥匙从 <code>DEMO_KEY</code> 读(不再导出写死的常量)</td></tr>
+    <tr><td><code>src/main.ts</code></td><td>修改</td><td>端口从 <code>PORT</code> 读(类型是 <code>number</code>);启动后打印实际端口</td></tr>
+    <tr><td><code>src/app.setup.ts</code></td><td>修改</td><td><code>LOG_REQUESTS</code> 为 <code>false</code> 时不挂进出门日志</td></tr>
+    <tr><td><code>src/common/typed-token.ts</code></td><td>新增</td><td>带类型的 token:<code>createToken&lt;T&gt;()</code>、<code>valueProvider()</code>、<code>classProvider()</code></td></tr>
+    <tr><td><code>src/common/clock.ts</code>、<code>src/tasks/tasks.repository.ts</code>、<code>src/tasks/tasks.module.ts</code></td><td>修改</td><td><code>CLOCK</code> / <code>TASKS_REPOSITORY</code> 换成带类型的 token,登记时用 <code>valueProvider</code> / <code>classProvider</code></td></tr>
+    <tr><td><code>.env.example</code></td><td>新增</td><td>环境变量样例(会提交);真正的 <code>.env</code> 已在 <code>.gitignore</code> 里,<b>不提交</b></td></tr>
+    <tr><td><code>vitest.config.ts</code>、<code>vitest.config.e2e.ts</code></td><td>修改</td><td><code>test.env</code> 里固定测试用的环境变量,不依赖开发者本机的 <code>.env</code></td></tr>
+    <tr><td><code>src/common/demo-key.guard.spec.ts</code>、<code>test/decorator-demo.e2e-spec.ts</code>、<code>test/tasks.e2e-spec.ts</code></td><td>修改</td><td>guard 测试传入 <code>new ConfigService({...})</code>;实验模块挂上 <code>ConfigModule</code>;新增「覆盖配置」e2e</td></tr>
+    <tr><td><code>scripts/day12-try.mjs</code>、<code>README.md</code></td><td>新增 / 修改</td><td>观察脚本、成长日志</td></tr>
+  </table>
+  <p>(开发环境下 <code>DEMO_KEY</code> 默认还是 <code>let-me-in</code>,所以 <code>npm run day08</code>–<code>day11</code> 照样能跑;如果你在 <code>nest-lab/.env</code> 里改了钥匙,day10 / day11 脚本里写的 <code>let-me-in</code> 就会被拦下,这正说明钥匙已经由配置决定了。)</p>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:类型 ≠ 校验 —— 菜单说明 vs 进货验货</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    TypeScript 的类型只在<b>写代码时</b>存在,编译后全部消失;从外面进来的数据(请求体、环境变量、第三方接口的响应)在运行时什么都可能是,必须<b>真的检查一遍</b>才能当成你以为的类型用。
+  </div>
+
+  <h3>② 生活类比:菜单说明 vs 进货验货</h3>
+  <p>菜单(类型)是写给店里自己人看的约定:「牛排 200 克」。店里的厨师互相传菜时,大家都照菜单办事,所以<b>店内</b>靠菜单就够了。但供应商不看你的菜单,他送来什么就是什么。所以在<b>收货口</b>(系统边界)要上秤:合格才入库,入库以后店里就可以放心按菜单来。<code>as Task</code> 相当于收货员<b>看都不看就在单子上签了「200 克」</b>。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th></tr>
+    <tr><td>菜单上的说明</td><td>TS 类型(<code>type Task = {...}</code>),编译后被擦掉</td></tr>
+    <tr><td>看都不看就签字</td><td><code>as Task</code> / <code>any</code>:让编译器闭嘴,不做任何检查</td></tr>
+    <tr><td>「来路不明,先别动」</td><td><code>unknown</code>:不检查就不能用(比 <code>any</code> 安全)</td></tr>
+    <tr><td>上秤验货</td><td>运行时校验:手写类型守卫 <code>x is Task</code>,或 zod 的 <code>schema.parse()</code></td></tr>
+    <tr><td>收货口</td><td>系统边界:HTTP 请求体、<code>process.env</code>、第三方 API 响应、读文件、读消息队列</td></tr>
+    <tr><td>「验货标准」和「菜单」用同一张纸印</td><td>zod:<code>const schema = z.object({...})</code> 负责验货,<code>type T = z.infer&lt;typeof schema&gt;</code> 自动生成菜单</td></tr>
+  </table>
+
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你在前端多半已经这么干过:<code>react-hook-form</code> + <code>zodResolver(schema)</code> 校验表单,同一个 schema 用 <code>z.infer</code> 得到表单值的类型。后端是一样的套路,只是「不可信的输入」从「用户在表单里打的字」变成了「任何人发来的 HTTP 请求和部署平台注入的环境变量」。<code>fetch(...).then(r =&gt; r.json() as User)</code> 这种写法在前端也一样危险,只是后端出事的代价更大。
+  </div>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「菜单写清楚了,后厨就不会出错」——编译期检查只管你自己写的代码。</b>编译器能保证「你的代码之间」类型一致,但它看不见运行时从网络、磁盘、环境变量进来的东西。<code>JSON.parse</code> 返回 <code>any</code>,<code>process.env.X</code> 是 <code>string | undefined</code>,这两处一不小心就把「外部世界」直接放进了你的类型系统。</li>
+      <li><b>「每道菜上桌前都再称一次」——没必要,也有成本。</b>zod 校验是真实的运行时代码,要遍历对象、生成错误信息。正确做法是<b>只在收货口验一次</b>(请求进来、配置加载、外部响应回来),验过之后的数据在店内用类型传递就行。不要在热路径上对内部数据反复 <code>parse</code>。</li>
+      <li><b>「自己写的验货规则一定对」——手写类型守卫也是你在对编译器打包票。</b><code>function isTask(x): x is Task</code> 里少检查一个字段,编译器照样相信你。所以字段多了就用 zod 这种从 schema 生成校验和类型的库,让「验什么」和「类型是什么」<b>只写一遍</b>,不会两头对不上。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>type erasure</b>(类型擦除):TS 编译成 JS 时删掉所有类型;<b>type assertion</b>(<code>as</code>):断言,不是转换;<b><code>unknown</code> vs <code>any</code></b>:<code>any</code> 关掉检查,<code>unknown</code> 要求先收窄再用;<b>type guard / narrowing</b>(类型守卫 / 收窄);<b>discriminated union</b>(可辨识联合):用一个公共字段(如 <code>ok: true | false</code>)区分几种形状,判断后 TS 自动收窄;<b>schema validation</b>:zod 的 <code>parse</code>(失败抛错)/ <code>safeParse</code>(返回 <code>{ success, data | error }</code>,本身就是一个 discriminated union)。<br>
+    口诀:<b>Parse, don't validate</b> —— 在边界把 <code>unknown</code> 解析成有类型的值,之后就只和有类型的值打交道。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>纯 TS,没有任何库。✍️ <b>预测(先写再运行)</b>:</p>
+  <ol>
+    <li><code>JSON.parse(body) as Task</code> 之后 <code>task.title.toUpperCase()</code> 会打印什么?</li>
+    <li><code>process.env.PORT = "3000"</code> 时 <code>port + 1</code> 是多少?<code>Boolean("false")</code> 呢?</li>
+    <li>同一个坏数据用 <code>unknown</code> + 类型守卫处理,会崩吗?</li>
+  </ol>
+  <pre><code>npx tsx src/12-typescript-server/ex1-types-lie.ts</code></pre>
+  <p>真实运行结果(这个文件能通过根目录 <code>npm run typecheck</code>,编译器一个错都没报):</p>
+  <pre><code>========== 第 1 幕:as 只是对编译器说「相信我」 ==========
+task.title = undefined
+💥 运行时崩了: Cannot read properties of undefined (reading 'toUpperCase')
+
+========== 第 2 幕:process.env 里永远是字符串 ==========
+port + 1 = 30001
+Number(port) + 1 = 3001
+Boolean(process.env.LOG_REQUESTS) = true
+process.env.NOT_SET = undefined
+
+========== 第 3 幕:unknown + 类型守卫:先验货,再当 Task 用 ==========
+❌ 不是 Task,拒收: {"id":1,"name":"字段名写错了"}
+
+========== 第 4 幕:discriminated union —— 用 ok 字段区分成功和失败 ==========
+  ✅ 学 zod
+  ❌ 字段不对
+  ❌ 不是合法 JSON</code></pre>
+  <p>第 4 幕的 <code>Result&lt;T&gt; = { ok: true; value: T } | { ok: false; error: string }</code> 是服务端很常用的写法:判断 <code>r.ok</code> 之后,TS 知道这一支里只有 <code>value</code>(或只有 <code>error</code>),访问另一个字段直接编译报错。</p>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:类型安全的 env 配置 —— 开店检查单</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    启动时把所有环境变量<b>按一张清单逐项检查</b>,该转数字的转数字、该有的必须有;有一项不合格就<b>直接拒绝启动</b>,并说清楚哪一项错了。检查通过后,代码里读到的配置都有正确的类型。
+  </div>
+
+  <h3>② 生活类比:开店检查单</h3>
+  <p>开门前,店长拿着检查单逐项核对:「煤气:有;电:有;营业执照:有,未过期;今天的门禁钥匙:已更换」。<b>任何一项不过,今天就不开门</b>,而且检查单上会写明是哪一项不过。这比营业到晚上八点、客人点了一份需要明火的菜,才发现煤气没开要好得多。</p>
+  <pre><code>// src/config/env.schema.ts —— 一份定义两用
+export const envSchema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    PORT: z.coerce.number().int().min(0).max(65535).default(3000),   // '3000' → 3000
+    DEMO_KEY: z.string().min(8, '至少 8 个字符').default('let-me-in'),
+    LOG_REQUESTS: z.stringbool().default(true),                       // 'false' → false
+  })
+  .superRefine((env, ctx) =&gt; {                                       // 按 NODE_ENV 分支的规则
+    if (env.NODE_ENV === 'production' &amp;&amp; env.DEMO_KEY === 'let-me-in') {
+      ctx.addIssue({ code: 'custom', path: ['DEMO_KEY'], message: '生产环境必须设置自己的 DEMO_KEY,不能用默认值' });
+    }
+  });
+export type Env = z.infer&lt;typeof envSchema&gt;;   // { NODE_ENV: 'development' | 'test' | 'production'; PORT: number; ... }
+
+// src/app.module.ts
+ConfigModule.forRoot({ isGlobal: true, validate: validateEnv })   // validateEnv 里调用 envSchema.safeParse
+
+// src/common/demo-key.guard.ts —— 类型安全地读
+constructor(private readonly reflector: Reflector, config: ConfigService&lt;Env, true&gt;) {
+  this.demoKey = config.get('DEMO_KEY', { infer: true });   // string;key 拼错是编译错误
+}</code></pre>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th></tr>
+    <tr><td>检查单</td><td>zod schema <code>envSchema</code></td></tr>
+    <tr><td>开门前核对</td><td><code>ConfigModule.forRoot({ validate })</code>:Nest 启动时把 <code>.env</code> + <code>process.env</code> 交给 <code>validateEnv</code></td></tr>
+    <tr><td>一项不过就不开门</td><td><b>fail fast</b>:抛错 → <code>NestFactory.create</code> 失败 → 进程以 exit code 1 退出</td></tr>
+    <tr><td>「营业执照上写的是文字,要换算成日期」</td><td><code>z.coerce.number()</code> / <code>z.stringbool()</code>:把字符串转成正确的类型</td></tr>
+    <tr><td>有些项不写就用默认</td><td><code>.default(...)</code></td></tr>
+    <tr><td>「总店开业必须换新钥匙」</td><td><code>superRefine</code>:跨字段 / 按 <code>NODE_ENV</code> 分支的规则</td></tr>
+    <tr><td>检查单的空白样表</td><td><code>.env.example</code>(提交);填好的 <code>.env</code>(不提交)</td></tr>
+    <tr><td>按检查单结果办事</td><td><code>ConfigService&lt;Env, true&gt;</code> + <code>{ infer: true }</code>:返回类型从 <code>Env</code> 推导</td></tr>
+  </table>
+
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    Vite 的 <code>import.meta.env.VITE_API_URL</code>、Next.js 的 <code>process.env.NEXT_PUBLIC_API_URL</code> 也全是字符串,而且是<b>构建时</b>被直接替换进 JS 包里的。所以带 <code>NEXT_PUBLIC_</code> 前缀的变量<b>所有访问网站的人都能看到</b>,密钥绝对不能加这个前缀。服务端的 env 是<b>运行时</b>读的,不会进浏览器,但一样要校验。前端圈的 <code>t3-env</code>(<code>@t3-oss/env-nextjs</code>)做的就是今天这件事:用 zod 校验 env,分开声明 server / client 变量。
+  </div>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「检查单上写的是数字,进来的就是数字」——<code>process.env</code> 里永远是字符串(或者没有)。</b>所以一定要显式转换。最常见的坑是布尔值:<code>z.coerce.boolean()</code> 等于 <code>Boolean(x)</code>,<b><code>'false'</code> 会变成 <code>true</code></b>(非空字符串都是真)。要用 <code>z.stringbool()</code>(zod 4),它只认 <code>true/false/1/0/yes/no/on/off</code> 这些写法。</li>
+      <li><b>「检查单通过了,今天就一定没问题」——它只检查「格式」,不检查「真假」。</b><code>DEMO_KEY</code> 长度够 8 个字符就算过,至于它是不是团队约定的那把钥匙、<code>DATABASE_URL</code> 指向的数据库能不能连上,检查单都不知道。连通性要靠启动后的健康检查(Week 14 的 readiness probe)。另外检查单<b>只在开门时核对一次</b>,进程运行中改环境变量不会生效,要重启。</li>
+      <li><b>「默认值越多越省事」——默认值是双刃剑。</b>开发时不用配任何东西就能跑,很方便;但生产环境忘了配,就会<b>悄悄用上开发默认值</b>(比如演示钥匙)。所以今天加了一条按 <code>NODE_ENV</code> 分支的规则:生产环境用默认钥匙就拒绝启动。真正的密钥(数据库密码、JWT 密钥)<b>根本不该有默认值</b>。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>fail fast</b>(快速失败);<b>12-Factor App</b> 的第三条「配置存在环境里」(Config in the environment),代码和配置分离;<code>@nestjs/config</code>:<code>ConfigModule.forRoot</code>(<code>validate</code> 函数,或者 Nest 12 也支持直接传 <code>validationSchema: envSchema</code>,因为 zod 实现了 Standard Schema 接口)、<code>ConfigService&lt;Env, true&gt;</code>(第二个泛型 <code>true</code> 表示「已校验」,<code>get</code> 不再返回 <code>undefined</code>);优先级:<b>进程里已有的环境变量高于 <code>.env</code> 文件</b>,这也是测试能在 <code>vitest.config.ts</code> 里用 <code>test.env</code> 固定配置、不受本机 <code>.env</code> 影响的原因。<br>
+    另一种常见写法是按领域拆配置:<code>registerAs('db', () =&gt; ({...}))</code> + <code>@Inject(dbConfig.KEY) cfg: ConfigType&lt;typeof dbConfig&gt;</code>,Week 4 接 PostgreSQL 时会用到。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>观察脚本用 Day 4 的 <code>child_process</code> 把 <code>dist/main.js</code> 当子进程,用不同的环境变量各启动一次(只传 <code>PATH</code> 和本次要测的变量,工作目录是一个空的临时目录,所以不会读到你本机的 <code>.env</code>)。✍️ <b>预测(先写再运行)</b>:</p>
+  <ol>
+    <li><code>validateEnv({ PORT: '8080', LOG_REQUESTS: 'false' })</code> 返回的 <code>PORT</code>、<code>LOG_REQUESTS</code> 是什么类型、什么值?</li>
+    <li><code>NODE_ENV=production</code> 不设 <code>DEMO_KEY</code>:能启动吗?exit code 是几?</li>
+    <li>一次写错三个变量:报错会列出几条?</li>
+    <li>配置正确时,用旧钥匙 <code>let-me-in</code> 发 <code>POST /tasks</code> 会得到什么?</li>
+  </ol>
+  <pre><code>cd nest-lab
+npm run day12</code></pre>
+  <p>真实运行结果(Nest 日志里的 PID、时间已被脚本去掉;端口、requestId 每次不同):</p>
+  <pre><code>========== 第 1 幕:validateEnv 把字符串变成正确的类型 ==========
+输入全是字符串 → 输出: {
+  NODE_ENV: 'development',
+  PORT: 8080,
+  DEMO_KEY: 'let-me-in',
+  LOG_REQUESTS: false
+}
+typeof PORT = number | typeof LOG_REQUESTS = boolean
+对比:z.coerce.boolean().parse('false') = true   ← 坑!
+      z.stringbool().parse('false')     = false
+
+========== 第 2 幕-A:NODE_ENV=production 但没设 DEMO_KEY ==========
+[Nest] LOG [NestFactory] Starting Nest application...
+[Nest] ERROR [ExceptionHandler] Error: 环境变量校验失败,拒绝启动:
+  - DEMO_KEY: 生产环境必须设置自己的 DEMO_KEY,不能用默认值
+   → 进程结束:exit code = 1
+
+========== 第 2 幕-B:PORT=abc ==========
+[Nest] LOG [NestFactory] Starting Nest application...
+[Nest] ERROR [ExceptionHandler] Error: 环境变量校验失败,拒绝启动:
+  - PORT: Invalid input: expected number, received NaN
+   → 进程结束:exit code = 1
+
+========== 第 2 幕-C:一次写错好几个(NODE_ENV=prod, DEMO_KEY=short, LOG_REQUESTS=maybe) ==========
+[Nest] LOG [NestFactory] Starting Nest application...
+[Nest] ERROR [ExceptionHandler] Error: 环境变量校验失败,拒绝启动:
+  - NODE_ENV: Invalid option: expected one of "development"|"test"|"production"
+  - DEMO_KEY: 至少 8 个字符
+  - LOG_REQUESTS: Invalid option: expected one of "true"|"1"|"yes"|"on"|"y"|"enabled"|"false"|"0"|"no"|"off"|"n"|"disabled"
+   → 进程结束:exit code = 1
+
+========== 第 3 幕:NODE_ENV=production DEMO_KEY=prod-secret-key PORT=0 LOG_REQUESTS=false ==========
+   用旧钥匙 let-me-in        → POST /tasks 403
+   用配置里的 prod-secret-key → POST /tasks 201
+[Nest] LOG [NestFactory] Starting Nest application...
+[Nest] LOG [InstanceLoader] ConfigHostModule dependencies initialized +10ms
+[Nest] LOG [InstanceLoader] ConfigModule dependencies initialized +1ms
+[Nest] LOG [InstanceLoader] AppModule dependencies initialized +1ms
+[Nest] LOG [InstanceLoader] TasksModule dependencies initialized +0ms
+[Nest] LOG [RoutesResolver] AppController {/}: +5ms
+[Nest] LOG [RouterExplorer] Mapped {/, GET} route +2ms
+[Nest] LOG [RoutesResolver] TasksController {/tasks}: +0ms
+[Nest] LOG [RouterExplorer] Mapped {/tasks, GET} route +1ms
+[Nest] LOG [RouterExplorer] Mapped {/tasks/:id, GET} route +2ms
+[Nest] LOG [RouterExplorer] Mapped {/tasks, POST} route +0ms
+[Nest] LOG [RouterExplorer] Mapped {/tasks/:id, DELETE} route +1ms
+[Nest] LOG [NestApplication] Nest application successfully started +1ms
+🚀 nest-lab 已开门:http://localhost:33799(NODE_ENV=production)
+  ②-1 Guard 保安查 x-demo-key → TasksController.create:拦下
+  ⑤-2 Filter 投诉处理台:ForbiddenException → 403
+  ②-1 Guard 保安查 x-demo-key → TasksController.create:放行
+  ②-2 Interceptor(前) 计时开始 → TasksController.create
+  🏷️ @RequestId() 取值:1171618b-a258-43c5-9e55-8498ed4a9318
+  ③ Controller 前台接单:POST /tasks(requestId=1171618b-a258-43c5-9e55-8498ed4a9318)
+   ④ Service    后厨做菜:create("学配置")
+  ⑤-1 Interceptor(后) 包装成 { data, timestamp }
+  ⑤-1 Interceptor(后) 计时结束:正常返回
+   → 进程结束:exit code = null,signal = SIGTERM</code></pre>
+  <p>(第 3 幕里两行 403 / 201 先打印,是因为脚本等子进程退出后才把它的输出一起打出来。)几个要点:</p>
+  <ul>
+    <li><b>失败时一条路由都没注册</b>(没有 <code>Mapped {...}</code>),进程直接以 1 退出。部署平台(Week 14 的 Docker / K8s)看到退出码非 0,就知道新版本起不来,不会把流量切过去。</li>
+    <li><b>错误一次列全</b>:第 2 幕-C 三个问题一起报出来,不用改一个、重启一次、再发现下一个。</li>
+    <li><b><code>LOG_REQUESTS=false</code> 真的生效了</b>:第 3 幕的请求日志里没有 <code>→ ① Middleware 进门</code>,因为 <code>configureApp</code> 读到的是布尔值 <code>false</code>,不是字符串 <code>'false'</code>。</li>
+  </ul>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:DI token 的类型安全 —— 工牌号上印岗位</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    Day 9 的 <code>CLOCK = Symbol('CLOCK')</code> 只是一个编号,它不知道自己该配一个 <code>Clock</code>;给 token 带上类型,登记时编译器就能检查「配进去的东西对不对」。
+  </div>
+
+  <h3>② 生活类比:工牌号上印岗位</h3>
+  <p>人事部的登记簿上,工牌号 <code>CLOCK</code> 只是一串编号。有人把一个「报时会说『大概下午吧』的人」登记到这个编号下,人事部照收不误,直到后厨要用准确时间算出餐时长时才出事。改进办法:<b>工牌上直接印岗位要求</b>「CLOCK · 必须能报出精确时间(Date)」。登记的时候人事部对照一下,不符合的当场退回。</p>
+  <pre><code>// src/common/typed-token.ts
+declare const tokenType: unique symbol;
+export type TypedToken&lt;T&gt; = symbol &amp; { readonly [tokenType]?: T };   // 运行时就是 symbol,编译期多一个类型标记
+export const createToken = &lt;T&gt;(description: string) =&gt; Symbol(description) as TypedToken&lt;T&gt;;
+export const valueProvider = &lt;T&gt;(provide: TypedToken&lt;T&gt;, useValue: T) =&gt; ({ provide, useValue });
+export const classProvider = &lt;T&gt;(provide: TypedToken&lt;T&gt;, useClass: Type&lt;T&gt;) =&gt; ({ provide, useClass });
+
+// src/common/clock.ts
+export const CLOCK = createToken&lt;Clock&gt;('CLOCK');
+
+// src/tasks/tasks.module.ts
+providers: [
+  classProvider(TASKS_REPOSITORY, InMemoryTasksRepository),   // 类必须实现 TasksRepository
+  valueProvider(CLOCK, systemClock),                           // 值必须是 Clock
+]</code></pre>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th></tr>
+    <tr><td>只有编号的工牌</td><td>普通 <code>Symbol('CLOCK')</code>:<code>{ provide: CLOCK, useValue: 任何东西 }</code> 都能编译</td></tr>
+    <tr><td>印了岗位要求的工牌</td><td><code>TypedToken&lt;Clock&gt;</code>:运行时还是 Symbol,编译期带着 <code>Clock</code> 这个类型</td></tr>
+    <tr><td>登记时当场核对</td><td><code>valueProvider(CLOCK, x)</code> / <code>classProvider(TOKEN, Cls)</code>:泛型参数要求 <code>x</code> 是 <code>Clock</code>、<code>Cls</code> 能 new 出 <code>T</code></td></tr>
+    <tr><td>按检查单读配置</td><td><code>ConfigService&lt;Env, true&gt;</code>:key 和返回类型都来自 <code>Env</code>(卡 #2)</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「工牌上印了岗位,领人的那一头也会核对」——不会,只管登记那一头。</b><code>@Inject(CLOCK) private readonly clock: Clock</code> 这一行,TS 的参数装饰器<b>拿不到参数的类型</b>,你写成 <code>clock: string</code> 编译器也不会拦。两头都要安全,就靠约定(token 和类型放在同一个文件里导出)+ 测试。</li>
+      <li><b>「工牌上印的字,运行时也能读到」——读不到。</b>那个类型标记只存在于编译期,运行时 <code>CLOCK</code> 就是一个普通的 <code>Symbol(CLOCK)</code>(习题 1 的 ex2 打印出来给你看),Nest 容器完全不知道它带过类型。</li>
+      <li><b>「类型对了,行为就对了」——类型只管形状。</b>测试里的假时钟永远返回 2026-01-01,类型完全正确,这正是我们想要的;但如果生产环境不小心也登记了它,类型检查同样会放行。「登记了哪个实现」仍然要靠代码审查和测试。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>branded / phantom type</b>(品牌类型 / 幽灵类型):只在编译期存在、用来区分「看起来一样的值」的类型标记;<code>InjectionToken</code>(Nest 的 token 类型:类、字符串、Symbol 都行);<code>Type&lt;T&gt;</code>(能 <code>new</code> 出 <code>T</code> 的类)。Angular 的 <code>new InjectionToken&lt;Clock&gt;('CLOCK')</code> 是官方内置的同款思路;Nest 没有内置,所以今天自己写了 15 行。另一个现成的类型安全写法是卡 #2 末尾提到的 <code>registerAs</code> + <code>ConfigType&lt;typeof xxx&gt;</code>。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:普通 Symbol token 下登记一个 <code>now()</code> 返回字符串的「假时钟」,编译器会拦吗?运行时什么时候才崩?</p>
+  <pre><code>npx tsx src/12-typescript-server/ex2-typed-token.ts</code></pre>
+  <p>真实运行结果:</p>
+  <pre><code>========== 第 1 幕:普通 Symbol token ==========
+登记、取出都很顺利,clock.now() = 2026-01-01
+💥 运行时才崩: clock.now(...).toISOString is not a function
+
+========== 第 2 幕:带类型的 token ==========
+c.now().toISOString() = 2026-01-01T00:00:00.000Z
+运行时 token 还是普通 Symbol: symbol Symbol(CLOCK)</code></pre>
+  <p>换成带类型的 token 后,把同一个坏时钟登记进去,<b>编译阶段</b>就报错。下面是真实的报错:前一行来自取消 ex2 末尾注释后的根目录 <code>npm run typecheck</code>,后一行来自在 nest-lab 里写 <code>valueProvider(CLOCK, { now: () =&gt; '2026-01-01' })</code> 后的 <code>tsc --noEmit</code>(报错位置的文件名是临时文件):</p>
+  <pre><code>error TS2322: Type 'string' is not assignable to type 'Date'.
+error TS2322: Type 'string' is not assignable to type 'Date'.</code></pre>
+  <p>最后看 nest-lab 的测试(<code>npm test</code> 21 个通过、<code>npm run test:e2e</code> 19 个通过),其中检查单本身的测试:</p>
+  <pre><code> ✓ src/config/env.schema.spec.ts &gt; envSchema / validateEnv &gt; 什么都不给:全部用默认值,类型也转好了 3ms
+ ✓ src/config/env.schema.spec.ts &gt; envSchema / validateEnv &gt; z.coerce.number():字符串 "8080" → 数字 8080 1ms
+ ✓ src/config/env.schema.spec.ts &gt; envSchema / validateEnv &gt; z.stringbool():字符串 "false" → false(z.coerce.boolean 会错误地得到 true) 0ms
+ ✓ src/config/env.schema.spec.ts &gt; envSchema / validateEnv &gt; PORT 不是数字 → 拒绝启动,错误信息指出是哪个变量 1ms
+ ✓ src/config/env.schema.spec.ts &gt; envSchema / validateEnv &gt; NODE_ENV 拼错 → 拒绝启动 0ms
+ ✓ src/config/env.schema.spec.ts &gt; envSchema / validateEnv &gt; 生产环境不许用默认钥匙;设了自己的就可以 1ms
+ ✓ src/config/env.schema.spec.ts &gt; envSchema / validateEnv &gt; 多余的变量被丢掉(process.env 里有几十个和我们无关的变量) 1ms
+ ✓ test/tasks.e2e-spec.ts &gt; Tasks (e2e) · 覆盖配置 &gt; 钥匙来自配置:默认的 let-me-in 不再好使,配置里的 e2e-secret-key 才行 6ms</code></pre>
+  <p>最后一个用例用 Day 9 的 <code>overrideProvider(ConfigService).useValue(new ConfigService({ DEMO_KEY: 'e2e-secret-key', ... }))</code> 把整份配置换掉:配置也是一个 Provider,同样可以替换。我还在 <code>nest-lab/.env</code> 里临时写了一把别的钥匙再跑 e2e,19 个用例照样全过(测完删掉了),说明测试不受本机 <code>.env</code> 影响。</p>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p>「配置绑定到一个有类型的对象 + 启动时校验」在其他生态里都是标配。区别在于:C# / Java / Go 的类型<b>运行时还在</b>,框架可以直接按类型把字符串绑定成对象;TypeScript 的类型运行时消失了,所以要多一份 zod schema 来<b>同时</b>提供校验和类型。</p>
+  <table>
+    <tr><th>命题</th><th>NestJS(教具)</th><th>C# / ASP.NET Core</th><th>Java / Spring Boot</th><th>Go</th></tr>
+    <tr>
+      <td>配置对象</td>
+      <td><code>type Env = z.infer&lt;typeof envSchema&gt;</code></td>
+      <td>普通类 <code>DemoOptions { string Key; int Port; }</code>(<b>Options 模式</b>)</td>
+      <td><code>@ConfigurationProperties(prefix = "demo")</code> 的 record / 类</td>
+      <td>普通 struct + tag:<code>Port int `envconfig:"PORT" default:"3000"`</code></td>
+    </tr>
+    <tr>
+      <td>绑定 + 校验</td>
+      <td><code>ConfigModule.forRoot({ validate })</code></td>
+      <td><code>AddOptions&lt;DemoOptions&gt;().Bind(config.GetSection("Demo")).ValidateDataAnnotations()</code></td>
+      <td><code>@Validated</code> + <code>@NotBlank</code> / <code>@Min</code>(Bean Validation)</td>
+      <td><code>envconfig.Process("", &amp;cfg)</code>(<code>required:"true"</code>);或 <code>viper</code> / <code>caarlos0/env</code></td>
+    </tr>
+    <tr>
+      <td>fail fast</td>
+      <td>启动时校验,抛错退出</td>
+      <td><b><code>.ValidateOnStart()</code></b>(不加的话要到第一次读取时才校验!)</td>
+      <td>默认就在启动时绑定并校验,失败则应用起不来</td>
+      <td>在 <code>main</code> 里 <code>if err != nil { log.Fatal(err) }</code></td>
+    </tr>
+    <tr>
+      <td>注入 / 读取</td>
+      <td><code>ConfigService&lt;Env, true&gt;</code>.<code>get('PORT', { infer: true })</code></td>
+      <td>构造函数注入 <code>IOptions&lt;DemoOptions&gt;</code>(热更新用 <code>IOptionsMonitor</code>)</td>
+      <td>直接注入这个 properties Bean</td>
+      <td>把 <code>cfg</code> 当参数传下去</td>
+    </tr>
+    <tr>
+      <td>环境变量命名</td>
+      <td><code>DEMO_KEY</code></td>
+      <td><code>Demo__Key</code>(双下划线表示层级)</td>
+      <td>relaxed binding:<code>DEMO_KEY</code> ↔ <code>demo.key</code></td>
+      <td>tag 里写什么就是什么</td>
+    </tr>
+    <tr>
+      <td>本地样例</td>
+      <td><code>.env.example</code></td>
+      <td><code>appsettings.Development.json</code> + User Secrets</td>
+      <td><code>application-dev.yml</code></td>
+      <td><code>.env.example</code></td>
+    </tr>
+  </table>
+  <p>📌 一个经典面试坑:ASP.NET Core 的 Options 校验<b>默认是懒的</b>,第一次有人读 <code>IOptions&lt;T&gt;.Value</code> 时才校验,可能在半夜某个请求里才炸。加上 <code>ValidateOnStart()</code> 才是 fail fast。这正是今天第 2 张卡讲的事。</p>
+  <p>📌 roadmap 顶部对照表建议你在 Day 14 复盘时补一行<b>「类型安全配置」</b>(zod + <code>@nestjs/config</code> ↔ Options 模式 + <code>ValidateOnStart</code> ↔ <code>@ConfigurationProperties</code> + <code>@Validated</code> ↔ envconfig / viper)。</p>
+  <p>📌 预告 Week 3 的取舍:请求体校验有两条路。<b>zod</b>:一份 schema 同时给类型和校验,前后端能共享同一个 schema;<b>class-validator + DTO 类</b>:Nest 官方主推,和 <code>ValidationPipe</code>、<code>@nestjs/swagger</code> 自动生成文档配合最顺,写法接近 .NET 的 DataAnnotations、Java 的 Bean Validation。今天的 env 用 zod,Week 3 的请求体两种都会写,再决定 nest-lab 用哪种。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"How do you manage configuration in a Node.js / NestJS service, and how do you make it type-safe?"</b>(或者 .NET 面试:「Options 模式怎么用?怎么保证配置错了能尽早发现?」)你可以答:<br>
+    <b>"配置按 12-Factor 的做法放在环境变量里,代码里不写死,仓库里只放 .env.example。TypeScript 的类型在运行时不存在,而 process.env 里全是字符串,所以我会用 zod 定义一个 schema:它在启动时校验并转换每个变量,比如把 PORT 转成数字、用 stringbool 解析布尔值,还可以按 NODE_ENV 加规则,比如生产环境必须提供密钥;同时用 z.infer 从同一个 schema 推导出配置类型。NestJS 里把它接到 ConfigModule 的 validate 上,校验失败应用直接起不来,这就是 fail fast;读取时用 ConfigService 的泛型拿到类型安全的值。测试里通过覆盖 ConfigService 或固定测试 env 来提供配置,不依赖本机的 .env。这和 ASP.NET Core 的 Options 模式加 ValidateOnStart、Spring 的 @ConfigurationProperties 加 @Validated 是同一个思路。"</b><br>
+    自己练一遍:合上文档 45 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+  <p>预测都写进 <code>src/12-typescript-server/notes.md</code> 的预测区,先写,再运行,再批改。</p>
+
+  <div class="task">
+    <h3>习题 1:类型怎么骗过编译器(动手,约 8 min)</h3>
+    <p>文件:<code>src/12-typescript-server/ex1-types-lie.ts</code>(4 道预测题)和 <code>ex2-typed-token.ts</code>(2 道预测题),都在文件顶部。</p>
+    <pre><code>npx tsx src/12-typescript-server/ex1-types-lie.ts
+npx tsx src/12-typescript-server/ex2-typed-token.ts</code></pre>
+    <p>然后在 ex1 第 4 幕的 <code>else</code> 分支里写一句 <code>console.log(r.value)</code>,跑 <code>npm run typecheck</code> 看编译器怎么说;再取消 ex2 末尾那行注释,跑 <code>npm run typecheck</code>。<b>做完都改回来</b>(根目录 typecheck 必须保持通过)。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:开店检查单(动手,约 8 min)</h3>
+    <p>✍️ <b>预测(先写再运行)</b>:第 4 节「⑤ 动手验证」的 4 个问题。跑 <code>npm run day12</code> 批改。</p>
+    <p>再自己试两种(先预测报错原文,再运行):</p>
+    <pre><code>cd nest-lab
+PORT=99999 node dist/main.js
+LOG_REQUESTS=false PORT=3100 node dist/main.js   # 另开一个终端 curl localhost:3100/tasks,看有没有进出门日志</code></pre>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:加一个配置项(动手,约 9 min)</h3>
+    <p>(a)在 <code>src/config/env.schema.ts</code> 里加 <code>APP_NAME: z.string().default('nest-lab')</code>,在 <code>main.ts</code> 的 🚀 那一行里打印它。✍️ <b>预测</b>:不改任何类型声明,<code>config.get('APP_NAME', { infer: true })</code> 的类型会是什么?在 VS Code 里把鼠标停在上面验证。</p>
+    <p>(b)故意把它写成 <code>config.get('APP_NAM', { infer: true })</code>。✍️ <b>预测</b>:是编译报错、运行时报错,还是拿到 <code>undefined</code>?跑 <code>npx tsc --noEmit -p tsconfig.json</code> 验证。对比 Day 11 的 <code>SetMetadata('isPubilc')</code>:为什么那次拼错不报错,这次会报错?</p>
+    <p>(c)在 <code>.env.example</code> 里补上 <code>APP_NAME</code>,在 <code>src/config/env.schema.spec.ts</code> 里补一个默认值的断言,跑 <code>npm test</code>。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/12-typescript-server/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「我们前端有 <code>import.meta.env</code>、<code>NEXT_PUBLIC_</code>,表单也用 zod 校验,后端的 env 配置有什么不一样?为什么还要专门校验?」用餐厅比喻给他讲清楚,并说出比喻在哪里会骗人。</li>
+      <li>「类型」和「校验」分别在什么时候起作用?为什么 <code>as Task</code> 不安全?zod 的「一份定义两用」指的是哪两用?校验应该放在哪里,为什么不要到处校验?</li>
+      <li>什么是 fail fast?nest-lab 里配置写错时,是在哪一步、以什么方式失败的?为什么不能用 <code>z.coerce.boolean()</code> 解析 <code>LOG_REQUESTS</code>?带类型的 token 能防住什么、防不住什么?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里补上你自己做的改动;确认 <code>git status</code> 里<b>没有 <code>.env</code></b>、没有 <code>node_modules/</code>、<code>dist/</code>(<code>.env.example</code> 要提交),然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>类型是菜单说明,校验是进货验货</b>:TS 类型编译后消失,外部输入(env、请求体、第三方响应)运行时都是 <code>unknown</code>;<code>as</code> 只是让编译器闭嘴。在边界验一次,之后靠类型传递。</li>
+    <li><b>zod 一份定义两用</b>:schema 负责运行时校验和转换,<code>z.infer</code> 负责编译期类型,不会两头对不上。</li>
+    <li><b>env 配置 = 开店检查单</b>:<code>process.env</code> 里永远是字符串,用 <code>z.coerce.number()</code> / <code>z.stringbool()</code> 转换(别用 <code>z.coerce.boolean()</code>);启动时校验,不合格就拒绝启动(fail fast),错误一次列全;生产环境不许用演示默认值;<code>.env.example</code> 提交,<code>.env</code> 不提交。</li>
+    <li><b>带类型的 token 让登记那一头可检查</b>:<code>valueProvider(CLOCK, x)</code> 配错会编译报错;但 <code>@Inject</code> 那一头的参数类型仍然没人检查,运行时 token 也还是普通 Symbol。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li><code>unknown</code> 和 <code>any</code> 有什么区别?各举一个服务端里「本该用 <code>unknown</code> 却写成了 <code>any</code>」的地方</li>
+    <li>为什么 <code>port + 1</code> 会得到 <code>30001</code>?为什么 <code>z.coerce.boolean().parse('false')</code> 是 <code>true</code>?</li>
+    <li>配置写错时 nest-lab 在哪一步失败?为什么「启动就失败」比「第一个请求才失败」好?(提示:部署平台怎么知道新版本坏了)</li>
+    <li>测试为什么不受你本机 <code>.env</code> 影响?在测试里换一份配置有哪两种做法?</li>
+    <li>把今天的 <code>envSchema</code> 翻译成 ASP.NET Core 的 Options 模式,说出必须加的那一个方法名</li>
+  </ul>
+  <p>🔮 Day 13 是 Week 2 的小实战:把这周的 DI、AOP、自定义装饰器、类型安全配置在 nest-lab 里收个尾;Day 14 复盘,把 IoC 和 AOP 两大支柱串成一张图。</p>
+</section>
+
+<footer>
+  Day 12 · Phase 1 / Week 2 · 产出:<code>docs/12-typescript-server/</code> 本文档 + <code>nest-lab/</code>(<code>@nestjs/config</code> + zod 开店检查单、<code>.env.example</code>、钥匙来自配置、带类型的 token、<code>npm run day12</code>)+ <code>src/12-typescript-server/</code> 类型实验与 notes 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

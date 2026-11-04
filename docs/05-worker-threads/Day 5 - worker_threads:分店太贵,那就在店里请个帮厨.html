@@ -95,6 +95,7 @@
     <li><a href="#sec3">📇 概念卡 #2:给帮厨递东西的三种方式 —— 复印 / 整箱交出去 / 共用白板</a></li>
     <li><a href="#sec4">📇 概念卡 #3:线程池 —— 别每道菜现招一个帮厨</a></li>
     <li><a href="#sec5">🧭 四种帮手怎么选:一张决策表</a></li>
+    <li><a href="#sec5b">🧩 这在 NestJS 里对应什么</a></li>
     <li><a href="#sec6">🌍 跨语言对照(线程池思想 everywhere)</a></li>
     <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
     <li><a href="#sec8">✅ 总结与自测</a></li>
@@ -293,6 +294,46 @@ Atomics.add(counter, 0, 1);                    // 守规矩地 +1</code></pre>
   <div class="concept">
     <span class="tag">📇 Week 1 并发模型收官:</span>
     Day 1 的"服务员不站着等"解决的是 <b>I/O 等待</b>;Day 4 的分店和 Day 5 的帮厨解决的是 <b>CPU 计算</b>。<b>先判断瓶颈是"等"还是"算",再选工具</b>:这是所有语言里做并发设计的第一步。
+  </div>
+</section>
+
+<section id="sec5b">
+  <h2>🧩 这在 NestJS 里对应什么</h2>
+  <p>从 Week 2 起,我们的后端都写在 NestJS 里。先提前看一眼:<b>NestJS 不会自动帮你开帮厨</b>,它也跑在同一个服务员(event loop)上,所以今天的规则原样适用:I/O 直接 async,CPU 硬菜才交给线程池。在 Nest 里,帮厨班组通常被包装成一个 <b>Provider(服务)</b>,整个应用共用一个:</p>
+  <pre><code>// hash-pool.service.ts —— 帮厨班组,整个应用只开一个
+@Injectable()
+export class HashPoolService implements OnModuleDestroy {
+  private pool = new Piscina({ filename: resolve(__dirname, "hash.worker.js") });
+
+  hash(password: string): Promise&lt;string&gt; {
+    return this.pool.run(password);       // 把硬菜放进排队单
+  }
+
+  async onModuleDestroy() {               // 应用关闭时,让帮厨班组下班
+    await this.pool.destroy();
+  }
+}
+
+// users.controller.ts —— 前台只管接单,不亲自下厨
+@Controller("users")
+export class UsersController {
+  constructor(private readonly hashPool: HashPoolService) {} // Nest 自动把班组"派"过来
+
+  @Post()
+  async register(@Body() body: { password: string }) {
+    const hashed = await this.hashPool.hash(body.password);   // 服务员继续巡场
+    return { ok: true, hashedLength: hashed.length };
+  }
+}</code></pre>
+  <table>
+    <tr><th>今天学的</th><th>在 NestJS 里</th></tr>
+    <tr><td>帮厨班组(线程池)</td><td>一个 <code>@Injectable()</code> 的 Provider,默认是<b>单例</b>,全应用共用一个池</td></tr>
+    <tr><td>把活交给帮厨</td><td>Controller 通过构造函数拿到这个服务,<code>await</code> 它的方法(构造函数里怎么"拿到"的,Day 9 依赖注入专讲)</td></tr>
+    <tr><td>帮厨下班 / <code>terminate</code></td><td>生命周期钩子 <code>onModuleDestroy</code>,应用关闭时自动调用</td></tr>
+  </table>
+  <div class="warn">
+    <span class="tag">⚠️ 上线时别算错账:</span>
+    "单例"只是<b>一个进程里</b>只有一个池。如果你用 cluster 开 4 家分店,或者在 K8s 里跑 4 个副本,就是 4 个进程 × 每个池 4 个帮厨 = <b>16 个线程抢 4 个灶台</b>。所以池大小要按"这台机器上一共有几个进程"来定,而不是只看单个进程。
   </div>
 </section>
 

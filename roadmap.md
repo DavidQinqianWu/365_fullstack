@@ -33,17 +33,24 @@
 | 运行时与并发模型 | event loop + libuv 线程池 + worker_threads | 线程池 + async/await (Task) | 线程池 / virtual threads (Loom) | goroutine + channel |
 | Web 框架 | **NestJS(本课程模板)**,底层默认跑在 Express 上(可换 Fastify) | ASP.NET Core | Spring Boot | Gin / Echo |
 | 请求管线 / 中间件 | NestJS middleware → guard → interceptor → pipe → exception filter | Middleware pipeline + Filter | Filter / Interceptor (AOP) | middleware(handler 链) |
+| 声明式路由 / 注解 + 元数据 | TS 装饰器 + `reflect-metadata`(`@Controller`、`@Get`) | Attribute(`[ApiController]`、`[HttpGet]`) | Annotation(`@RestController`、`@GetMapping`) | 无注解,手动注册路由(`r.GET(...)`) |
+| HTTP 语义 / REST 默认行为 | Nest:201 无 Location(需手设)、未实现方法回 404(需兜底路由才有 405)、不管 Accept(需自己回 406) | `CreatedAtAction` 自动 Location;405 自动;406 需 `ReturnHttpNotAcceptable`;`[Consumes]` 自动 415 | `ResponseEntity.created(uri)`;405 + Allow 自动;`produces` / `consumes` 自动 406 / 415 | Go 1.22 `ServeMux` 自动 405 + Allow,其余手写 |
 | 依赖注入(DI) | NestJS IoC 容器 | 内置 DI(Microsoft.Extensions.DI) | Spring IoC | 手动注入 / wire |
+| Provider 作用域 / 生命周期 | Nest `DEFAULT`(单例)/ `REQUEST` / `TRANSIENT`,request 作用域会向上「传染」 | `AddSingleton` / `AddScoped` / `AddTransient`(单例依赖 scoped 时直接报错) | `singleton` / `request` / `prototype`(注入代理对象) | 无容器,手动构造;或 wire / fx |
+| 声明式鉴权(默认上锁 + 白名单) | `APP_GUARD` 全局 guard + `@Public()`、`@Roles()` + RolesGuard | `FallbackPolicy` + `[AllowAnonymous]`、`[Authorize(Roles = "...")]` | Spring Security `anyRequest().authenticated()` + `permitAll()`、`@PreAuthorize` | 路由分组 + middleware |
+| 请求上下文 / 关联 ID | AsyncLocalStorage(手写或 `nestjs-cls`)+ `x-request-id` | `AsyncLocal<T>`、`IHttpContextAccessor`、`TraceIdentifier`、Serilog `LogContext` | `ThreadLocal` + SLF4J MDC(线程池下会丢)/ `ScopedValue` | `context.Context` 显式传参 |
 | AOP / 横切关注点 | Interceptor + Guard + Pipe + Filter,自定义装饰器 + `Reflector` 读元数据 | Action Filter / Middleware、Castle DynamicProxy | Spring AOP(`@Aspect` / `@Around`) | middleware 装饰 handler |
 | 声明式事务 / 事务传播 | Prisma `$transaction`、`nestjs-cls` + `@Transactional()`(AsyncLocalStorage) | EF Core `DbContext` 工作单元、`TransactionScope` | Spring `@Transactional`(传播行为 REQUIRED / REQUIRES_NEW) | `sql.Tx` 显式传递 |
 | ORM / 数据访问 | Prisma / Drizzle | EF Core(LINQ) | Hibernate / JPA | GORM / sqlx |
 | DB 迁移 | Prisma Migrate | EF Core Migrations | Flyway / Liquibase | goose / migrate |
 | 认证授权 / 安全框架 | Passport + NestJS Guard、helmet | ASP.NET Core Identity + Authorization Policy、Data Protection | Spring Security | middleware + golang-jwt / casbin |
 | 输入校验 | zod / class-validator | DataAnnotations / FluentValidation | Bean Validation | validator |
-| 配置与环境 | dotenv + 类型安全 env | appsettings.json + Options 模式 | application.yml + @ConfigurationProperties | env / viper |
+| 配置与环境(类型安全 + 启动即校验) | `@nestjs/config` + zod `validate`(fail fast)、`ConfigService<Env, true>` | appsettings.json + Options 模式(`ValidateDataAnnotations().ValidateOnStart()`,不加则懒校验) | application.yml + `@ConfigurationProperties` + `@Validated` | envconfig / viper |
+| 统一错误格式(RFC 9457) | 自写 filter 输出 `application/problem+json` + `exceptionFactory` 字段级 errors | 内置 `ProblemDetails` / `ValidationProblemDetails`、`AddProblemDetails()`、`IExceptionHandler` | Spring 6 `ProblemDetail` + `@ControllerAdvice` | 手写或用库 |
+| 分页 / API 版本化 | cursor 分页 `{items, nextCursor}` 手写;`enableVersioning` + `@Version()` / `VERSION_NEUTRAL` | `Asp.Versioning`(`[ApiVersion]`);分页手写或 OData `$top/$skip` | Spring Data `Pageable` / `Slice` / `ScrollPosition`;Spring Framework 7 内置 `@RequestMapping(version = ...)` + `ApiVersionConfigurer` | 手写;路由分组 `/v1`、`/v2` |
 | 结构化日志 | pino / winston | Serilog / ILogger | SLF4J + Logback | slog / zap |
 | 测试 | Vitest / Jest / supertest | xUnit + WebApplicationFactory | JUnit + MockMvc | testing + httptest |
-| API 文档 | OpenAPI/Swagger(语言无关标准) | Swashbuckle / Scalar | springdoc | swag |
+| API 文档 | OpenAPI(语言无关标准):`@nestjs/swagger` 代码优先,提交 `openapi.json` 防过期 | .NET 9 起内置 `Microsoft.AspNetCore.OpenApi`(`AddOpenApi` / `MapOpenApi`)+ Scalar UI;Swashbuckle 已不在默认模板 | springdoc-openapi(`/v3/api-docs`) | swaggo/swag(注释生成)/ oapi-codegen(契约优先) |
 | 后台任务 / 定时 | BullMQ / node-cron | Hangfire / BackgroundService | Quartz / @Scheduled | cron / asynq |
 | 缓存客户端 | ioredis | StackExchange.Redis | Lettuce / Redisson | go-redis |
 | 消息队列 | amqplib / kafkajs | MassTransit / NServiceBus | Spring AMQP / Kafka | sarama / amqp |
@@ -81,14 +88,21 @@
 - Week 1:运行时与并发模型 I(以 Node.js 为例):event loop、流、Buffer、进程模型、worker_threads;**概念卡:单线程事件循环 vs 多线程线程池(.NET/Java)vs 轻量协程(Go),三种并发模型的取舍**
 - Week 2:**NestJS 入门 + IoC/DI + AOP(框架的两大支柱)**——这两个概念是 Spring 和 ASP.NET Core 的灵魂,学透了换框架只是换语法,按天拆:
   - D1 · `nest new nest-lab` 起项目:Module / Controller / Provider 三件套、装饰器在做什么、一个请求在 Nest 里走过的完整生命周期
-  - D2 · **依赖注入(DI)与控制反转(IoC)**:为什么不自己 `new`(可替换、可测试);IoC 容器做了什么(注册 → 解析依赖图 → 实例化 → 注入);Provider 的三种作用域(singleton 默认 / request / transient)及其性能代价;自定义 Provider(`useClass` / `useValue` / `useFactory`)与 injection token;循环依赖与 `forwardRef`;**实验:用 `reflect-metadata` 手写一个 50 行的迷你 IoC 容器**,看清 Nest 的 `@Injectable()` 背后发生了什么
+  - D2 · **依赖注入(DI)与控制反转(IoC)**:为什么不自己 `new`(可替换、可测试);IoC 容器做了什么(注册 → 解析依赖图 → 实例化 → 注入);Provider 的三种作用域(singleton 默认 / request / transient)及其性能代价;自定义 Provider(`useClass` / `useValue` / `useFactory`)与 injection token;循环依赖与 `forwardRef`;**实验:手写一个约 50 行的迷你 IoC 容器**(依赖用 `static inject` 显式声明——因为 tsx 不生成 `design:paramtypes`,顺带讲清 Nest 靠 tsc 输出的元数据才能「看懂」构造函数),看清 Nest 的 `@Injectable()` 背后发生了什么
   - D3 · **面向切面编程(AOP)**:什么是横切关注点(日志、鉴权、计时、缓存、事务、异常处理——每个接口都要,但不属于任何一个接口的业务);Nest 把 AOP 拆成管线五件套:middleware → guard → interceptor → pipe → exception filter,各自在什么时机执行、能拿到什么、适合放什么;**实验:写一个计时 Interceptor + 一个统一响应包装 Interceptor,不改一行业务代码给所有接口加能力**
   - D4 · 自定义装饰器 + 元数据(`SetMetadata` / `Reflector`):`@Public()`、`@Roles()` 这类「给方法贴标签,切面里读标签」的套路——这就是 AOP 在 Nest 里的完整闭环
   - D5 · TypeScript 服务端类型实战:类型安全的 env 配置(`@nestjs/config` + zod 校验)、DI token 的类型安全、zod 推导类型(原独立的 TS 高级类型周已并入此处,语言不是重点)
-  - D6 · 小实战:给 `nest-lab/` 加全局日志、计时、异常过滤;D7 · 复盘
+  - D6 · 小实战(计时与异常过滤已在 D3 完成):请求 ID 贯穿日志(AsyncLocalStorage)、把全局 interceptor / filter 改成 `APP_INTERCEPTOR` / `APP_FILTER` 的 DI 版、用 D4 的 `@Public()` 做全局 guard 收尾;D7 · 复盘
   - **跨语言对照**:DI ↔ ASP.NET Core 内置 DI(`AddSingleton/AddScoped/AddTransient`,和 Nest 三种作用域一一对应)/ Spring IoC(`@Component` + `@Autowired`);AOP ↔ Spring `@Aspect` + `@Around` / ASP.NET Core Action Filter + Middleware。**概念卡:IoC 与 AOP 各解决什么问题,为什么企业级框架都长这样**
 - Week 3:API 设计(语言无关):**HTTP 语义深入(方法、状态码、幂等性、内容协商)、REST 约束、版本化、分页、统一错误格式(RFC 7807 problem+json)、OpenAPI 规范**;**DTO 与验证专题**:DTO 是什么(接口的「进出口报关单」,和数据库 Entity 分开的原因)、`class-validator` + `class-transformer` + 全局 `ValidationPipe`(`whitelist` 丢弃多余字段、`transform` 自动转类型、嵌套对象与数组校验、自定义校验器)、zod 方案对比;**响应 DTO**:用 `ClassSerializerInterceptor` + `@Exclude()` 防止把密码哈希等字段返回给前端;实战:在 `nest-lab/` 里实现完整 REST API(任务管理服务),全局 exception filter 输出 problem+json、`@nestjs/swagger` 从 DTO 自动生成 OpenAPI;设计文档按语言无关的方式写;对照:ASP.NET Core DataAnnotations / FluentValidation、Spring Bean Validation(`@Valid`)
-- GitHub 产出:每天提交代码或中文笔记;Week 3 项目独立仓库,中文 README;**每周一张概念卡 + 对照表更新**
+  - D1(Day 15)· **HTTP 语义与 REST 资源设计**:资源与 URI 设计、方法语义(GET / POST / PUT / PATCH / DELETE)、安全与幂等、PUT vs PATCH、状态码选择(201 + Location、204、409、422)、内容协商(Accept / Content-Type、406 / 415);nest-lab 把任务接口改成规范的 REST(补 PUT / PATCH、201 Location、409 冲突)
+  - D2(Day 16)· **DTO 与输入校验**:DTO 是进出口报关单;`class-validator` + `class-transformer` + 全局 `ValidationPipe`(`whitelist` / `forbidNonWhitelisted` / `transform`、嵌套与数组、自定义校验器);对比 Day 12 的 zod 方案,决定 nest-lab 用哪种;补上 Day 8 留下的坑(`POST {}` 也能 201)
+  - D3(Day 17)· **统一错误格式 problem+json**:RFC 9457(取代 7807)字段含义、错误码目录、校验错误的字段级明细;把 Day 10 / 13 的 `AllExceptionsFilter` 升级为 problem+json(保留 requestId)
+  - D4(Day 18)· **响应 DTO 与序列化**:为什么不能直接返回 Entity;`ClassSerializerInterceptor` + `@Exclude()` / `@Expose()`、分组;用一个带 `passwordHash` 的 users 演示防泄露;响应包装与 problem+json 的关系收口
+  - D5(Day 19)· **分页、过滤、排序与版本化**:offset vs cursor 分页及各自的坑、过滤 / 排序参数设计与白名单、URI vs 请求头版本化(Nest `enableVersioning`)、弃用(`Deprecation` / `Sunset` 头)
+  - D6(Day 20)· **OpenAPI 与实战收口**:`@nestjs/swagger` 从 DTO 生成文档(装进 Day 13 留下的 `configureApp` 空位)、API 设计文档(语言无关)、补齐 e2e,任务管理 REST API 完成
+  - D7(Day 21)· 复盘(格式同 Day 7 / Day 14)
+- GitHub 产出:每天提交代码或中文笔记;Week 3 的 REST API 继续写在 `nest-lab/` 里(不另开仓库),README 成长日志持续更新;**每周一张概念卡 + 对照表更新**
 
 ## Phase 2(Day 22–63 · Week 4–9):数据层 — 数据库是后端的心脏(以 PostgreSQL 为主线)
 
@@ -107,7 +121,7 @@
 
 - Week 10:认证授权(**协议层,语言无关**):**JWT 专题**:结构(header.payload.signature,payload 只是 Base64 不是加密)与签名验证原理、HS256(共享密钥)vs RS256(私钥签 + 公钥验,JWKS 发布公钥,适合多服务)、经典攻击(`alg: none`、算法混淆、不校验 `exp`/`aud`/`iss`);存哪里(httpOnly + Secure + SameSite Cookie vs localStorage 与 XSS);**JWT 无法主动作废的问题**与解法(短 access token + Refresh Token 轮换 + 复用检测、Redis 黑名单/版本号);Session vs JWT 的取舍、OAuth2/OIDC 流程(授权码模式 + PKCE)、RBAC vs ABAC 权限模型;NestJS 落地:`@nestjs/passport` + JWT Strategy、`AuthGuard`、自定义 `@Roles()` 装饰器 + `RolesGuard`、`@CurrentUser()` 参数装饰器;产出物是协议时序图 + 「Guard 在请求管线里的位置」图
 - Week 11:测试体系(测试金字塔是通用方法论):单元/集成/E2E 的边界划分、测试替身(mock/stub/fake)、覆盖率门禁;NestJS 测试:`Test.createTestingModule` + `overrideProvider` 做单元测试替身、supertest 打 e2e、Testcontainers 起真实 PostgreSQL 做集成测试(不 mock 数据库);对照 xUnit + WebApplicationFactory 的等价物
-- Week 12:API 安全与质量(**概念 #7 Rate Limiting**:用 Redis 手写令牌桶 + 滑动窗口限流器,封装成 NestJS Guard,再对比官方 `@nestjs/throttler`;`main.ts` 里的 helmet、CORS 配置原理;`ValidationPipe` 的 `whitelist` / `forbidNonWhitelisted` 防批量赋值;OWASP Top 10)——知识是协议与模式层面的,落地在 Nest 管线上
+- Week 12:API 安全与质量(**概念 #7 Rate Limiting**:用 Redis 手写令牌桶 + 滑动窗口限流器,封装成 NestJS Guard,再对比官方 `@nestjs/throttler`;`main.ts` 里的 helmet、CORS 配置原理;`ValidationPipe` 的 `whitelist` / `forbidNonWhitelisted` 防批量赋值;**幂等与并发控制**:`Idempotency-Key` 防重复提交(接 Day 15 的 POST 不幂等)、`ETag` + `If-Match` / 412 乐观并发(接 Day 15 的预告);OWASP Top 10)——知识是协议与模式层面的,落地在 Nest 管线上
 - Week 13:**架构风格 I(代码级架构,新增重点)+ 实战**:分层架构 → 六边形架构(Hexagonal / Ports & Adapters)→ Clean Architecture 的演进逻辑;**DDD 战术模式入门**(实体、值对象、聚合根、仓储);NestJS 落地:Module 作为限界上下文、端口 = 接口 + injection token、适配器 = 可替换的 Provider(PG 仓储 / 内存仓储一键切换);实战:用六边形架构重构 `nest-lab/`并落地完整认证模块,测试覆盖率 ≥80%,附中文 SECURITY.md;**对照:微软官方 Clean Architecture 模板(eShop 参考应用)的目录结构**
 - GitHub 产出:测试 PR、限流器代码、架构重构前后对比笔记(为什么端口-适配器模式让你换数据库/换框架时业务代码不动)
 
