@@ -1,0 +1,27 @@
+-- Day 39 · 02:行锁(两个 psql 窗口的手动步骤;观察脚本 npm run day39 用两个连接自动做了一遍)
+-- 两个窗口都先:SET search_path = day39;   为了不被卡住太久,窗口 B 先:SET lock_timeout = '2s';
+--
+-- ① FOR UPDATE:我要改它,别人先别改(但可以读)
+--   A: BEGIN;  SELECT * FROM accounts WHERE id = 1 FOR UPDATE;
+--   B: SELECT * FROM accounts WHERE id = 1;                          -- 立刻返回:行锁不挡普通读(MVCC)
+--   B: SELECT xmax FROM accounts WHERE id = 1;                       -- 等于 A 的事务号:行锁就记在行头的 xmax 里(Day 38)
+--   B: UPDATE accounts SET balance = balance + 1 WHERE id = 1;      -- 等 2 秒后:ERROR 55P03 canceling statement due to lock timeout
+--   B: SELECT * FROM accounts WHERE id = 1 FOR UPDATE NOWAIT;       -- 立刻:ERROR 55P03 could not obtain lock on row in relation "accounts"
+--   A: COMMIT;
+--
+-- ② 普通的 UPDATE 拿的是 FOR NO KEY UPDATE:不挡外键检查(外键检查拿 FOR KEY SHARE)
+--   A: BEGIN;  UPDATE accounts SET balance = balance - 1 WHERE id = 1;
+--   B: INSERT INTO transfers (account_id, amount) VALUES (1, 10);   -- 立刻成功
+--   A: ROLLBACK;
+--   A: BEGIN;  SELECT * FROM accounts WHERE id = 1 FOR UPDATE;      -- 这次是 FOR UPDATE
+--   B: INSERT INTO transfers (account_id, amount) VALUES (1, 10);   -- 卡住:FOR UPDATE 和 FOR KEY SHARE 冲突
+--   A: ROLLBACK;
+--
+-- 四种行锁的冲突关系(× = 冲突要等):
+--                      FOR KEY SHARE   FOR SHARE   FOR NO KEY UPDATE   FOR UPDATE
+--   FOR KEY SHARE                                                        ×
+--   FOR SHARE                                          ×                 ×
+--   FOR NO KEY UPDATE                     ×            ×                 ×
+--   FOR UPDATE              ×             ×            ×                 ×
+-- (以官方文档「Explicit Locking → Row-Level Locks」为准)
+SELECT '手动步骤见本文件的注释' AS 说明;

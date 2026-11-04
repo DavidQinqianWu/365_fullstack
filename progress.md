@@ -1,7 +1,7 @@
 # 365 天全栈成长 · 进度记录
 
 - 计数方式:**只按 Day N 计数,不写具体日期**——不要求每天连续学习,完成一天才算一天,Day N 永远 = 已完成天数 + 1。
-- 当前进度:Day 5(进行中;Day 6–38 材料已备)
+- 当前进度:Day 5(进行中;Day 6–39 材料已备)
 - 时间标准:按 `roadmap.md` 每天 1.5 小时。注:另一仓库的路线图 v2(3 小时/天、Hetzner 部署、365 平台主线项目)在合并时被覆盖,已确认**以当前 `roadmap.md` 为准**;v2 原文可在提交 `8ac8470` 中查看,Day 6–7 讲义按 v2 节奏编写,使用时酌情删减。⚠️ `hetzner` 主机是公司测试环境(Coolify + Traefik),不要部署学习项目,需要服务器时另租独立 VPS。
 - 水平测试(Day 4 完成):**1 / 46**,全部 7 个领域从零起步,React/TS 深层知识为真实缺口。每个 Phase 结束重答对应题目,见 `docs/00-level-check/level-check.md`。
 - 环境:本机 PostgreSQL 已常开 pg_stat_statements(`/etc/postgresql/16/main/postgresql.conf` 的 `shared_preload_libraries`,Day 34 起);Docker 用户见 `nest-lab/compose.yaml` 的 `command`。
@@ -47,3 +47,4 @@
 | Day 36 | Phase 2 / Week 6 | 事务与 ACID:一张整单作业单,要么全部盖章,要么整张作废(原子性:不用事务时合计 150 变 280;aborted 状态 `25P02`;SAVEPOINT;序列号不归还;DDL 可回滚)+ 墙上的规矩、关着门办事、盖章前先记流水日记(DEFERRABLE 外键在 COMMIT 时才检查;一致性靠应用;`kill -9` 后 WAL 重放只保留已提交的行;`synchronous_commit=off` 快 7–30 倍但崩溃时丢最近的已确认提交)+ 出错的伙计不能直接放回门口(修复 nest-lab `transaction()`:原错误优先抛出、`release(err)` 丢弃坏连接,新增 5 个单元测试并证明能抓住旧 bug) | `docs/36-transactions-acid/Day 36 - 事务与 ACID:一张整单作业单,要么全部盖章,要么整张作废.html` + `src/36-transactions-acid/notes.md` + `nest-lab/`(sql/day36、pg-tasks.repository 事务修复、`npm run day36`,`-- --crash` 为真实崩溃实验) | 待开始 |
 | Day 37 | Phase 2 / Week 6 | 隔离级别与并发异常:每个伙计手里那张账本照片什么时候拍的(两个连接按时间轴真实复现:脏读在 PG 里复现不出来、不可重复读、幻读、丢失更新、写偏斜;RU / RC / RR / SER × 异常的实测表)+ 两个伙计各自抄余额回来填、两个值班医生都请了假(原子自增在 RC 下安全但在 RR / SER 下要重试;「每人最多 N 个未完成任务」在 RC / RR 下守不住)+ 请一位监工 = Serializable(SSI,40001 报在 COMMIT;`withRetry` 整个事务重做、指数退避 + 抖动) | `docs/37-isolation-levels/Day 37 - 隔离级别与并发异常:每个伙计手里那张账本照片,什么时候拍的.html` + `src/37-isolation-levels/`(with-retry.ts 与自检、notes)+ `nest-lab/`(sql/day37、`npm run day37`) | 待开始 |
 | Day 38 | Phase 2 / Week 6 | MVCC 与 VACUUM:账本从不涂改,只在后面另写一行(xmin / xmax / ctid 实测、pageinspect 看同一页 5 个版本、快照可见性、两个会话看到同一行不同版本,读不阻塞写)+ 清洁工擦掉没人还需要的作废行(20 万行全表 UPDATE 3 遍膨胀到 64 MB,VACUUM 不缩但复用、VACUUM FULL 回到 16 MB;autovacuum 阈值按表调参)+ 拿着旧照片不走的伙计(长事务挡住全库清理的 VACUUM VERBOSE 原文;更正:RC 下只读过的 idle in transaction 不挡清理,RR 或写过的才挡;冻结与 `age(datfrozenxid)`) | `docs/38-mvcc-vacuum/Day 38 - MVCC 与 VACUUM:账本从不涂改,只在后面另写一行.html` + `src/38-mvcc-vacuum/notes.md` + `nest-lab/`(sql/day38、`npm run day38`,约 50 秒) | 待开始 |
+| Day 39 | Phase 2 / Week 6 | 锁:账本上压一块镇纸(行锁四种模式、`NOWAIT` 55P03、外键检查拿 FOR KEY SHARE 被 FOR UPDATE 挡住而普通 UPDATE 不挡)+ 看见镇纸就拿下一张(`SKIP LOCKED` 队列:4 个 worker 领 200 个任务 376–384 ms、各 50 个,不加则 1458–1466 ms 实际串行)+ 整本收走重新装订(DDL 锁队列把普通 SELECT 也卡住、`pg_blocking_pids` 看谁挡谁、`lock_timeout` 200ms + 重试)+ 两人互等与墙上的值班牌(死锁 40P01 DETAIL 原文与按 id 顺序加锁修复;advisory lock 只有 1 个拿到、会话级要手动释放) | `docs/39-locks/Day 39 - 锁:账本上压一块镇纸、整本收走重新装订,还有墙上那块值班牌.html` + `src/39-locks/notes.md` + `nest-lab/`(sql/day39 含 06-who-blocks 排查查询、`npm run day39`) | 待开始 |
