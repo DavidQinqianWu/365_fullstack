@@ -1,4 +1,5 @@
-import { UnprocessableEntityException, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
+import { ProblemException } from '../../common/problems/problem.exception.js';
 import { validationPipeOptions } from '../../common/validation/validation.options.js';
 import { ZodValidationPipe } from '../../common/validation/zod-validation.pipe.js';
 import { CreateTaskDto } from './create-task.dto.js';
@@ -22,14 +23,21 @@ describe('CreateTaskDto(class-validator)vs createTaskSchema(zod)', () => {
     expect(a).toBeInstanceOf(CreateTaskDto); // class-validator 版拿到的是 DTO 实例
   });
 
-  it.each(bad)('非法:%j —— 两边都是 422', async (body) => {
-    await expect(cv(body)).rejects.toBeInstanceOf(UnprocessableEntityException);
-    await expect(zod(body)).rejects.toBeInstanceOf(UnprocessableEntityException);
+  it.each(bad)('非法:%j —— 两边都是 422 的 ProblemException(validation-error)', async (body) => {
+    for (const run of [cv, zod]) {
+      const err = await run(body).then(
+        () => null,
+        (e: unknown) => e,
+      );
+      expect(err).toBeInstanceOf(ProblemException);
+      expect((err as ProblemException).getStatus()).toBe(422);
+      expect((err as ProblemException).problemType.type).toMatch(/validation-error$/);
+    }
   });
 
   it('PartialType:UpdateTaskDto 的每个字段都可选,但给了就照样检查', async () => {
     const pipe = (body: unknown) => cvPipe.transform(body, { type: 'body', metatype: UpdateTaskDto });
     await expect(pipe({})).resolves.toEqual({});
-    await expect(pipe({ done: 'yes' })).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(pipe({ done: 'yes' })).rejects.toBeInstanceOf(ProblemException);
   });
 });

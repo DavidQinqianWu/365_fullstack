@@ -24,7 +24,12 @@ npm run day12          # Day 12 观察脚本:env 写错时拒绝启动、写对�
 npm run day13          # Day 13 观察脚本:并发请求的日志按 requestId 归组 + 单例字段串号反例
 npm run day15          # Day 15 观察脚本:每个 HTTP 方法的状态码与响应头、PUT vs PATCH、POST 重复提交、405/406/415
 npm run day16          # Day 16 观察脚本:DTO 校验的合法 / 非法请求、transform、whitelist、class-validator vs zod
+npm run day17          # Day 17 观察脚本:12 种错误统一成 problem+json,自动校验结构
 ```
+
+## 错误格式
+
+所有错误响应都是 RFC 9457 problem+json,错误类型目录见 [`docs/problems.md`](docs/problems.md)。
 
 ## 成长日志
 
@@ -38,3 +43,4 @@ npm run day16          # Day 16 观察脚本:DTO 校验的合法 / 非法请求�
 | Day 13 | `src/common/request-context/`(AsyncLocalStorage + `RequestContextService` + `RequestContextMiddleware` 读取 / 生成 / 回写 `x-request-id` + `ctxLog` 带桌号日志);全部站点日志改用 `ctxLog`;`@RequestId()` 改读 ALS;全局 interceptor / filter 改为 `APP_INTERCEPTOR` / `APP_FILTER`(注入 `RequestContextService`,错误体带 `requestId`);middleware 改在 `AppModule.configure()` 注册,`configureApp` 变为空壳;`src/request-context-demo/`(并发厨房 + 单例字段反例);测试补齐;`scripts/day13-try.mjs` | `docs/13-request-context/` |
 | Day 15 | 任务接口按 REST 整理:`PUT /tasks/:id`(整体替换)、`PATCH /tasks/:id`(部分更新)、`POST` 回 201 + `Location`、`DELETE` 回 204;409 规则(已完成的任务不能改标题);兜底路由实现 405 + `Allow` 与 `OPTIONS`;`src/common/content-negotiation.middleware.ts`(406 / 415);`src/tasks/task-input.ts` 手写最小输入检查(Day 16 换 DTO);仓储加 `update()`;`test/rest.e2e-spec.ts`;`scripts/day15-try.mjs` | `docs/15-http-rest/` |
 | Day 16 | 依赖 `class-validator` / `class-transformer` / `@nestjs/mapped-types`;`src/tasks/dto/`(`ReplaceTaskDto` + `CreateTaskDto = PickType` + `UpdateTaskDto = PartialType` + 嵌套 `ChecklistItemDto`;zod 对照版 `task.zod.ts`);`src/common/validation/`(`@IsNotBlank` 自定义校验器、全局选项、`ZodValidationPipe`);全局 `ValidationPipe` 用 `APP_PIPE` 注册(whitelist + forbidNonWhitelisted + transform,校验失败 422);`Task` 加 `checklist`;删除 Day 15 的 `task-input.ts`;filter 透出字段错误列表;`test/validation.e2e-spec.ts`;`scripts/day16-try.mjs` | `docs/16-dto-validation/` |
+| Day 17 | `src/common/problems/`(错误类型目录 `ProblemTypes`、`ProblemException`、ValidationPipe 的 `exceptionFactory` 输出 JSON Pointer 字段级 `errors`);`AllExceptionsFilter` 改写为 `application/problem+json`(500 不泄露细节,真实原因进日志);JSON 语法错误时 filter 兜底补发 requestId;409 改用 `ProblemTypes.taskCompleted`;zod 对照 pipe 同步输出 problem;`docs/problems.md` 错误目录;`src/problem-demo/`(500 演示);`test/problem.e2e-spec.ts`;`scripts/day17-try.mjs` | `docs/17-problem-json/` |

@@ -12,12 +12,13 @@ import {
   Put,
   Req,
   Res,
-  UnprocessableEntityException,
   UseInterceptors,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AdminOnly } from '../common/decorators/admin-only.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
+import { ProblemException } from '../common/problems/problem.exception.js';
+import { ProblemTypes } from '../common/problems/problem-types.js';
 import { RequestId } from '../common/decorators/request-id.decorator.js';
 import { ctxLog } from '../common/request-context/request-context.js';
 import { TracedParseIntPipe } from '../common/traced-parse-int.pipe.js';
@@ -86,7 +87,7 @@ export class TasksController {
     ctxLog(`  ③ Controller 前台接单:PATCH /tasks/${id}`);
     // PartialType 让每个字段都可选,所以 {} 能通过 DTO 校验;「至少改一个字段」这条规则自己补
     if (Object.keys(dto).length === 0) {
-      throw new UnprocessableEntityException(['至少要给 title、done、checklist 中的一个']);
+      throw new ProblemException(ProblemTypes.validation, '至少要给 title、done、checklist 中的一个', { errors: [] });
     }
     return this.tasksService.update(id, dto);
   }

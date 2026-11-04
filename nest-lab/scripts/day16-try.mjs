@@ -23,7 +23,8 @@ const H = { 'x-demo-key': 'let-me-in', 'content-type': 'application/json' };
 async function call(label, method, path, body) {
   const res = await fetch(base + path, { method, headers: H, body: body === undefined ? undefined : JSON.stringify(body) });
   const json = await res.json();
-  const detail = res.ok ? JSON.stringify(json.data) : JSON.stringify(json.message);
+  // Day 17 起错误体是 problem+json:字段错误在 errors 里,其他错误看 detail
+  const detail = res.ok ? JSON.stringify(json.data) : JSON.stringify(json.errors?.length ? json.errors : json.detail);
   out(`${label}\n    → ${res.status} ${detail}`);
 }
 
@@ -87,7 +88,8 @@ const run = async (fn) => {
   try {
     return `通过 ${JSON.stringify(await fn())}`;
   } catch (e) {
-    return `${e.getStatus()} ${JSON.stringify(e.getResponse().message)}`;
+    // Day 17 起 exceptionFactory 抛的是 ProblemException,字段错误在 extensions.errors 里
+    return `${e.getStatus()} ${JSON.stringify(e.extensions?.errors ?? e.getResponse().message)}`;
   }
 };
 for (const [label, body] of cases) {

@@ -26,22 +26,28 @@ describe('DTO 校验 (e2e)', () => {
 
   it('Day 8 的老坑补上了:POST {} → 422', async () => {
     const res = await post({}).expect(422);
-    expect(res.body.message).toContain('title must be a string');
+    expect(res.body.errors).toContainEqual({ pointer: '#/title', detail: 'title must be a string' });
   });
 
   it('自定义校验器 @IsNotBlank:全是空白 → 422', async () => {
     const res = await post({ title: '   ' }).expect(422);
-    expect(res.body.message).toEqual(['title 不能为空或全是空白']);
+    expect(res.body.errors).toEqual([{ pointer: '#/title', detail: 'title 不能为空或全是空白' }]);
   });
 
   it('防批量赋值:id、done 不在 CreateTaskDto 里 → 422(forbidNonWhitelisted)', async () => {
     const res = await post({ title: 'x', id: 99, done: true }).expect(422);
-    expect(res.body.message).toEqual(['property id should not exist', 'property done should not exist']);
+    expect(res.body.errors).toEqual([
+      { pointer: '#/id', detail: 'property id should not exist' },
+      { pointer: '#/done', detail: 'property done should not exist' },
+    ]);
   });
 
-  it('嵌套数组:checklist 第 2 项不合法,错误路径精确到 checklist.1.xxx', async () => {
+  it('嵌套数组:checklist 第 2 项不合法,pointer 精确到 #/checklist/1/xxx(Day 17)', async () => {
     const res = await post({ title: 'x', checklist: [{ text: 'a', done: true }, { text: ' ', done: 'no' }] }).expect(422);
-    expect(res.body.message).toEqual(['checklist.1.text 不能为空或全是空白', 'checklist.1.done must be a boolean value']);
+    expect(res.body.errors).toEqual([
+      { pointer: '#/checklist/1/text', detail: 'text 不能为空或全是空白' },
+      { pointer: '#/checklist/1/done', detail: 'done must be a boolean value' },
+    ]);
   });
 
   it('合法请求:@Transform 去掉了首尾空格,checklist 原样保存', async () => {

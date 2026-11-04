@@ -57,16 +57,18 @@ describe('Tasks (e2e)', () => {
     expect(res.headers['x-response-time']).toMatch(/^\d+\.\d+ms$/);
   });
 
-  it('GET /tasks/999 → 404(全局 filter 的统一错误格式,不被包装)', () => {
+  it('GET /tasks/999 → 404 problem+json(全局 filter 的统一错误格式,不被包装)', () => {
     return request(app.getHttpServer())
       .get('/tasks/999')
       .set('x-request-id', 'e2e-404') // Day 13:错误体带上 requestId
       .expect(404)
+      .expect('content-type', /application\/problem\+json/) // Day 17:RFC 9457
       .expect({
-        statusCode: 404,
-        error: 'NOT_FOUND',
-        message: '没有 id 为 999 的任务',
-        path: '/tasks/999',
+        type: 'https://nest-lab.example/problems/not-found',
+        title: '资源不存在',
+        status: 404,
+        detail: '没有 id 为 999 的任务',
+        instance: '/tasks/999',
         requestId: 'e2e-404',
       });
   });
@@ -74,10 +76,11 @@ describe('Tasks (e2e)', () => {
   it('GET /tasks/abc → 400(ParseIntPipe 拦下,Controller 不会执行)', async () => {
     const res = await request(app.getHttpServer()).get('/tasks/abc').expect(400);
     expect(res.body).toEqual({
-      statusCode: 400,
-      error: 'BAD_REQUEST',
-      message: 'Validation failed (numeric string is expected)',
-      path: '/tasks/abc',
+      type: 'https://nest-lab.example/problems/bad-request',
+      title: '请求格式错误',
+      status: 400,
+      detail: 'Validation failed (numeric string is expected)',
+      instance: '/tasks/abc',
       requestId: res.headers['x-request-id'], // Day 13:没带头时服务端生成,响应头和错误体是同一个
     });
   });
@@ -85,10 +88,11 @@ describe('Tasks (e2e)', () => {
   it('POST /tasks 不带 x-demo-key → 403,而且没有 X-Response-Time(Guard 在 interceptor 之前)', async () => {
     const res = await request(app.getHttpServer()).post('/tasks').send({ title: '没钥匙' }).expect(403);
     expect(res.body).toEqual({
-      statusCode: 403,
-      error: 'FORBIDDEN',
-      message: 'Forbidden resource',
-      path: '/tasks',
+      type: 'https://nest-lab.example/problems/forbidden',
+      title: '没有权限执行此操作',
+      status: 403,
+      detail: 'Forbidden resource',
+      instance: '/tasks',
       requestId: res.headers['x-request-id'],
     });
     expect(res.headers['x-response-time']).toBeUndefined();

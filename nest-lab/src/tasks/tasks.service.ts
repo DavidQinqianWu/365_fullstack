@@ -1,5 +1,7 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CLOCK, type Clock } from '../common/clock.js';
+import { ProblemException } from '../common/problems/problem.exception.js';
+import { ProblemTypes } from '../common/problems/problem-types.js';
 import { ctxLog } from '../common/request-context/request-context.js';
 import type { Task, TaskWritable } from './task.js';
 import type { CreateTaskDto } from './dto/create-task.dto.js';
@@ -75,7 +77,8 @@ export class TasksService {
     const renaming = changes.title !== undefined && changes.title !== current.title;
     const staysDone = (changes.done ?? current.done) === true;
     if (current.done && renaming && staysDone) {
-      throw new ConflictException(`任务 ${current.id} 已完成,不能改标题;请先把 done 改为 false`);
+      // Day 17:带上错误类别,调用方可以按 type 精确判断「是哪一种冲突」
+      throw new ProblemException(ProblemTypes.taskCompleted, `任务 ${current.id} 已完成,不能改标题;请先把 done 改为 false`);
     }
   }
 }
