@@ -28,6 +28,7 @@ npm run day17          # Day 17 观察脚本:12 种错误统一成 problem+json,
 npm run day18          # Day 18 观察脚本:内部对象 / 黑名单 / 白名单 / 显式映射,新增敏感字段后谁泄露
 npm run day19          # Day 19 观察脚本:offset vs cursor 翻页、过滤排序与非法参数、v1 vs v2、忘了 configureApp
 npm run day20          # Day 20 观察脚本:拉取 OpenAPI、列接口清单、自动检查契约、生成前端 TS 类型、生产环境不开放文档
+npm run day22          # Day 22 观察脚本:检查 PG 是否在线、每个连接一个后端进程、跑 sql/day22/ 下的 CRUD 实验(需要先启动 PostgreSQL)
 npm run openapi:generate  # 改了接口后重新生成 openapi.json(和代码一起提交)
 npm run openapi:check     # openapi.json 是否和代码一致(过期 → 退出码 1,给 CI 用)
 ```
@@ -47,6 +48,22 @@ npm run openapi:check     # openapi.json 是否和代码一致(过期 → 退出
 集合响应(Day 19)是一页资源 `{ items, nextCursor }`:cursor 分页,`limit` 默认 20、最大 100(超过回 422),`sort` / 过滤字段有白名单,不返回 total。
 
 版本化(Day 19):URI 版本 `/v2/tasks`;不带版本的 `/tasks` 指向 v2;`/v1/tasks` 是 Day 10–17 的旧格式,已弃用(响应头 `Deprecation` / `Sunset` / `Link`),计划 2027-05-01 下线。
+
+## 数据库(Week 4 起)
+
+本地开发用 PostgreSQL 16(Day 22 起;应用代码 Day 27 才接数据库,在那之前 nest-lab 仍然用内存仓储):
+
+```bash
+cp .env.example .env             # POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB / POSTGRES_PORT
+docker compose up -d             # compose.yaml:postgres:16 + 数据卷 + pg_isready 健康检查
+docker compose ps                # 显示 (healthy) 再连
+docker compose exec postgres psql -U nest_lab -d nest_lab
+psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab   # 本机装了 psql 时也可以直接连
+```
+
+- 没有 Docker:本机安装 PostgreSQL 16,再用超级用户建角色和库(步骤见 Day 22 讲义)
+- 每天的 SQL 实验在 `sql/dayNN/`:本机 psql 在 nest-lab 目录下 `\i sql/day22/01-create.sql`(或 `psql -f`);容器里的 psql 用挂进去的路径 `\i /sql/day22/01-create.sql`
+- `compose.yaml` 按标准写法编写,未在课程验证环境实测(那里没有 Docker);SQL 部分均在 PostgreSQL 16.15 实测
 
 ## 错误格式
 
@@ -68,3 +85,4 @@ npm run openapi:check     # openapi.json 是否和代码一致(过期 → 退出
 | Day 18 | 新增 `src/users/`(内存仓储 + token,`passwordHash` 用 scrypt,`CreateUserDto`,显式映射 `toUserResponse`:email 打码、admin 视图多 `internalNote`);任务也改为 `toTaskResponse` 映射;删除 `WrapResponseInterceptor`,成功响应不再包装;`src/serialization-demo/`(`ClassSerializerInterceptor` 黑名单 / 白名单 / groups / 普通对象失效对照);`test/users.e2e-spec.ts`;`scripts/day18-try.mjs` | `docs/18-response-dto/` |
 | Day 19 | 任务列表改为 cursor 分页 `{ items, nextCursor }`(`ListTasksQueryDto`:limit 1–100、`done` / `q` 过滤、`sort` 白名单;`cursor.ts` 不透明书签;仓储 `findPage()` 对应 WHERE / ORDER BY / LIMIT / keyset);offset 分页只在仓储层实现做对比;URI 版本化(`configureApp` 里 `enableVersioning`,`src/app.factory.ts` 的 `createApp()` 统一入口,所有 e2e 调用 `configureApp`);`TasksV1Controller`(旧格式 + `@DeprecatedApi` 的 Deprecation / Sunset / Link 头);新增 `invalid-cursor` 错误类型;`test/pagination.e2e-spec.ts`;`scripts/day19-try.mjs` | `docs/19-pagination-versioning/` |
 | Day 20 | 依赖 `@nestjs/swagger`(去掉直接依赖 `@nestjs/mapped-types`,`PickType` / `PartialType` 改从 swagger 导入)、dev 依赖 `openapi-typescript`;`src/openapi.ts`(`DocumentBuilder` + `SwaggerModule`,只收录 tasks / users,operationId 规则,无版本别名路径不重复登记);`configureApp` 按 `SWAGGER_ENABLED` 挂 `/docs` 与 `/docs-json`(env schema 新增该项,生产默认关);DTO 全部显式 `@ApiProperty`(不用 CLI 插件:vitest 下插件不生效);响应 `interface` 改为 class(`TaskResponse` / `UserResponse` / `TaskPage`,既是映射函数返回类型又是 schema);`src/common/problems/problem.schema.ts`(`ProblemDetailsDto` / `ValidationProblemDto` + `@ApiProblemResponses()`);各控制器 `@ApiTags` / `@ApiOperation` / `@ApiResponse` / `@ApiSecurity` / `@ApiHeader`,v1 标 `deprecated`;`openapi.json` + `scripts/openapi.mjs`(generate / check);`docs/api-design.md`;`test/openapi.e2e-spec.ts`;`scripts/day20-try.mjs` | `docs/20-openapi/` |
+| Day 22 | `compose.yaml`(`postgres:16`,用户 / 密码 / 库名从 `.env` 读,具名数据卷,`pg_isready` 健康检查,只绑定 127.0.0.1);`.env.example` 新增 `POSTGRES_*`;`sql/day22/`(建表、CRUD 对应 HTTP 方法、忘写 WHERE 用 `BEGIN … ROLLBACK` 兜底、没有 ORDER BY 就没有顺序、`EXPLAIN` 看一眼、没有 BEGIN 时 ROLLBACK 无效);`scripts/day22-try.mjs`(用 `node:child_process` 调 psql,没有数据库时给出提示并退出);应用代码未改 | `docs/22-postgres-intro/` |

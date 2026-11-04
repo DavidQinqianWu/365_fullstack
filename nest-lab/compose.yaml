@@ -1,0 +1,37 @@
+# Day 22:本地开发用的 PostgreSQL(只给开发用,不是生产配置)
+#
+#   cp .env.example .env      # 第一次:用户名 / 密码 / 库名都从 .env 读
+#   docker compose up -d      # 后台启动
+#   docker compose ps         # STATUS 显示 (healthy) 才算真的能连
+#   docker compose exec postgres psql -U nest_lab -d nest_lab   # 用容器里自带的 psql 连进去
+#   docker compose down       # 停掉并删除容器(数据卷还在,数据不丢)
+#   docker compose down -v    # ⚠️ 连数据卷一起删:数据全没了
+#
+# 说明:本课程的验证环境没有 Docker,这个文件按 Compose 规范的标准写法编写、未在课程环境实测;
+#       讲义里所有 SQL 输出都来自 PostgreSQL 16 的真实运行。
+services:
+  postgres:
+    image: postgres:16 # 固定大版本,和讲义的验证版本(16.x)一致;不要用 latest
+    restart: unless-stopped
+    environment:
+      # 这三个变量只在「数据卷第一次初始化」时生效;之后再改 .env 不会改已有的用户和密码
+      POSTGRES_USER: ${POSTGRES_USER:-nest_lab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请先 cp .env.example .env 并设置 POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-nest_lab}
+    ports:
+      # 只绑定本机回环地址:同一局域网的其他机器连不进来
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      # 数据存在具名数据卷里:容器删了重建,数据还在
+      - pgdata:/var/lib/postgresql/data
+      # 把每天的 SQL 实验文件只读挂进容器:容器里的 psql 可以 \i /sql/day22/01-create.sql
+      - ./sql:/sql:ro
+    healthcheck:
+      # $$ 是给 Compose 的转义:让容器里的 shell 去展开 $POSTGRES_USER
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
