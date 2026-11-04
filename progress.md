@@ -1,7 +1,7 @@
 # 365 天全栈成长 · 进度记录
 
 - 计数方式:**只按 Day N 计数,不写具体日期**——不要求每天连续学习,完成一天才算一天,Day N 永远 = 已完成天数 + 1。
-- 当前进度:Day 5(进行中;Day 6–25 材料已备)
+- 当前进度:Day 5(进行中;Day 6–26 材料已备)
 - 时间标准:按 `roadmap.md` 每天 1.5 小时。注:另一仓库的路线图 v2(3 小时/天、Hetzner 部署、365 平台主线项目)在合并时被覆盖,已确认**以当前 `roadmap.md` 为准**;v2 原文可在提交 `8ac8470` 中查看,Day 6–7 讲义按 v2 节奏编写,使用时酌情删减。⚠️ `hetzner` 主机是公司测试环境(Coolify + Traefik),不要部署学习项目,需要服务器时另租独立 VPS。
 - 水平测试(Day 4 完成):**1 / 46**,全部 7 个领域从零起步,React/TS 深层知识为真实缺口。每个 Phase 结束重答对应题目,见 `docs/00-level-check/level-check.md`。
 - 说明:第一轮(Day 1–8)的旧文件已归档至 `archive/round-1/`,供对照参考。
@@ -33,3 +33,4 @@
 | Day 23 | Phase 2 / Week 4 | 数据建模与范式:一本什么都记的大流水账,拆成会员名册、任务本和标签对照表(实体与关系 1:1 / 1:N / N:M 与中间表;宽表三类异常实测)+ 整理账本的三条规矩 = 1NF → 2NF → 3NF(函数依赖大白话,「同一个事实存几份」结算表:宽表 3 → 1NF 5 → 2NF 3 → 3NF 1)+ 有意且有记录的反范式(计数缓存失真演示)与「schema 设计是最难改的决定」;nest-lab:`docs/er-diagram.md`、`sql/day23/`(独立 schema,可重跑)、`npm run day23` | `docs/23-data-modeling/Day 23 - 数据建模与范式:一本什么都记的大流水账,拆成会员名册、任务本和标签对照表.html` + `src/23-data-modeling/notes.md` + `nest-lab/`(docs/er-diagram.md、sql/day23、`npm run day23`) | 待开始 |
 | Day 24 | Phase 2 / Week 4 | 主键与约束:会员卡号由总部统一发(自然键 vs 代理键、serial vs IDENTITY ALWAYS / BY DEFAULT、integer 溢出与默认 bigint、UUID v4 vs v7 与索引页分裂、PG 16 下自写 `uuid_v7()`、内部 bigint + 对外 public_id)+ 账房墙上的铁规矩(NOT NULL / UNIQUE(`lower(email)`)/ CHECK / 外键 ON DELETE CASCADE·RESTRICT·SET NULL)+ 两层校验与错误码(并发注册:先查后插拦不住、唯一约束拦得住;SQLSTATE 23502 / 23505 / 23514 / 23503 → HTTP 状态码约定) | `docs/24-keys-constraints/Day 24 - 主键与约束:会员卡号由总部统一发,前台查过了,账房还要按铁规矩再核一次.html` + `src/24-keys-constraints/notes.md` + `nest-lab/`(sql/day24、docs/er-diagram.md 约束版、`npm run day24`) | 待开始 |
 | Day 25 | Phase 2 / Week 4 | SQL 查询深入 I:拿会员名册和订单本对着翻(INNER / LEFT / CROSS / 自连接、EXISTS / NOT EXISTS 半连接反连接,`NOT IN` 遇 NULL 返回 0 行,LEFT JOIN 条件放 ON vs WHERE 结果不同)+ 别把一笔账算两遍(GROUP BY / HAVING / `FILTER`、扇出重复计算实测 160 vs 90 与两种修法)+ 有名字的草稿与查族谱(子查询、CTE、递归 CTE 组织架构)+ NULL 三值逻辑与 SQL 逻辑执行顺序 | `docs/25-sql-queries-1/Day 25 - SQL 查询深入 I:拿会员名册和订单本对着翻,别把一笔账算两遍.html` + `src/25-sql-queries-1/notes.md` + `nest-lab/`(sql/day25、`npm run day25`) | 待开始 |
+| Day 26 | Phase 2 / Week 4 | SQL 查询深入 II + PG 特色类型:每行旁边记上第几单(窗口函数 PARTITION BY / ORDER BY,row_number vs rank vs dense_rank,每组最新三种写法 `row_number=1` / `DISTINCT ON` / `LATERAL`,lag、累计和、移动平均)+ 有就更新、没有就开卡并当场给回执(`ON CONFLICT DO NOTHING / DO UPDATE` 根治并发注册、`RETURNING` 为 201 / 404 做准备)+ 便条、一格多值与写清哪里的几点(JSONB vs 子表 → checklist 定为子表、数组 vs 中间表、timestamptz 时区与夏令时实测、ENUM vs CHECK) | `docs/26-sql-queries-2/Day 26 - SQL 查询深入 II + PG 特色类型:每行旁边记上第几单,办完当场给回执,时间要写清是哪里的几点.html` + `src/26-sql-queries-2/notes.md` + `nest-lab/`(sql/day26、docs/er-diagram.md 存储形式决定、`npm run day26`) | 待开始 |

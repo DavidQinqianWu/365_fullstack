@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 26 - SQL 查询深入 II + PG 特色类型:每行旁边记上第几单,办完当场给回执,时间要写清是哪里的几点</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 4</div>
+  <h1>Day 26 - SQL 查询深入 II + PG 特色类型:每行旁边记上第几单,办完当场给回执,时间要写清是哪里的几点</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>窗口函数 · 每组最新 / Top-N · lag / lead / 累计和 · INSERT … ON CONFLICT · RETURNING · JSONB · 数组 · timestamptz vs timestamp · 夏令时 · ENUM</b> ·
+    项目:<code>nest-lab/</code> 新增 <code>sql/day26/</code>(schema <code>day26</code>)、<code>npm run day26</code>;<code>docs/er-diagram.md</code> 写下 checklist 的最终决定(应用代码今天不改)·
+    今天没有新依赖;SQL 输出均来自 PostgreSQL 16.15 的真实运行
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:四个还没解决的问题</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:窗口函数 —— 每一行旁边记上「这是他的第几单」</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:UPSERT 与 RETURNING —— 一个动作办完,当场给回执</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:JSONB、数组与时间 —— 便条、一格多值、写清是哪里的几点</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:四个还没解决的问题</h2>
+  <ul>
+    <li><b>Day 25</b>:聚合会把一堆行压成一行。可是「每个用户<b>最新的那一个</b>任务」要的是原来的整行,不是一个数。</li>
+    <li><b>Day 24</b>:并发注册时,唯一约束拦住了第二个请求,但它是以<b>报错</b>的方式拦住的。很多场景里我们想要的是「已经有了就算了」或「已经有了就更新一下」,不想处理异常。</li>
+    <li><b>Day 27 要接回 nest-lab</b>:<code>POST</code> 要回 201 + <code>Location</code>(需要数据库刚发的 id),<code>PATCH</code> 要返回更新后的资源,<code>DELETE</code> 要知道到底删没删到。难道每次写完都要再 <code>SELECT</code> 一次?</li>
+    <li><b>Day 23</b> 留下的悬念:nest-lab 的 <code>checklist</code> 到底存成子表,还是存成一个 JSONB 列?另外,Day 22 起所有的时间都用 <code>timestamptz</code>,它和 <code>timestamp</code> 到底差在哪?</li>
+  </ul>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    账房今天学四招:在账本的<b>每一行旁边</b>用铅笔记上「这是这位会员的第几单、累计消费多少」,一行都不撕;会员来办事,「有这个人就更新电话,没有就开卡」<b>一个动作办完</b>;每笔业务办完,<b>当场给一张回执</b>,写着刚发的卡号;订单背面允许附一张<b>自由格式的便条</b>;记时间时写清楚「北京时间 17 点,也就是世界时 9 点」,而不是只写「17 点」。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+docker compose up -d     # 或本机的 PostgreSQL 已在运行(Day 22)
+npm run day26            # 依次跑 sql/day26/ 下的实验,最后同时起两个 psql 用 UPSERT 注册同一个邮箱
+
+psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab
+nest_lab=&gt; SET search_path = day26;</code></pre>
+  <p>数据在独立的 schema <code>day26</code> 里:在 Day 25 的数据上,任务有了 <code>created_at</code>(用来排「最新」),多了一个和「学 psql」同样是 30 分钟的「读 SQL 文档」(用来看并列名次),用户有了 <code>last_login_at</code>。</p>
+  <pre><code> id |    title    | owner_id | estimate_minutes |       created_at
+----+-------------+----------+------------------+------------------------
+  1 | 学 psql     |        1 |               30 | 2026-11-02 09:00:00+00
+  2 | 建第一张表  |        1 |               20 | 2026-11-02 14:00:00+00
+  3 | 买菜        |        1 |               40 | 2026-11-03 08:30:00+00
+  4 | 修自行车    |        2 |               60 | 2026-11-02 10:00:00+00
+  5 | 写周报      |        2 |                  | 2026-11-04 17:00:00+00
+  6 | 读 SQL 文档 |        1 |               30 | 2026-11-04 08:00:00+00</code></pre>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用</th></tr>
+    <tr><td><code>sql/day26/01-setup.sql</code></td><td>新增</td><td>建 schema <code>day26</code> 和数据(重跑会整个删掉重建)</td></tr>
+    <tr><td><code>sql/day26/02-window.sql</code></td><td>新增</td><td>窗口函数 vs GROUP BY;三种排名;每组最新的三种写法;<code>lag</code> / <code>lead</code>;累计和与移动平均</td></tr>
+    <tr><td><code>sql/day26/03-upsert.sql</code></td><td>新增</td><td><code>ON CONFLICT DO NOTHING / DO UPDATE</code>、冲突目标必须有唯一约束、标签「没有就建」</td></tr>
+    <tr><td><code>sql/day26/04-race-setup.sql</code>、<code>04-race-session.sql</code></td><td>新增</td><td>用 UPSERT 改写 Day 24 的并发注册</td></tr>
+    <tr><td><code>sql/day26/05-returning.sql</code></td><td>新增</td><td><code>INSERT / UPDATE / DELETE … RETURNING</code></td></tr>
+    <tr><td><code>sql/day26/06-jsonb.sql</code></td><td>新增</td><td>json vs jsonb、操作符、<code>jsonb_set</code>、checklist 存 JSONB vs 子表</td></tr>
+    <tr><td><code>sql/day26/07-arrays.sql</code></td><td>新增</td><td>数组 vs 中间表</td></tr>
+    <tr><td><code>sql/day26/08-time.sql</code></td><td>新增</td><td><code>timestamptz</code> vs <code>timestamp</code>,上海 / 柏林会话,夏令时</td></tr>
+    <tr><td><code>sql/day26/09-enum.sql</code></td><td>新增</td><td><code>CREATE TYPE … AS ENUM</code>:加值容易、删值没有语法</td></tr>
+    <tr><td><code>docs/er-diagram.md</code></td><td>修改</td><td>新增「存储形式的决定」:checklist、标签、附属数据、时间、状态</td></tr>
+    <tr><td><code>scripts/day26-try.mjs</code> + <code>package.json</code> 的 <code>day26</code></td><td>新增</td><td>观察脚本(数据库不可用时立即提示)</td></tr>
+    <tr><td><code>README.md</code></td><td>修改</td><td>命令、成长日志 Day 26</td></tr>
+  </table>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:窗口函数 —— 每一行旁边记上「这是他的第几单」</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>窗口函数</b>和聚合一样是「对一组行做统计」,区别在于它<b>不把行压扁</b>:每一行都还在,只是旁边多了一列结果。<code>OVER (PARTITION BY 分组 ORDER BY 排序)</code> 定义「对哪一组、按什么顺序」看。常用的有:编号排名 <code>row_number</code> / <code>rank</code> / <code>dense_rank</code>,看前后行 <code>lag</code> / <code>lead</code>,以及把 <code>sum</code> / <code>avg</code> 变成累计和、移动平均。
+  </div>
+
+  <h3>② 生活类比:在账本每一行旁边用铅笔记一笔</h3>
+  <p>Day 25 的 GROUP BY 像月底统计:按会员把订单分堆,每堆写一张汇总单,原来的订单就看不到了。窗口函数像在<b>原来的账本上</b>,每一行旁边用铅笔写上「这是 Alice 的第 3 单」「到这一单为止 Alice 累计花了 90 分钟」「比她上一单晚了 18.5 小时」。一行都不撕,所以你还能拿着这些铅笔字去挑「每个人的最后一单」。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>SQL</th><th>说明</th></tr>
+    <tr><td>旁边用铅笔记一笔</td><td><code>函数() OVER (…)</code></td><td>结果是 SELECT 里的一列;行数不变</td></tr>
+    <tr><td>按会员分别记</td><td><code>PARTITION BY owner_id</code></td><td>不写就是整张表一组</td></tr>
+    <tr><td>按时间顺序记</td><td><code>ORDER BY created_at</code></td><td>决定「第几个」「上一个」是谁</td></tr>
+    <tr><td>第几单(并列也硬排)</td><td><code>row_number()</code></td><td>1, 2, 3, 4, …</td></tr>
+    <tr><td>名次(并列同名次,后面跳号)</td><td><code>rank()</code></td><td>1, 2, 3, 3, 5</td></tr>
+    <tr><td>名次(并列同名次,不跳号)</td><td><code>dense_rank()</code></td><td>1, 2, 3, 3, 4</td></tr>
+    <tr><td>和上一单 / 下一单比</td><td><code>lag(列)</code> / <code>lead(列)</code></td><td>第一行没有上一行,是 NULL</td></tr>
+    <tr><td>到这一单为止的累计 / 最近两单的平均</td><td><code>sum(…) OVER (ORDER BY … ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)</code> / <code>ROWS BETWEEN 1 PRECEDING AND CURRENT ROW</code></td><td>「窗口框」:从哪一行算到哪一行</td></tr>
+    <tr><td>每个会员挑最后一单</td><td><code>row_number() … = 1</code> / <code>DISTINCT ON</code> / <code>LATERAL</code></td><td>三种写法,下面实测结果一致</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:不折叠行,以及三种排名。</b>✍️ <b>预测(先写再运行)</b>:GROUP BY 得到几行?加了 <code>count(*) OVER (PARTITION BY owner_id)</code> 的查询得到几行?两个 30 分钟的任务,在 <code>row_number</code> / <code>rank</code> / <code>dense_rank</code> 里各排第几?下一个(20 分钟)呢?真实结果(<code>02-window.sql</code>):</p>
+  <pre><code>-- GROUP BY:每个用户一行
+ owner_id | 任务数
+----------+--------
+        1 |      4
+        2 |      2
+
+-- 窗口函数:每个任务还是一行
+ owner_id |    title    |       created_at       | 他一共几个 | 他的第几个
+----------+-------------+------------------------+------------+------------
+        1 | 学 psql     | 2026-11-02 09:00:00+00 |          4 |          1
+        1 | 建第一张表  | 2026-11-02 14:00:00+00 |          4 |          2
+        1 | 买菜        | 2026-11-03 08:30:00+00 |          4 |          3
+        1 | 读 SQL 文档 | 2026-11-04 08:00:00+00 |          4 |          4
+        2 | 修自行车    | 2026-11-02 10:00:00+00 |          2 |          1
+        2 | 写周报      | 2026-11-04 17:00:00+00 |          2 |          2
+
+-- 三种排名(按预估时长从长到短)
+    title    | estimate_minutes | row_number | rank | dense_rank
+-------------+------------------+------------+------+------------
+ 修自行车    |               60 |          1 |    1 |          1
+ 买菜        |               40 |          2 |    2 |          2
+ 学 psql     |               30 |          3 |    3 |          3
+ 读 SQL 文档 |               30 |          4 |    3 |          3
+ 建第一张表  |               20 |          5 |    5 |          4
+ 写周报      |                  |          6 |    6 |          5</code></pre>
+  <p>两个 30 分钟的任务:<code>row_number</code> 硬排成 3、4(谁先谁后<b>不确定</b>,取决于数据库这次怎么读),<code>rank</code> 都是 3、下一个跳到 5,<code>dense_rank</code> 都是 3、下一个是 4。「写周报」没有预估,用 <code>NULLS LAST</code> 排在最后。</p>
+
+  <p><b>⑤ 动手验证 B:每个用户最新的一个任务,三种写法。</b>✍️ <b>预测</b>:三种写法结果一样吗?没有任务的 Carol 会出现在哪一种里?</p>
+  <pre><code>-- ① row_number() = 1(标准 SQL;要 Top-3 就改成 &lt;= 3)
+SELECT owner_id, title, created_at FROM (
+  SELECT t.*, row_number() OVER (PARTITION BY owner_id ORDER BY created_at DESC, id DESC) AS rn
+  FROM tasks t
+) x WHERE rn = 1 ORDER BY owner_id;
+ owner_id |    title    |       created_at
+----------+-------------+------------------------
+        1 | 读 SQL 文档 | 2026-11-04 08:00:00+00
+        2 | 写周报      | 2026-11-04 17:00:00+00
+
+-- ② DISTINCT ON(PostgreSQL 特有)
+SELECT DISTINCT ON (owner_id) owner_id, title, created_at
+FROM tasks ORDER BY owner_id, created_at DESC, id DESC;
+        1 | 读 SQL 文档 | 2026-11-04 08:00:00+00
+        2 | 写周报      | 2026-11-04 17:00:00+00
+
+-- ③ LATERAL:对每个用户「去取他最新的一个」
+SELECT u.id AS owner_id, latest.title, latest.created_at
+FROM users u
+LEFT JOIN LATERAL (
+  SELECT title, created_at FROM tasks t WHERE t.owner_id = u.id
+  ORDER BY created_at DESC, id DESC LIMIT 1
+) latest ON true
+ORDER BY u.id;
+        1 | 读 SQL 文档 | 2026-11-04 08:00:00+00
+        2 | 写周报      | 2026-11-04 17:00:00+00
+        3 |             | </code></pre>
+  <p>(后两种只保留了结果行。)三种写法对 Alice 和 Bob 的结果完全一致;LATERAL 那种是从 <code>users</code> 出发再 <code>LEFT JOIN</code>,所以 Carol 也在,只是没有最新任务。怎么选:<b>要可移植、要 Top-N</b>,用 <code>row_number</code>;<b>在 PostgreSQL 里只要每组一行</b>,<code>DISTINCT ON</code> 最短;<b>要从「组」那张表出发、每组只取几行</b>(而且有合适的索引时),<code>LATERAL</code> 往往最快,原因 Week 5 看执行计划时就明白了。注意三种写法的排序里都加了 <code>id DESC</code>:两个任务创建时间相同时,也要有确定的答案(和 Day 19 的 tie-breaker 是同一个道理)。</p>
+
+  <p><b>⑤ 动手验证 C:lag / lead 与累计和。</b></p>
+  <pre><code>    title    |       created_at       |      上一个的时间      |   间隔   | 下一个任务
+-------------+------------------------+------------------------+----------+-------------
+ 学 psql     | 2026-11-02 09:00:00+00 |                        |          | 建第一张表
+ 建第一张表  | 2026-11-02 14:00:00+00 | 2026-11-02 09:00:00+00 | 05:00:00 | 买菜
+ 买菜        | 2026-11-03 08:30:00+00 | 2026-11-02 14:00:00+00 | 18:30:00 | 读 SQL 文档
+ 读 SQL 文档 | 2026-11-04 08:00:00+00 | 2026-11-03 08:30:00+00 | 23:30:00 |
+
+    title    | estimate_minutes | 累计 | 最近两个的平均
+-------------+------------------+------+----------------
+ 学 psql     |               30 |   30 |           30.0
+ 建第一张表  |               20 |   50 |           25.0
+ 买菜        |               40 |   90 |           30.0
+ 读 SQL 文档 |               30 |  120 |           35.0
+
+-- 窗口函数写在 WHERE 里
+ERROR:  window functions are not allowed in WHERE</code></pre>
+  <p>最后那个报错和 Day 25 的「WHERE 里不能用别名、不能用聚合」是同一个原因:<b>窗口函数在逻辑执行顺序的 SELECT 这一步才计算</b>,WHERE 早就执行完了。所以「每组最新」的写法 ① 要套一层子查询,先算出 <code>rn</code>,再在外层 <code>WHERE rn = 1</code>。这条规则也说明了为什么窗口函数「能看到」WHERE 过滤后剩下的所有行:上面 lag 那条加了 <code>WHERE owner_id = 1</code>,窗口里就只有 Alice 的四行。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「记完铅笔字,账本就变成每人一行了」——窗口函数从不减少行数。</b>想要「每组一行」,还得自己再过滤(<code>WHERE rn = 1</code>)或用 <code>DISTINCT ON</code>。新手常写出「窗口函数算出了每个用户的总数,但每个用户出现了好几次」的结果,然后再加一个 <code>DISTINCT</code> 去补救。那种时候,其实该用的是 GROUP BY。</li>
+      <li><b>「第几单是固定的」——<code>row_number</code> 只在排序能分出先后时才确定。</b>两个任务预估都是 30 分钟,哪个排第 3、哪个排第 4,这次和下次可能不一样。用它做分页或「取第一个」时,排序键最后一定要加一个唯一的列(<code>id</code>)。</li>
+      <li><b>「铅笔字不要钱」——窗口函数通常需要先排序。</b><code>PARTITION BY</code> + <code>ORDER BY</code> 意味着数据库要把行按这个顺序排好,数据量大时这是一笔真实的开销,能不能利用索引避免排序是 Week 5 的内容。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>window function</b>;<b><code>OVER</code> / <code>PARTITION BY</code> / <code>ORDER BY</code></b>;<b>window frame</b>(<code>ROWS / RANGE BETWEEN … PRECEDING AND … FOLLOWING</code>);<b><code>WINDOW</code> 子句</b>(给窗口定义起名,多处复用);<b>ranking functions</b>(<code>row_number</code> / <code>rank</code> / <code>dense_rank</code> / <code>ntile</code>);<b>offset functions</b>(<code>lag</code> / <code>lead</code> / <code>first_value</code> / <code>last_value</code>);<b>greatest-n-per-group</b>(每组 Top-N,经典问题名);<b><code>DISTINCT ON</code></b>;<b><code>LATERAL</code> join</b>。
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:UPSERT 与 RETURNING —— 一个动作办完,当场给回执</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b><code>INSERT … ON CONFLICT</code></b> 在插入时如果撞上某个唯一约束,不报错,而是按你的吩咐处理:<code>DO NOTHING</code>(算了)或 <code>DO UPDATE SET …</code>(改成更新),这种「有就更新、没有就插入」的操作俗称 <b>UPSERT</b>。判断和插入是数据库在一个动作里完成的,所以并发下也是安全的。<b><code>RETURNING</code></b> 让 <code>INSERT</code> / <code>UPDATE</code> / <code>DELETE</code> 直接把写入后的行返回给你,不用再查一次。
+  </div>
+
+  <h3>② 生活类比:一个动作办完,当场给回执</h3>
+  <p>以前办事要两步:前台先翻名册看有没有这个人(查),再决定是开卡还是改电话(写)。两个前台同时办同一个人,就会各开一张卡(Day 24 实测过)。现在账房有了一个新窗口:「<b>按邮箱办理:有这个人就更新最后来访时间,没有就开卡</b>」,账房自己一次办完,中间不留空档。办完以后,账房<b>当场递出一张回执</b>,上面写着卡号、开卡时间、现在的状态,前台不用再跑一趟去查。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>SQL</th><th>要点</th></tr>
+    <tr><td>按邮箱办理</td><td><code>ON CONFLICT (email)</code></td><td>冲突目标必须对应一个唯一约束 / 唯一索引(Day 24)</td></tr>
+    <tr><td>已经有了就算了</td><td><code>DO NOTHING</code></td><td>不报错;回执里没有那一行</td></tr>
+    <tr><td>已经有了就更新</td><td><code>DO UPDATE SET last_login_at = EXCLUDED.last_login_at</code></td><td><code>EXCLUDED</code> = 这次本来想插入的那一行</td></tr>
+    <tr><td>当场给回执</td><td><code>RETURNING id, created_at, …</code></td><td>INSERT / UPDATE / DELETE 都能用;返回 0 行说明一行都没动</td></tr>
+    <tr><td>更通用的「对照着办」</td><td><code>MERGE</code>(PostgreSQL 15 起)</td><td>今天只点到</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:UPSERT 的几种情况。</b>✍️ <b>预测</b>:<code>ON CONFLICT DO NOTHING</code> 插一个已存在的邮箱,回执是什么?新用户 Dave 的 id 会是 4 吗?<code>ON CONFLICT (display_name)</code>(没有唯一约束的列)会怎样?真实结果(<code>03-upsert.sql</code>):</p>
+  <pre><code>-- ① DO NOTHING:不报错,插入 0 行
+INSERT 0 0
+-- 对比:不写 ON CONFLICT
+ERROR:  duplicate key value violates unique constraint "users_email_key"
+DETAIL:  Key (email)=(alice@example.com) already exists.
+
+-- ② DO UPDATE:Alice 已存在 → 更新登录时间;Dave 不存在 → 插入
+INSERT 0 1
+INSERT 0 1
+ id |       email       | display_name |     last_login_at
+----+-------------------+--------------+------------------------
+  1 | alice@example.com | Alice        | 2026-11-04 09:00:00+00
+  2 | bob@example.com   | Bob          |
+  3 | carol@example.com | Carol        |
+  7 | dave@example.com  | Dave         | 2026-11-04 09:05:00+00
+
+-- ③ 冲突目标没有唯一约束
+ERROR:  there is no unique or exclusion constraint matching the ON CONFLICT specification</code></pre>
+  <ul>
+    <li><b>Dave 的 id 是 7,不是 4</b>。前面插入 Alice 的三次尝试(DO NOTHING、报错的那次、DO UPDATE)都先从序列拿了号,然后才发现冲突。这就是 Day 24 说的「主键有空洞」:UPSERT 用得很多的表(比如每次登录都 upsert),id 会跳得很快,这也是默认用 <code>bigint</code> 的理由之一。</li>
+    <li><b>DO UPDATE 的回执也是 <code>INSERT 0 1</code></b>:不管实际是插入还是更新,psql 都显示 INSERT。想知道到底是哪一种,可以 <code>RETURNING (xmax = 0) AS inserted</code>,这是一个依赖 PostgreSQL 内部实现的常见技巧,今天不展开。</li>
+    <li><b>冲突目标必须是一个唯一约束</b>:UPSERT 是靠唯一约束来判断「是不是已经存在」的。没有唯一约束,数据库就不知道「同一个」是什么意思。这又一次说明 Day 24 的约束不只是校验,也是这类功能的基础。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 B:标签「没有就建,有就复用」,以及 DO NOTHING 的回执坑。</b>✍️ <b>预测</b>:<code>INSERT INTO tags (name) VALUES ('urgent') ON CONFLICT (name) DO NOTHING RETURNING id</code>,能拿回已存在的 urgent 的 id 吗?</p>
+  <pre><code>-- urgent 已存在:回执是空的
+ id | name
+----+------
+(0 rows)
+INSERT 0 0
+-- work 不存在:插入并拿回 id(是 5:上一条虽然没插进去,也用掉了 4)
+ id | name
+----+------
+  5 | work
+(1 row)
+INSERT 0 1
+
+-- 「先试着插,插不进去就再查一次」写成一条语句
+WITH ins AS (
+  INSERT INTO tags (name) VALUES ('urgent') ON CONFLICT (name) DO NOTHING RETURNING id
+)
+SELECT id FROM ins
+UNION ALL
+SELECT id FROM tags WHERE name = 'urgent' AND NOT EXISTS (SELECT 1 FROM ins);
+ id
+----
+  3</code></pre>
+  <p><code>DO NOTHING</code> 时,<b>已存在的那一行不会出现在 <code>RETURNING</code> 里</b>,这是写「get or create」时最常见的坑:代码以为一定能拿到 id,结果拿到空数组。上面的 CTE 写法是一种常见解法(插进去了就用插入的 id,没插进去就去查)。另一种写法是 <code>DO UPDATE SET name = EXCLUDED.name RETURNING id</code>,用一次「假更新」换来一定有回执,代价是每次都真的写了一行。</p>
+
+  <p><b>⑤ 动手验证 C:用 UPSERT 改写 Day 24 的并发注册。</b>和 Day 24 一样,两个 psql 同时注册 <code>erin@example.com</code>,中间各停 1 秒;不同的是这次不「先查」,直接 <code>INSERT … ON CONFLICT (email) DO NOTHING RETURNING</code>。✍️ <b>预测</b>:第二个请求会报错吗?它的事务最后是 COMMIT 还是 ROLLBACK?真实结果(<code>npm run day26</code> 第 2 幕):</p>
+  <pre><code>--- 请求 A(用时 1.1 秒,psql 退出码 0)
+ id | 插入成功的是
+----+--------------
+  1 | A
+(1 row)
+INSERT 0 1
+COMMIT
+--- 请求 B(用时 1.0 秒,psql 退出码 0)
+ id | 插入成功的是
+----+--------------
+(0 rows)
+INSERT 0 0
+COMMIT
+--- 最后表里:
+ id |      email       | who
+----+------------------+-----
+  1 | erin@example.com | A</code></pre>
+  <p>(谁先插进去是随机的。)<b>没有报错,两个事务都正常 COMMIT,表里只有一行。</b>应用只要看 <code>RETURNING</code> 有没有返回行:有,就是注册成功(201);没有,就是邮箱已被占用(409)。对比 Day 24:那次第二个请求得到的是 <code>23505</code> 错误,整个事务被迫 ROLLBACK,如果事务里还有别的操作,也一起作废了。两种方式都是正确的(底下都靠唯一约束),区别在于「冲突」是作为<b>错误</b>还是作为<b>正常结果</b>交给应用。</p>
+
+  <p><b>⑤ 动手验证 D:RETURNING。</b>✍️ <b>预测</b>:<code>UPDATE … WHERE id = 999 RETURNING …</code> 返回什么?同一个任务删两次呢?真实结果(<code>05-returning.sql</code>,在事务里,做完回滚):</p>
+  <pre><code>-- POST /tasks:拿回数据库生成的 id 和默认值
+ id |    title     | done | 有创建时间
+----+--------------+------+------------
+  7 | 学 RETURNING | f    | t
+INSERT 0 1
+-- PATCH /tasks/3:拿回更新后的整行
+ id | title | done
+----+-------+------
+  3 | 买菜  | t
+UPDATE 1
+-- PATCH /tasks/999
+ id | title | done
+----+-------+------
+(0 rows)
+UPDATE 0
+-- DELETE /tasks/5,删两次
+ id | title
+----+--------
+  5 | 写周报
+DELETE 1
+ id | title
+----+-------
+(0 rows)
+DELETE 0</code></pre>
+  <p>这就是 Day 27 仓储的三个基本动作:<b>POST</b> 用 <code>INSERT … RETURNING id, …</code> 拿到 id 拼 <code>Location: /v2/tasks/7</code>;<b>PATCH / PUT</b> 用 <code>UPDATE … RETURNING *</code>,返回 0 行就是 404,返回 1 行就直接交给 Day 18 的映射函数;<b>DELETE</b> 用 <code>DELETE … RETURNING id</code>(或者看回执的行数),0 行就是 404。每个操作一次往返,不需要「先查一下存不存在」:那一步在并发下本来也不可靠。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「账房会判断这个人是不是来过」——UPSERT 只认唯一约束。</b>「同一个人」的定义完全取决于你建了哪个唯一约束:如果邮箱唯一约束是区分大小写的,<code>Alice@…</code> 和 <code>alice@…</code> 就是两个人(Day 24 用 <code>lower(email)</code> 唯一索引解决,这时冲突目标要写成 <code>ON CONFLICT ((lower(email)))</code>)。没有唯一约束,UPSERT 根本写不出来。</li>
+      <li><b>「有就更新、没有就插入,所以永远只是一行」——<code>DO UPDATE</code> 会覆盖别人刚写的值。</b>两个请求同时 upsert 同一个用户的不同字段,后到的会按自己的 <code>SET</code> 覆盖。<code>SET</code> 里只写你真正想改的列,别写 <code>SET email = EXCLUDED.email, display_name = EXCLUDED.display_name, …</code> 一把全覆盖。更复杂的并发更新(丢失更新)是 Week 6 的内容。</li>
+      <li><b>「回执上一定有我要的东西」——<code>DO NOTHING</code> 的回执里没有已存在的那一行。</b>上面实测过。另外,<code>RETURNING</code> 返回的是数据库里的真实值(包括触发器、默认值改过的),这正是它比「应用自己记着刚才插入了什么」更可靠的地方,但前提是你真的读了它。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>UPSERT</b>;<b><code>INSERT … ON CONFLICT (conflict_target) DO NOTHING | DO UPDATE SET …</code></b>;<b><code>EXCLUDED</code></b> 伪表;<b>conflict target / arbiter index</b>;<b><code>RETURNING</code></b>;<b>get-or-create</b>;<b>atomic operation</b>;<b><code>MERGE</code></b>(SQL 标准,PostgreSQL 15 起;17 起 MERGE 也支持 RETURNING)。
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:JSONB、数组与时间 —— 便条、一格多值、写清是哪里的几点</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    PostgreSQL 有几种「一般数据库没有或不常用」的类型。<b>JSONB</b>:一个格子里放一整段 JSON,能按里面的字段查询,但数据库<b>不检查</b>里面的类型和引用。<b>数组</b>(<code>text[]</code>):一个格子里放一串值。<b><code>timestamptz</code></b>:一个<b>绝对时刻</b>,读出来时按会话时区显示;<b><code>timestamp</code></b>(不带时区):只是一串「墙上的数字」,不知道是哪里的几点。后端的时间一律用 <code>timestamptz</code>。
+  </div>
+
+  <h3>② 生活类比:订单背面的便条,和写清楚是哪里的几点</h3>
+  <p>订单正面是印好栏目的表格,每一栏账房都会检查;背面允许<b>附一张便条</b>,写什么都行:「客人从小程序下的单」「要求不放葱」。便条很方便,但账房不会检查便条上写的会员号是不是真的存在,也没法按「不放葱」去统计。<b>数组</b>像在一格里写「辣、招牌、新品」,省了一张对照表,但哪天「招牌」改名成「主厨推荐」,就得把每一张订单都翻出来改。记时间时,上海分店写「17:00」,柏林分店也写「17:00」,如果不写清楚是哪里的 17 点,总部根本对不上账;<b>timestamptz 的做法是统一换算成世界时记下来</b>,谁来看就按谁的当地时间念给他听。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>PostgreSQL</th><th>要点</th></tr>
+    <tr><td>原样抄下的便条</td><td><code>json</code></td><td>保存原文:空白、重复键、键的顺序都原样保留;每次用都要重新解析</td></tr>
+    <tr><td>整理过的便条</td><td><code>jsonb</code></td><td>解析后以二进制保存:重复键只留最后一个,键按内部顺序排;能建 GIN 索引(Week 5)。一般都用它</td></tr>
+    <tr><td>取便条上的一项</td><td><code>-&gt;</code>(取出来还是 jsonb)/ <code>-&gt;&gt;</code>(取出来是 text)</td><td><code>metadata -&gt; 'client' -&gt;&gt; 'browser'</code></td></tr>
+    <tr><td>便条上有没有写某句话</td><td><code>@&gt;</code>(包含)/ <code>?</code>(有没有这个键)</td><td><code>metadata @&gt; '{"source": "mobile"}'</code></td></tr>
+    <tr><td>改便条上的一项</td><td><code>jsonb_set(列, '{路径}', 新值)</code></td><td>返回一份新的 jsonb,整列写回</td></tr>
+    <tr><td>把便条上的列表一项项摊开</td><td><code>jsonb_array_elements</code></td><td>展开成行,再用 Day 25 的聚合</td></tr>
+    <tr><td>一格里写一串值</td><td><code>text[]</code>、<code>'x' = ANY(列)</code>、<code>列 @&gt; ARRAY[…]</code></td><td>没有外键;改名要改每一行</td></tr>
+    <tr><td>换算成世界时记下来</td><td><code>timestamptz</code></td><td>存的是绝对时刻,不存时区本身;按会话的 <code>TimeZone</code> 显示</td></tr>
+    <tr><td>只写「17:00」</td><td><code>timestamp</code>(without time zone)</td><td>不知道是哪里的 17 点</td></tr>
+    <tr><td>固定的几个选项</td><td><code>CHECK (… IN …)</code> 或 <code>CREATE TYPE … AS ENUM</code></td><td>ENUM 加值容易、删值没有语法</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:JSONB。</b>真实结果(<code>06-jsonb.sql</code>,节选):</p>
+  <pre><code>-- json 原样 vs jsonb 规整后
+        json_原样         |   jsonb_规整后
+--------------------------+------------------
+ {"b": 1, "a": 2, "a": 3} | {"a": 3, "b": 1}
+
+-- -&gt; 和 -&gt;&gt;
+ id |              client_jsonb              | source_text | browser
+----+----------------------------------------+-------------+---------
+  1 | {"browser": "Firefox", "version": 133} | web         | Firefox
+  3 | {"os": "iOS"}                          | mobile      |
+  4 |                                        | import      |
+
+-- @&gt; 包含 {"source": "mobile"} / ? 有 import_batch 这个键
+  3 | 买菜
+  4 | 修自行车
+
+-- jsonb_set 改 version
+ {"client": {"browser": "Firefox", "version": 134}, "source": "web"}
+
+-- 便条上写什么都收:source 是数字、键名拼错、引用一个不存在的用户
+UPDATE 1
+  6 | {"source": 123, "sourse": "web", "assignee_id": 99999}</code></pre>
+  <p>最后一条是 JSONB 最大的代价:<b>数据库不帮你校验</b>。<code>"source"</code> 本来该是字符串,写成了数字;<code>"sourse"</code> 拼错了键名;<code>"assignee_id": 99999</code> 指向一个根本不存在的用户,而 JSONB 里的值没法加外键。这些错误只会在某天有人读它时才暴露。可以用 <code>CHECK (jsonb_typeof(metadata -&gt; 'source') = 'string')</code> 这样的约束补救几条关键规则,但越补越多时,说明它本该是一张表。</p>
+
+  <p><b>checklist 的最终决定。</b>把 <code>checklist_items</code> 子表折叠成 JSONB 数组,看看两种存法各自的样子:</p>
+  <pre><code>-- 折叠成 JSONB 数组:读写整份很方便
+ id |    title    |                                             checklist
+----+-------------+----------------------------------------------------------------------------------------------------
+  1 | 学 psql     | [{"done": true, "text": "装 PG"}, {"done": true, "text": "连上 psql"}]
+  2 | 建第一张表  | [{"done": true, "text": "写 CREATE TABLE"}]
+  3 | 买菜        | [{"done": false, "text": "鸡蛋"}, {"done": false, "text": "牛奶"}, {"done": true, "text": "面包"}]
+  4 | 修自行车    | []
+ ...
+-- 展开成行也能统计
+ id |    title    | 总数 | 已完成
+----+-------------+------+--------
+  1 | 学 psql     |    2 |      2
+  3 | 买菜        |    3 |      1
+ ...
+-- 但写一个坏的清单项,JSONB 照收
+ [{"done": true, "text": "写 CREATE TABLE"}, {"done": "maybe", "text": ""}]
+-- 同样的坏数据进子表
+ERROR:  invalid input syntax for type boolean: "maybe"
+
+-- 反过来:存在子表里,读的时候拼成 API 要的形状
+ id |   title    |                                                checklist
+----+------------+----------------------------------------------------------------------------------------------------------
+  2 | 建第一张表 | [{"text" : "写 CREATE TABLE", "done" : true}]
+  3 | 买菜       | [{"text" : "鸡蛋", "done" : false}, {"text" : "牛奶", "done" : false}, {"text" : "面包", "done" : true}]
+  4 | 修自行车   | []</code></pre>
+  <div class="concept">
+    <span class="tag">✅ nest-lab 的决定:checklist 用子表 <code>checklist_items</code>(已写进 <code>docs/er-diagram.md</code>)</span>
+    <ol>
+      <li><b>每一项都有规则</b>:<code>text</code> 不能为空、1–100 字,<code>done</code> 是布尔。子表可以用约束逐项把关(上面 <code>'maybe'</code> 被布尔类型直接拒绝;空文本由 Day 24 的 <code>checklist_items_text_check</code> 拦下,今天的 day26 表为了简短没加),JSONB 里写什么都收。</li>
+      <li><b>要按清单项查询和统计</b>:列表页的「完成 2/3」、Day 25 习题里的统计,在子表上就是普通的 <code>count</code> / <code>JOIN</code>,还能建索引。</li>
+      <li><b>API 的形状是映射问题</b>(Day 18):仓储一条查询用 <code>json_agg(… ORDER BY position)</code> 就能拼出 <code>checklist: [...]</code>,上面最后一段就是 Day 27 要用的写法。</li>
+    </ol>
+    <p><b>代价</b>:创建任务、PUT 整体替换时要同时写两张表(先删旧的清单项再插新的),必须放在同一个事务里,否则中途失败会留下半份清单。Day 27 用 <code>BEGIN … COMMIT</code> 处理,事务的原理是 Week 6 的内容。<b>如果</b>清单永远只跟着任务整份读写、从不单独统计、规则也只靠 DTO 保证,JSONB 也是合理的选择,那会让 Day 27 更简单。我们选子表,是因为 nest-lab 的列表页和统计需求已经出现了。</p>
+  </div>
+
+  <p><b>⑤ 动手验证 B:数组 vs 中间表。</b>(<code>07-arrays.sql</code>)把标签折叠成 <code>text[]</code> 后,查询确实顺手:</p>
+  <pre><code>-- 'urgent' = ANY(tag_names)
+  1 | 学 psql
+  3 | 买菜
+-- tag_names @&gt; ARRAY['learning', 'urgent']
+  1 | 学 psql
+
+-- 标签 learning 改名:数组版要改每一行,中间表版只改 tags 的一行
+UPDATE 3
+UPDATE 1
+-- 数组里写一个拼错的标签,照样成功
+ id |   tag_names
+----+---------------
+  4 | {home,ugrent}</code></pre>
+  <p>这就是 Day 23 范式讨论的具体版本:数组违反了 1NF 的「一格一值」,换来了查询方便;代价是改名要改 N 行、没有外键、没法统计「每个标签用了几次」之外的标签属性。<b>nest-lab 的标签继续用 <code>task_tags</code> 中间表</b>。数组适合「只跟着这一行、不需要改名、不需要关联」的简单值,比如一个任务的提醒时间点列表。</p>
+
+  <p><b>⑤ 动手验证 C:timestamptz vs timestamp,以及夏令时。</b>✍️ <b>预测</b>:上海的会话写入「2026-11-04 17:00」,柏林的会话读出来,两种类型各显示几点?柏林的会话也写入「17:00」之后,两行 <code>timestamptz</code> 相差多久?<code>timestamp</code> 呢?柏林 2026-03-29 凌晨从 2 点跳到 3 点,从前一天中午加「1 天」和加「24 小时」结果一样吗?真实结果(<code>08-time.sql</code>):</p>
+  <pre><code>-- 上海写入,柏林读
+     label      |         at_tz          |      at_plain
+----------------+------------------------+---------------------
+ 上海的会话写入 | 2026-11-04 10:00:00+01 | 2026-11-04 17:00:00
+-- UTC 读
+ 上海的会话写入 | 2026-11-04 09:00:00+00 | 2026-11-04 17:00:00
+-- 显式换算成某地的墙上时间
+  换成上海墙上时间   |  换成柏林墙上时间
+---------------------+---------------------
+ 2026-11-04 17:00:00 | 2026-11-04 10:00:00
+
+-- 柏林也写入「17:00」之后(UTC 读)
+     label      |         at_tz          |      at_plain
+----------------+------------------------+---------------------
+ 上海的会话写入 | 2026-11-04 09:00:00+00 | 2026-11-04 17:00:00
+ 柏林的会话写入 | 2026-11-04 16:00:00+00 | 2026-11-04 17:00:00
+ 两个timestamptz相差 | 两个timestamp相差
+---------------------+-------------------
+ 07:00:00            | 00:00:00
+
+-- 夏令时(柏林会话)
+         加一天         |        加24小时
+------------------------+------------------------
+ 2026-03-29 12:00:00+02 | 2026-03-29 13:00:00+02
+ 一天其实有多长
+----------------
+ 23:00:00
+
+-- 输出给 API 的格式
+ 2026-11-04T09:00:00.000Z
+ 2026-11-04T16:00:00.000Z</code></pre>
+  <ul>
+    <li><b><code>timestamptz</code> 记住的是「哪一刻」</b>:上海的 17:00 在柏林显示为 10:00+01、在 UTC 显示为 09:00+00,都是同一刻。<b><code>timestamp</code> 只记住了「17:00」这几个数字</b>,不管谁来读都是 17:00;上海和柏林各自写入的「17:00」实际相差 7 小时,<code>timestamp</code> 却认为它们完全相同(相差 0)。用户分布在不同时区的系统,用 <code>timestamp</code> 迟早会排错序、算错时长。</li>
+    <li><b>夏令时</b>:柏林在 2026-03-29 凌晨把时钟从 2 点拨到 3 点,这一天只有 23 小时。<code>+ interval '1 day'</code> 是「日历上的明天同一时刻」(还是 12:00),<code>+ interval '24 hours'</code> 是「过 24 个小时」(墙上变成了 13:00)。哪个对取决于业务:「明天同一时间提醒我」要 1 day,「24 小时后过期」要 24 hours。注意这种计算结果<b>取决于会话时区</b>,应用里要么固定会话时区为 UTC,要么在计算时显式写 <code>AT TIME ZONE</code>。</li>
+    <li><b>nest-lab 的约定</b>:数据库一律 <code>timestamptz</code>;应用层拿到的是一个绝对时刻(Node 里的 <code>Date</code>),Day 9 的 <code>Clock</code> 提供「现在」,Day 18 的映射函数输出 ISO 8601 UTC 字符串(<code>…Z</code>);<b>换算成用户的当地时间,是展示层(前端)的事</b>。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 D:ENUM(点到为止)。</b>(<code>09-enum.sql</code>)</p>
+  <pre><code>ERROR:  invalid input value for enum task_status: "archived"     ← 不在枚举里
+ALTER TYPE                                                          ← ADD VALUE 'archived'
+INSERT 0 1
+ id |  status
+----+----------
+  1 | todo
+  2 | done
+  3 | archived            ← 按定义顺序排序,不是按字母
+ERROR:  syntax error at or near "VALUE"                             ← DROP VALUE:没有这个语法</code></pre>
+  <p>ENUM 加值容易,删值没有直接的办法(要建新类型、迁移数据、换掉旧类型)。nest-lab 的 <code>role</code> 继续用 Day 24 的 <code>CHECK (role IN ('user', 'admin'))</code>:改规则就是换一条约束。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「便条也是订单的一部分,账房会核对」——JSONB 里的东西数据库不校验类型、不能加外键、不能加唯一约束。</b>它适合结构多变、只跟着这一行读写的附属数据(第三方回调原文、客户端信息、实验性的配置)。需要外键、唯一、频繁按字段过滤和聚合的核心数据,放进 JSONB 就是在逃避建模(Day 23 卡片 #3 的边界)。按 JSONB 字段查询在大表上要靠 GIN 索引,Week 5 讲。</li>
+      <li><b>「timestamptz 把时区也存下来了」——它并不存时区。</b>它存的是一个绝对时刻(内部就是相对于 UTC 的一个数),写入时按会话时区(或你写的偏移)换算成这个时刻,读出时再按当前会话时区换算回来显示。原来是「上海时间」这个信息是<b>丢掉了</b>的。如果业务需要知道「用户当时在哪个时区」(比如按用户当地日期统计),要另外存一列时区名(如 <code>'Asia/Shanghai'</code>)。</li>
+      <li><b>「一格多值和对照表只是写法不同」——数组省掉的是 JOIN,丢掉的是约束和独立性。</b>数组里的元素没有外键、不能单独有属性(比如「这个标签是谁贴的」)、改名要改每一行。Day 23 的规则仍然适用:元素是一个独立的实体,就用中间表。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b><code>json</code> vs <code>jsonb</code></b>;<b>JSONB operators</b>(<code>-&gt;</code> <code>-&gt;&gt;</code> <code>#&gt;</code> <code>@&gt;</code> <code>?</code>);<b><code>jsonb_set</code> / <code>jsonb_array_elements</code> / <code>jsonb_agg</code> / <code>json_build_object</code></b>;<b>GIN index</b>(Week 5);<b>array types</b>、<b><code>ANY</code> / <code>@&gt;</code> / <code>unnest</code> / <code>array_agg</code></b>;<b><code>timestamp with time zone</code> vs <code>timestamp without time zone</code></b>;<b>session <code>TimeZone</code></b>、<b><code>AT TIME ZONE</code></b>;<b>DST(夏令时)</b>;<b>interval arithmetic</b>;<b>ISO 8601</b>;<b>enumerated types</b>。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <table>
+    <tr><th>命题</th><th>Node.js / TS</th><th>C# / .NET</th><th>Java</th><th>Go</th></tr>
+    <tr>
+      <td>窗口函数</td>
+      <td>Prisma 没有对应的 API,用 <code>$queryRaw</code> 写原生 SQL;Drizzle / Kysely 这类查询构建器可以表达</td>
+      <td>EF Core 一般写原生 SQL:<code>FromSql</code> / <code>SqlQuery</code></td>
+      <td>JPA 用原生查询(<code>@Query(nativeQuery = true)</code>);Hibernate 6 的 HQL 据称也支持一部分窗口函数(未核实)</td>
+      <td>sqlc / sqlx:本来就是手写 SQL</td>
+    </tr>
+    <tr>
+      <td>UPSERT</td>
+      <td>Prisma <code>upsert()</code>:满足一定条件时(只按一个唯一字段 <code>where</code>、没有嵌套写入等)会用数据库原生 upsert,否则退化成「先查再插 / 改」,并发下有竞态;原生 SQL 直接写 <code>ON CONFLICT</code></td>
+      <td>EF Core 本身<b>没有</b>原生 upsert API;常用第三方库 FlexLabs.EntityFrameworkCore.Upsert(PG 下生成 <code>ON CONFLICT DO UPDATE</code>)或写原生 SQL</td>
+      <td>JPA / Hibernate 的 <code>merge()</code> <b>不是</b> SQL UPSERT:它先按主键查,再决定 INSERT 还是 UPDATE,并发下同样有窗口期;要原子操作就写原生 SQL</td>
+      <td>手写 <code>ON CONFLICT</code></td>
+    </tr>
+    <tr>
+      <td>RETURNING</td>
+      <td><code>pg</code>:<code>INSERT … RETURNING id</code> 的结果在 <code>rows</code> 里(Day 27)</td>
+      <td>EF Core 在 PG 上插入后取回生成的 id,底下就是用 <code>RETURNING</code></td>
+      <td>JDBC <code>getGeneratedKeys()</code>;PG 驱动底下用 RETURNING 实现</td>
+      <td><code>pgx</code>:<code>QueryRow(ctx, "INSERT … RETURNING id").Scan(&amp;id)</code></td>
+    </tr>
+    <tr>
+      <td>时间类型</td>
+      <td><code>Date</code>(内部是 UTC 毫秒数)、<code>toISOString()</code> 输出 UTC;<code>Intl.DateTimeFormat</code> 按时区显示</td>
+      <td><code>DateTimeOffset</code>;<b>Npgsql 6.0 起</b>:写 <code>timestamptz</code> 只接受 <code>DateTime.Kind == Utc</code>,Local / Unspecified 会报错,读出来是 UTC;旧行为可用 <code>Npgsql.EnableLegacyTimestampBehavior</code> 开关恢复</td>
+      <td><code>Instant</code>(绝对时刻)/ <code>OffsetDateTime</code>;<code>LocalDateTime</code> 对应不带时区的 <code>timestamp</code></td>
+      <td><code>time.Time</code>(带 Location);pgx 把 <code>timestamptz</code> 映射为 <code>time.Time</code></td>
+    </tr>
+  </table>
+
+  <p><b>和 MySQL / SQL Server 的差异</b>:</p>
+  <table>
+    <tr><th>功能</th><th>PostgreSQL</th><th>MySQL</th><th>SQL Server</th></tr>
+    <tr><td>UPSERT</td><td><code>INSERT … ON CONFLICT</code>;15 起也有 <code>MERGE</code></td><td><code>INSERT … ON DUPLICATE KEY UPDATE</code></td><td><code>MERGE</code>(并发下通常要加 <code>HOLDLOCK</code> 等提示才安全)</td></tr>
+    <tr><td>RETURNING</td><td><code>RETURNING</code></td><td>没有(插入后用 <code>LAST_INSERT_ID()</code>)</td><td><code>OUTPUT inserted.*</code></td></tr>
+    <tr><td>每组一行</td><td><code>DISTINCT ON</code>、窗口函数、<code>LATERAL</code></td><td>窗口函数(8.0 起)、<code>LATERAL</code>(8.0.14 起)</td><td>窗口函数、<code>CROSS / OUTER APPLY</code></td></tr>
+    <tr><td>JSON</td><td><code>json</code> / <code>jsonb</code></td><td><code>JSON</code> 类型(二进制存储)</td><td>传统上存 <code>nvarchar</code>,用 <code>JSON_VALUE</code> / <code>OPENJSON</code> 查询;新的原生 <code>json</code> 类型已在 Azure SQL 正式可用,SQL Server 2025 中的状态以官方文档为准</td></tr>
+    <tr><td>带时区的时间</td><td><code>timestamptz</code>(存绝对时刻,不存时区)</td><td><code>TIMESTAMP</code>(按会话时区换算、范围到 2038 年)/ <code>DATETIME</code>(不换算)</td><td><code>datetimeoffset</code>(<b>会</b>把偏移量一起存下来)</td></tr>
+  </table>
+  <p>🔎 核实说明:EF Core 没有原生 upsert、Prisma upsert 的退化条件、Npgsql 6.0 的时间行为、SQL Server 新 json 类型的状态,这四条我联网查过(Prisma 的条件来自转述官方文档的二手页面,写代码前请以 Prisma 官方文档为准)。其余 MySQL / SQL Server 的条目(包括 <code>OUTPUT</code>、<code>MERGE</code> 加 <code>HOLDLOCK</code>、MySQL 8.0.14 的 LATERAL、<code>TIMESTAMP</code> 的 2038 年上限)是公认事实,<b>没有在本机实测</b>。</p>
+  <p>📌 roadmap 顶部对照表目前没有「时间与时区」这一行。建议你在 Day 28 复盘时补一行(<code>timestamptz</code> ↔ <code>DateTimeOffset</code> / Npgsql UTC 规则 ↔ <code>Instant</code> ↔ <code>time.Time</code>,以及「存 UTC、展示时转换」),内容自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"How would you get the latest order per customer? How do you implement 'insert if not exists' safely under concurrency? And how do you store timestamps?"</b>(或者:「怎么取每个客户最新的一笔订单?并发下怎么安全地『不存在就插入』?时间怎么存?」)你可以答:<br>
+    <b>"每组取最新,标准写法是窗口函数:row_number over partition by 客户 order by 时间 desc,外层取等于 1 的行,要 Top-N 就取小于等于 N;排序键最后加一个唯一列,保证结果确定。在 PostgreSQL 里也可以用 DISTINCT ON,或者从客户表出发用 LATERAL 子查询加 LIMIT 1,有合适索引时通常最快。窗口函数和 GROUP BY 的区别是它不折叠行,所以不能写在 WHERE 里,要套一层子查询。不存在就插入,我不会先查再插,那在并发下有窗口期;我会在列上建唯一约束,然后用 INSERT ON CONFLICT DO NOTHING 或 DO UPDATE,让数据库原子地完成判断和写入,再用 RETURNING 判断这次到底有没有插进去,顺便拿回生成的 id,省掉一次查询。时间我一律用 timestamptz,它存的是绝对时刻,应用层用 UTC、输出 ISO 8601,转换成用户本地时间是展示层的事;要注意夏令时下加一天和加 24 小时不一样。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:跟着跑一遍(动手,约 8 min)</h3>
+    <ol>
+      <li>先把第 3、4、5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day26</code> 批改。</li>
+      <li>psql 连进去,<code>SET search_path = day26;</code>。✍️ <b>预测</b>:给 Bob 插一个 <code>created_at</code> 和「写周报」<b>完全相同</b>的新任务,三种「每组最新」写法还一致吗?去掉排序里的 <code>id DESC</code> 呢?</li>
+      <li>把 <code>row_number() = 1</code> 改成「每个用户最新的 2 个任务」。<code>DISTINCT ON</code> 能改成 Top-2 吗?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:为 Day 27 写好 SQL(动笔 + 动手,约 12 min)</h3>
+    <p>在 <code>day26</code> 里写出下面这些语句(放在 <code>BEGIN … ROLLBACK</code> 里试),每条都用 <code>RETURNING</code> 拿回 Day 18 的 <code>TaskResponse</code> 需要的字段(<code>id</code>、<code>title</code>、<code>done</code>、<code>created_at</code>):</p>
+    <ol>
+      <li><code>POST /v2/tasks</code>:插入一个任务,同时插入它的两个清单项(提示:可以写成两条语句,也可以用 CTE 把第一条的 <code>RETURNING id</code> 交给第二条)</li>
+      <li><code>PATCH /v2/tasks/1</code>:只改 <code>done</code></li>
+      <li><code>DELETE /v2/tasks/999</code>:应用怎么据此判断回 404?</li>
+      <li><code>GET /v2/tasks/3</code>:一条查询拿到任务和 <code>checklist</code> 数组(用 <code>json_agg</code>,注意没有清单项时要得到 <code>[]</code> 而不是 <code>null</code>)</li>
+    </ol>
+    <p>✍️ 第 1 题如果第二条语句失败了(比如清单项文本违反约束),第一条插入的任务还在吗?这说明 Day 27 要做什么?</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:时间与类型的判断(思考,约 5 min)</h3>
+    <ol>
+      <li>nest-lab 要加「截止时间」和「每天早上 8 点提醒」两个功能。分别该存什么类型?「每天 8 点」是谁的 8 点,要存哪些信息?</li>
+      <li>一个第三方支付回调会推送一段 JSON,其中订单号、金额、状态是你要查、要对账的,其余几十个字段只是留档。你会怎么建表?</li>
+      <li>用户在柏林,于 2026-03-28 中午创建了一个「24 小时后过期」的分享链接,和一个「明天这个时候提醒我」的提醒。两个时间点各是多少(用 UTC 写出来)?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/26-sql-queries-2/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「前端 <code>new Date().toISOString()</code> 出来就是带 Z 的 UTC,显示时用 <code>Intl.DateTimeFormat</code> 换时区;我平时也爱把一整个对象 <code>JSON.stringify</code> 塞进 localStorage。数据库里的 timestamptz 和 JSONB 是不是一回事?」用「写清是哪里的几点」和「订单背面的便条」两个比喻讲清楚相同和不同,并说出比喻在哪里会骗人。</li>
+      <li>窗口函数和 GROUP BY 有什么区别?「每组最新一条」有哪三种写法,各适合什么时候?为什么窗口函数不能写在 WHERE 里?</li>
+      <li>UPSERT 怎么解决并发注册?和 Day 24「靠唯一约束报错」比有什么不同?<code>DO NOTHING</code> 的 RETURNING 有什么坑?RETURNING 在 Day 27 的 POST / PATCH / DELETE 里各有什么用?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:把习题 2 的语句存成 <code>nest-lab/sql/day26/90-for-day27.sql</code>,明天写仓储时直接用;在 README 成长日志里记一笔;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>窗口函数不折叠行</b>,只在每行旁边多一列组内统计:<code>row_number</code> / <code>rank</code> / <code>dense_rank</code>(并列时不同)、<code>lag</code> / <code>lead</code>、累计和 / 移动平均。每组最新:<code>row_number() = 1</code>(可移植、能 Top-N)、<code>DISTINCT ON</code>(PG 最短)、<code>LATERAL</code>(从组出发、可保留空组),排序最后加唯一列。它在 SELECT 阶段才算,不能写在 WHERE 里。</li>
+    <li><b>UPSERT 靠唯一约束原子地判断「是否已存在」</b>:<code>DO NOTHING</code> / <code>DO UPDATE SET … = EXCLUDED.…</code>;并发注册时第二个请求不报错、事务照常提交;冲突也会消耗序列号;<code>DO NOTHING</code> 的 RETURNING 不返回已存在的行。</li>
+    <li><b>RETURNING 当场给回执</b>:INSERT 拿 id 和默认值(201 + Location)、UPDATE 拿更新后的行、返回 0 行就是 404。一次往返,不需要先查。</li>
+    <li><b>JSONB 是便条,不是表</b>:方便、能查,但不校验、不能加外键;nest-lab 的 checklist 用<b>子表</b>,读时用 <code>json_agg</code> 拼形状。标签用中间表不用数组。<b>时间一律 <code>timestamptz</code></b>:存绝对时刻(不存时区),按会话时区显示,应用输出 ISO 8601 UTC;夏令时下 <code>1 day ≠ 24 hours</code>。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>两个 30 分钟的任务,<code>rank</code> 和 <code>dense_rank</code> 各排第几?下一个呢?</li>
+    <li>为什么三种「每组最新」写法里,只有 LATERAL 那种出现了 Carol?</li>
+    <li>Dave 的 id 为什么是 7?</li>
+    <li>用 UPSERT 并发注册时,第二个请求怎么知道自己没注册成功?</li>
+    <li>JSONB 里写 <code>{"done": "maybe"}</code> 为什么不报错?nest-lab 为什么把 checklist 放在子表?</li>
+    <li>上海和柏林各自写入的「17:00」,用 <code>timestamp</code> 存时相差多少?用 <code>timestamptz</code> 呢?</li>
+    <li>柏林 2026-03-28 12:00 加 1 day 和加 24 hours 各是几点?为什么?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 27</b>:接回 nest-lab。引入 <code>pg</code> 驱动和连接池(Day 22 的「每个连接一个进程」),先亲手演示一次<b>拼接字符串被 SQL 注入</b>,再用参数化查询修好;写 <code>PgTasksRepository</code>,用今天的 <code>RETURNING</code>、<code>json_agg</code> 和事务实现增删改查,通过 Day 9 的 <code>classProvider</code> 只改一行换掉内存仓储;<code>DATABASE_URL</code> 进 Day 12 的 env schema(fail fast);Day 19 的 keyset 分页写成真实 SQL;Day 24 的 SQLSTATE 映射成 409 / 422;同一套 e2e 在内存版和 PG 版上都要通过。</p>
+</section>
+
+<footer>
+  Day 26 · Phase 2 / Week 4 · 产出:<code>docs/26-sql-queries-2/</code> 本文档 + <code>nest-lab/</code>(<code>sql/day26/</code> 十个实验文件、<code>docs/er-diagram.md</code> 的存储形式决定、<code>npm run day26</code>)+ <code>src/26-sql-queries-2/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

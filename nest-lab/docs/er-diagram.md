@@ -1,7 +1,7 @@
 # nest-lab 数据模型(ER 图)
 
 > Day 23 的设计稿,按 3NF 拆分。它描述「数据在数据库里怎么存」,**不是** API 的形状(API 的契约见 [`api-design.md`](api-design.md) 和 [`../openapi.json`](../openapi.json))。
-> 状态:设计中。Day 24 定下了主键和约束(见下方「主键与约束」);Day 27 先把 `tasks` + `checklist_items` 接进 nest-lab。
+> 状态:设计中。Day 24 定下了主键和约束,Day 26 定下了存储形式(见下方两节);Day 27 先把 `tasks` + `checklist_items` 接进 nest-lab。
 > `tasks.owner_id` 和标签现在还不在 API 里:有了真正的登录用户(Week 10)才有「负责人」,标签作为多对多的例子先画进来。
 > 实验用的 SQL:拆表过程在 [`../sql/day23/`](../sql/day23/)(schema `day23`),加上约束后的版本在 [`../sql/day24/04-constraints.sql`](../sql/day24/04-constraints.sql)(schema `day24`)。
 
@@ -65,6 +65,16 @@ erDiagram
 | `23503` | foreign_key_violation(删除时) | 删除仍被引用的用户(RESTRICT) | 409 |
 | `23502` | not_null_violation | 必填字段没给 | 422,并记一条警告日志:DTO 校验本该先拦住 |
 | `23514` | check_violation | 标题全空白、角色不在白名单 | 422,同上 |
+
+## 存储形式的决定(Day 26)
+
+| 数据 | 决定 | 理由 |
+|---|---|---|
+| 任务的清单 `checklist` | **子表 `checklist_items`**(不用 JSONB 列) | ① 每一项都有自己的规则(`text` 非空、1–100 字,`done` 是布尔),子表能用约束逐项把关,JSONB 里写 `{"done": "maybe"}` 数据库照收;② 列表页要「清单完成 2/3」、Day 25 那类「清单里有牛奶的任务」统计,在子表上是普通的 `count` / `JOIN`;③ API 要的 `checklist: [...]` 形状是映射问题(Day 18),仓储可以一条查询用 `json_agg(... ORDER BY position)` 拼出来。代价:创建 / 整体替换任务时要在**同一个事务**里写两张表(Day 27 用 `BEGIN … COMMIT`,原理 Week 6) |
+| 任务的标签 | **中间表 `task_tags` + `tags`**(不用 `text[]`) | 标签改名只改一行;能统计每个标签的使用次数;有外键,写不进不存在的标签。数组适合「不需要改名、不需要关联、只跟着这一行」的简单值 |
+| 附属数据(来源、客户端信息、第三方回调原文) | 将来需要时用 **`jsonb` 列**(如 `tasks.metadata`) | 结构多变、只跟着这一行读写、不需要外键 / 唯一 / 频繁按字段过滤。目前 nest-lab 没有这类数据,先不加 |
+| 所有时间 | **`timestamptz`** | 存的是绝对时刻;应用层统一输出 ISO 8601 UTC(Day 18 的 `createdAt`),展示时再按用户时区转换。`timestamp`(不带时区)只存墙上时间,不知道是哪里的几点 |
+| 取值固定的状态 | **`CHECK (… IN …)`**(如 `users.role`) | `CREATE TYPE … AS ENUM` 加值容易、删值没有语法;CHECK 改起来就是换一条约束 |
 
 ## 关系一览
 

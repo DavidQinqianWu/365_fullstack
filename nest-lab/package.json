@@ -30,6 +30,7 @@
     "day23": "node scripts/day23-try.mjs",
     "day24": "node scripts/day24-try.mjs",
     "day25": "node scripts/day25-try.mjs",
+    "day26": "node scripts/day26-try.mjs",
     "openapi:generate": "nest build && node scripts/openapi.mjs",
     "openapi:check": "nest build && node scripts/openapi.mjs --check",
     "lint": "oxlint src/ test/",
