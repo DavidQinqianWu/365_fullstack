@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 24 - 主键与约束:会员卡号由总部统一发,前台查过了,账房还要按铁规矩再核一次</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 4</div>
+  <h1>Day 24 - 主键与约束:会员卡号由总部统一发,前台查过了,账房还要按铁规矩再核一次</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>自然键 vs 代理键 · serial / IDENTITY ALWAYS / BY DEFAULT · integer vs bigint · UUID v4 vs v7 · NOT NULL / UNIQUE / CHECK / 外键 ON DELETE · 两层校验 · 并发注册 · SQLSTATE</b> ·
+    项目:<code>nest-lab/</code> 新增 <code>sql/day24/</code>(schema <code>day24</code>)、<code>npm run day24</code>,<code>docs/er-diagram.md</code> 补上约束(应用代码今天不改)·
+    今天没有新依赖;SQL 输出均来自 PostgreSQL 16.15 的真实运行
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:三个钩子</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:主键 —— 会员卡号由总部统一发</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:约束 —— 账房的铁规矩</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:两层校验与错误码 —— 前台查过了,账房为什么还要再核</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:三个钩子</h2>
+  <p>前两天留下了三个「数据库太宽容」的现象,今天一个个收掉:</p>
+  <ul>
+    <li><b>Day 22</b>:<code>tasks.title</code> 可以为空,<code>INSERT INTO tasks DEFAULT VALUES</code> 真的插进去了一条没有标题的任务;回滚以后,那一行用掉的 id 6 也没有还回来。</li>
+    <li><b>Day 23</b>:3NF 拆好了,可 <code>users</code> 里完全可以插两个 <code>alice@example.com</code>;Alice 换邮箱时,如果邮箱就是她的「编号」,所有引用它的地方都得跟着改。</li>
+    <li><b>Day 23</b>:想删掉 Bob 唯一的任务 4,数据库报了一个外键错误,必须先手动删掉 <code>task_tags</code> 里的对照行。</li>
+  </ul>
+  <p>你也许会想:Day 16 的 DTO 不是已经校验过 <code>title</code> 不能为空、最长 100 吗?为什么数据库还要再管一遍?今天最后一张卡会用一个真实的并发实验回答:有一类坏数据,<b>只有数据库拦得住</b>。</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    连锁餐厅的会员卡号由<b>总部统一发</b>,而不是用会员的手机号当卡号,因为手机号会换。总部账房墙上贴着几条<b>铁规矩</b>:「每位会员必须有姓名」「一个邮箱只能办一张卡」「会员等级只能是普通或金卡」「订单上写的会员号必须真的存在」。前台接待时已经核对过表格了,但账房<b>还要按铁规矩再核一次</b>:因为有人会绕过前台直接来账房(另一个系统、手工改账、搬家时导旧账),也因为两个前台可能在同一秒给同一个邮箱各办了一张卡。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+docker compose up -d     # 或本机的 PostgreSQL 已在运行(Day 22)
+npm run day24            # 依次跑 sql/day24/01 … 06,最后同时起两个 psql 模拟并发注册
+
+psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab
+nest_lab=&gt; SET search_path = day24;
+nest_lab=&gt; \d tasks</code></pre>
+  <p>今天的表都在独立的 schema <code>day24</code> 里。<code>04-constraints.sql</code> 用和 Day 23 3NF 相同的数据重新建表,这次每条规矩都写进了表定义;<code>day23</code> 的脚本保持原样,随时可以重跑。</p>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用</th></tr>
+    <tr><td><code>sql/day24/01-primary-keys.sql</code></td><td>新增</td><td>建 schema <code>day24</code>;serial / <code>GENERATED ALWAYS</code> / <code>BY DEFAULT</code> 三种发号方式;回滚后序列不回退</td></tr>
+    <tr><td><code>sql/day24/02-integer-limit.sql</code></td><td>新增</td><td>integer 的上限;一张「号快发完了」的表</td></tr>
+    <tr><td><code>sql/day24/03-uuid.sql</code></td><td>新增</td><td>v4 vs v7;PG 16 下的 <code>uuid_v7()</code> SQL 函数;20 万行插入耗时与主键索引大小对比</td></tr>
+    <tr><td><code>sql/day24/04-constraints.sql</code></td><td>新增</td><td>带命名约束的 3NF 表:NOT NULL / UNIQUE / <code>lower(email)</code> 唯一索引 / CHECK / 外键 <code>ON DELETE</code></td></tr>
+    <tr><td><code>sql/day24/05-violations.sql</code></td><td>新增</td><td>逐条违反约束,看 SQLSTATE 错误码、表名、约束名</td></tr>
+    <tr><td><code>sql/day24/06-on-delete.sql</code></td><td>新增</td><td><code>CASCADE</code> / <code>RESTRICT</code> / <code>SET NULL</code> 的效果(都在事务里,做完回滚)</td></tr>
+    <tr><td><code>sql/day24/07-race-setup.sql</code>、<code>07-race-session.sql</code></td><td>新增</td><td>并发注册实验:两张注册表(有 / 没有唯一约束)+ 一个「先查后插」的注册流程</td></tr>
+    <tr><td><code>docs/er-diagram.md</code></td><td>修改</td><td>ER 图补上 PK / UK / FK / CHECK;新增「主键与约束」决定表和「SQLSTATE → HTTP 状态码」约定(Day 27 落地)</td></tr>
+    <tr><td><code>scripts/day24-try.mjs</code> + <code>package.json</code> 的 <code>day24</code></td><td>新增</td><td>观察脚本;并发实验用 <code>node:child_process</code> 同时起两个 psql</td></tr>
+    <tr><td><code>README.md</code></td><td>修改</td><td>命令、成长日志 Day 24</td></tr>
+  </table>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:主键 —— 会员卡号由总部统一发</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>主键</b>是一行的身份证号:不能为空、不能重复、最好永远不变,别的表靠它来指向这一行。用业务里本来就有的东西当主键(邮箱、身份证号、ISBN)叫<b>自然键</b>;另外发一个和业务无关的编号叫<b>代理键</b>。业务系统通常用代理键,因为业务数据会变。代理键可以由数据库按顺序发(<code>IDENTITY</code>),也可以用 <b>UUID</b>(随机生成的 128 位编号)。
+  </div>
+
+  <h3>② 生活类比:会员卡号由总部统一发</h3>
+  <p>如果用手机号当会员卡号,会员换了手机号,他所有的订单、积分记录都要跟着改(Day 23 里 Alice 换邮箱就是这个问题)。所以卡号由<b>总部统一发</b>:一台<b>发号机</b>,每按一下吐出下一个号。号码印在卡上,一辈子不变。发号机吐出的号如果没用上(办卡办到一半客人走了),这个号也就作废了,不会再发给下一个人。还有一种做法是<b>每张卡印一串很长的随机码</b>,任何分店自己就能印,不用问总部,而且别人猜不到下一张卡的号码。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实做法</th><th>今天实测</th></tr>
+    <tr><td>用手机号当卡号</td><td><b>自然键</b>:<code>email</code>、身份证号、ISBN</td><td>会变、可能有格式问题、可能涉及隐私;适合做 UNIQUE,不适合做主键</td></tr>
+    <tr><td>总部统一发的卡号</td><td><b>代理键</b>:<code>id</code>,和业务无关</td><td>nest-lab 的选择</td></tr>
+    <tr><td>发号机</td><td><b>序列</b>(sequence):<code>nextval()</code> 每次给出下一个数</td><td><code>serial</code> 和 <code>IDENTITY</code> 背后都是它</td></tr>
+    <tr><td>只许发号机出号,不许手写</td><td><code>GENERATED ALWAYS AS IDENTITY</code>(SQL 标准,推荐)</td><td>手写 id 被拒绝</td></tr>
+    <tr><td>可以手写,但发号机不知道</td><td><code>GENERATED BY DEFAULT AS IDENTITY</code>,以及旧写法 <code>serial</code></td><td>手写过的号,发号机会再发一次 → 撞车</td></tr>
+    <tr><td>发出去没用上的号作废</td><td>序列<b>不参与事务回滚</b></td><td>回滚后 id 4 缺了</td></tr>
+    <tr><td>号码位数</td><td><code>integer</code>(最大约 21 亿)vs <code>bigint</code>(最大约 922 亿亿)</td><td>integer 用完后再也插不进新行</td></tr>
+    <tr><td>每张卡印一串随机码</td><td><b>UUID v4</b>:122 位随机</td><td><code>gen_random_uuid()</code>(PG 13 起内置)</td></tr>
+    <tr><td>随机码的开头印上办卡时间</td><td><b>UUID v7</b>:前 48 位是毫秒时间戳,大致按时间有序</td><td>PG 16 没有内置 <code>uuidv7()</code>(PG 18 才有),用 SQL 函数替代</td></tr>
+  </table>
+
+  <h3>三种发号方式(<code>01-primary-keys.sql</code>)</h3>
+  <p>✍️ <b>预测(先写再运行)</b>:<code>serial</code> 在 <code>\d</code> 里显示成什么?<code>ALWAYS</code> 的表手写 <code>id = 100</code> 会怎样?<code>BY DEFAULT</code> 的表先手写了 1、2,再让数据库发号,会拿到几?真实结果:</p>
+  <pre><code>-- ① serial 其实是「序列 + 默认值」的简写
+                             Table "day24.t_serial"
+ Column |  Type   | Collation | Nullable |               Default
+--------+---------+-----------+----------+--------------------------------------
+ id     | integer |           | not null | nextval('t_serial_id_seq'::regclass)
+ name   | text    |           |          |
+      背后的序列
+-----------------------
+ day24.t_serial_id_seq
+
+-- ② ALWAYS:手写 id 被拒绝
+ERROR:  cannot insert a non-DEFAULT value into column "id"
+DETAIL:  Column "id" is an identity column defined as GENERATED ALWAYS.
+HINT:  Use OVERRIDING SYSTEM VALUE to override.
+
+-- ③ BY DEFAULT:先手写了 1、2,发号机还从 1 开始发
+INSERT 0 2
+ERROR:  duplicate key value violates unique constraint "t_by_default_pkey"
+DETAIL:  Key (id)=(1) already exists.
+ERROR:  duplicate key value violates unique constraint "t_by_default_pkey"
+DETAIL:  Key (id)=(2) already exists.
+INSERT 0 1        ← 第三次拿到 3,才成功
+-- serial 也一样
+ERROR:  duplicate key value violates unique constraint "t_serial_pkey"
+DETAIL:  Key (id)=(1) already exists.
+
+-- ④ 回滚之后
+ id | name
+----+------
+  1 | a
+  2 | b
+  3 | c
+  5 | d        ← 4 被回滚掉的那次插入用掉了</code></pre>
+  <ul>
+    <li><b><code>BY DEFAULT</code> / <code>serial</code> 的撞车</b>是真实的线上事故来源:有人用脚本导入了一批带 id 的数据,之后应用正常插入就开始随机报「主键重复」。<code>ALWAYS</code> 从源头上不许这样做;真要导入(比如数据迁移),写 <code>OVERRIDING SYSTEM VALUE</code> 是一个<b>显式的、看得见的</b>动作,导完再用 <code>setval</code> 把序列调到最大值之后。</li>
+    <li><b><code>serial</code> 是旧写法</b>:序列是一个单独的对象,给应用账号授权时除了表的 <code>INSERT</code>,还要记得给序列 <code>USAGE</code>,复制表结构时也容易漏掉它。<code>IDENTITY</code> 是 SQL 标准写法(PostgreSQL 10 起支持),序列和列绑在一起管理。新表一律用 <code>IDENTITY</code>。</li>
+    <li><b>为什么用掉的号不还回去</b>:如果序列也参与事务,事务 A 拿了 4 还没提交时,事务 B 就得等着,看 A 是提交(4 被用了)还是回滚(4 可以给 B)。所有插入都会排成一队。所以 PostgreSQL 让序列<b>不参与回滚</b>,每个人拿到号立刻走人。代价就是号码会有空洞,而且失败的插入(比如违反约束)也会用掉号。<b>这不是 bug:主键只保证唯一,不保证连续。</b>需要「连续的发票号」这类业务要求时,要用别的办法,不能指望主键。</li>
+  </ul>
+
+  <h3>integer 会用完(<code>02-integer-limit.sql</code>)</h3>
+  <pre><code> integer_最大值 |    bigint_最大值
+----------------+---------------------
+     2147483647 | 9223372036854775807
+
+ERROR:  integer out of range                       ← 2147483647 + 1
+INSERT 0 1                                          ← 拿到 2147483646
+INSERT 0 1                                          ← 拿到 2147483647
+ERROR:  nextval: reached maximum value of sequence "t_almost_full_id_seq" (2147483647)</code></pre>
+  <p>21 亿听起来很多,但每天 300 万行的事件表、日志表,两年就用完了;而且号码有空洞(上面看到了,失败和回滚都会消耗号码),实际用得更快。2018 年 11 月,Basecamp 就遇到过一张表的 integer 主键到达上限,服务进入只读状态好几个小时(他们事后公开了复盘)。用完那一刻,这张表<b>再也写不进任何一行</b>,而把一张大表的主键从 <code>integer</code> 改成 <code>bigint</code> 要重写整张表和所有引用它的外键。<b>新表的主键默认用 <code>bigint</code></b>:每行多 4 个字节,换来几乎不可能用完。nest-lab 从今天起的设计稿都是 <code>bigint</code>。</p>
+
+  <h3>UUID:v4 vs v7(<code>03-uuid.sql</code>)</h3>
+  <p>✍️ <b>预测</b>:PG 16 里直接 <code>SELECT uuidv7()</code> 会怎样?每隔 2 毫秒各生成一个 v4 和 v7,按 UUID 排序后,哪一种还保持生成顺序?20 万行插入,三种主键的索引谁最大?真实结果:</p>
+  <pre><code>ERROR:  function uuidv7() does not exist
+LINE 1: SELECT uuidv7();
+               ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+
+ n |                  v4                  |                  v7                  | v7的版本号
+---+--------------------------------------+--------------------------------------+------------
+ 1 | 86075ca9-0dbe-4696-afb6-f498c8d1c0be | 01a1a6a3-29be-7526-9ad5-ee48244ade7b | 7
+ 2 | 56a673b1-cd32-4edf-96cf-45f4c53c5cc4 | 01a1a6a3-29c1-723d-87d2-baf0dfa4214a | 7
+ 3 | f3a238af-19c5-4208-ba08-3cdd8e9f96a8 | 01a1a6a3-29c3-7a04-b288-acfd11d1f8df | 7
+ 4 | 1949d1dc-983f-4a57-b35c-c53326ca5b9c | 01a1a6a3-29c6-7408-a736-dd5bafba5fd3 | 7
+ 5 | d1721f5b-74a8-424b-9ad8-637a2128d404 | 01a1a6a3-29ca-7558-9dbf-6dc9bedc3d0e | 7
+
+ 按v4排序后的生成顺序 | 按v7排序后的生成顺序
+----------------------+----------------------
+ 4, 2, 1, 5, 3        | 1, 2, 3, 4, 5
+
+INSERT 0 200000
+Time: 494.733 ms            ← bigint
+INSERT 0 200000
+Time: 1030.754 ms (00:01.031)   ← UUID v4
+INSERT 0 200000
+Time: 862.173 ms            ← UUID v7
+
+    主键索引     |  大小
+-----------------+---------
+ pk_bigint_pkey  | 4408 kB
+ pk_uuid_v4_pkey | 8448 kB
+ pk_uuid_v7_pkey | 6184 kB</code></pre>
+  <p>(<code>←</code> 的说明是我加的。)v7 的前 12 个十六进制字符 <code>01a1a6a3…</code> 就是毫秒时间戳,后面每隔 2 毫秒递增(<code>29be</code> → <code>29c1</code> → <code>29c3</code>…);第 15 个字符 <code>7</code> 是版本号。PG 16 下的 <code>uuid_v7()</code> 是我们自己写的 SQL 函数(在 <code>03-uuid.sql</code> 里,有逐段注释):48 位毫秒时间戳 + 版本号 + 12 位「毫秒以下的时间」+ 借用一个 v4 的随机后半段。另外两种办法是在应用层生成(比如 Node 的 <code>uuid</code> 包 <code>v7()</code>),或者装第三方扩展 <code>pg_uuidv7</code>(本课程环境没装,未实测)。升级到 PG 18 以后,换成内置的 <code>uuidv7()</code> 即可。</p>
+  <p><b>怎么读这组数字(只看量级)</b>:我把同一个脚本连跑了 4 次,插入耗时 bigint 约 450–575 ms、v4 约 800–1480 ms、v7 约 550–865 ms,波动很大;主键索引大小很稳定:bigint 4408 kB、v4 8344–8616 kB、v7 6184 kB。耗时受机器负载影响,不足以下结论;<b>索引大小的差别是稳定的</b>,而且能用下面的比喻解释。v7 比 bigint 大,主要因为 UUID 本身是 16 字节而 bigint 是 8 字节。v4 比 v7 又大了约 37%,这多出来的部分就是随机插入留下的半空页。</p>
+  <p>还有一个我在写这个函数时踩到的坑,如实记下:第一版函数<b>只用了毫秒时间戳,毫秒内部完全随机</b>。一次插 20 万行时,每毫秒要生成几百个,同一毫秒里的几百个彼此是乱序的。那一版测出来 v7 的主键索引是 9408 kB,<b>比 v4 还大</b>。加上「毫秒以下的时间」那 12 位之后,同一毫秒里的也基本有序了,才降到 6184 kB。这说明「v7 有序」是有前提的;PG 18 内置的 <code>uuidv7()</code> 也用了毫秒以下的精度来保证这一点。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「发号机发的号是连续的,可以拿来数人数」——主键不保证连续。</b>回滚、失败的插入、数据库重启后的序列缓存,都会留下空洞。<code>max(id)</code> 不等于行数;「第 1000 号会员」也不代表他是第 1000 个注册的。需要连续编号(比如发票号)时,要另外设计,通常要在事务里加锁,代价很高。</li>
+      <li><b>「随机码只是长一点,和卡号没区别」——随机 UUID 会让 B-tree 索引变大变慢。</b>主键自带一个 B-tree 索引(Day 22 的 <code>tasks_pkey</code>),它就像一本<b>按号码排好的名册</b>,每页写满了就要撕开分成两页。按顺序发号时,新号永远写在最后一页,写满就开新页,前面的页都是满的;随机号会插到名册的任意一页中间,各页不停地「写满 → 撕成两半」,留下大量半空的页,要读进内存的页也更多。上面的 8448 kB 对 6184 kB 就是这个效果。真正的测量方法(<code>EXPLAIN (ANALYZE, BUFFERS)</code>、缓存命中)是 Week 5 的内容。</li>
+      <li><b>「卡号印在卡上,随便给人看」——对外暴露自增 id 会泄露信息。</b><code>/v2/tasks/1042</code> 告诉别人:你们大概有一千多个任务;把 1042 改成 1041 就能试着看别人的任务(这叫 IDOR,越权访问,Week 20 的主题;鉴权不能靠「id 猜不到」,但也不该主动帮攻击者)。常见做法是<b>内部用 <code>bigint</code> 关联,对外暴露一个 UUID</b>:<code>04-constraints.sql</code> 的 <code>users</code> 有一列 <code>public_id uuid</code>。nest-lab 的 API 现在用的是自增 id,要不要改、怎么改,Day 27 接回 nest-lab 时决定(改 API 里 id 的类型是破坏性变更,Day 19 讲过)。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>primary key</b>;<b>natural key vs surrogate key</b>;<b>sequence</b>(<code>nextval</code> / <code>setval</code>);<b><code>serial</code> / <code>bigserial</code></b>;<b>identity column</b>(<code>GENERATED ALWAYS | BY DEFAULT AS IDENTITY</code>,<code>OVERRIDING SYSTEM VALUE</code>);<b>integer overflow</b>;<b>UUID</b>(RFC 9562:v4 随机,v7 Unix 毫秒时间戳 + 随机);<b>B-tree page split</b>;<b>index locality</b>;<b>IDOR</b>(Insecure Direct Object Reference)。
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:约束 —— 账房的铁规矩</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>约束</b>是写进表定义里的规矩,数据库在<b>每一次</b>插入和修改时都会检查,不合规矩就整条拒绝。常用的有五种:<b>NOT NULL</b>(必须有值)、<b>UNIQUE</b>(不能重复)、<b>CHECK</b>(值要满足一个条件)、<b>PRIMARY KEY</b>(= NOT NULL + UNIQUE)、<b>FOREIGN KEY</b>(指向的行必须存在,并规定被指向的行删除时怎么办:<code>ON DELETE</code>)。
+  </div>
+
+  <h3>② 生活类比:贴在账房墙上的铁规矩</h3>
+  <p>账房墙上贴着:「姓名栏不许空着」(NOT NULL);「一个邮箱只能办一张卡,大小写不同也算同一个」(UNIQUE);「会员等级只能写普通或金卡」「截止日期不能早于下单日期」(CHECK);「订单上写的会员号,名册里必须有这个人」(外键)。还有一条:<b>会员注销的时候,他的东西怎么办</b>:附在订单上的小清单跟着订单一起销毁(CASCADE);名下还有订单的会员不许直接注销(RESTRICT);或者订单保留、只把「会员号」那一栏划掉(SET NULL)。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>铁规矩</th><th>约束</th><th>day24 里</th><th>对应 Day 16 的 DTO 规则</th></tr>
+    <tr><td>姓名栏不许空着</td><td><code>NOT NULL</code></td><td><code>tasks.title</code>、<code>users.email</code>……</td><td>必填(没有 <code>@IsOptional</code>)</td></tr>
+    <tr><td>一个邮箱只能办一张卡</td><td><code>UNIQUE</code> / 唯一索引</td><td><code>users_email_lower_key</code>(<code>lower(email)</code>)、<code>tags_name_key</code></td><td><b>DTO 做不到</b>:要知道库里已有什么</td></tr>
+    <tr><td>等级只能写这几种</td><td><code>CHECK (role IN (…))</code></td><td><code>users_role_check</code></td><td><code>@IsIn([...])</code></td></tr>
+    <tr><td>标题不能全是空格、不超过 100 字</td><td><code>CHECK (char_length(btrim(title)) BETWEEN 1 AND 100)</code></td><td><code>tasks_title_check</code></td><td><code>@IsNotBlank()</code> + <code>@MaxLength(100)</code></td></tr>
+    <tr><td>截止不能早于下单</td><td><code>CHECK (due_at IS NULL OR due_at &gt;= created_at)</code>(同一行的两列比较)</td><td><code>tasks_due_at_check</code>(演示用的列)</td><td>要写自定义校验器;而且 <code>created_at</code> 是服务器填的</td></tr>
+    <tr><td>订单上的会员号必须存在</td><td><code>FOREIGN KEY … REFERENCES</code></td><td><code>tasks_owner_id_fkey</code></td><td><b>DTO 做不到</b></td></tr>
+    <tr><td>会员注销时他的东西怎么办</td><td><code>ON DELETE CASCADE / RESTRICT / SET NULL / NO ACTION</code></td><td>清单项、标签对照 <code>CASCADE</code>;负责人 <code>RESTRICT</code></td><td>—</td></tr>
+  </table>
+  <p>每个约束都用 <code>CONSTRAINT 名字 …</code> 起了名(<code>表_列_key</code> / <code>_check</code> / <code>_fkey</code>,和 PostgreSQL 自动起名的风格一致)。违反时错误信息里会带上这个名字,Day 27 就靠它判断「是哪条规矩被违反了、该回什么错误」。</p>
+  <p><b>邮箱的大小写</b>:PostgreSQL 的 <code>text</code> 比较是区分大小写的,<code>'Alice@…'</code> 和 <code>'alice@…'</code> 是两个不同的值,普通的 <code>UNIQUE (email)</code> 拦不住。两种办法:对 <code>lower(email)</code> 建唯一索引(今天用的);或者用 <code>citext</code> 扩展提供的不区分大小写的文本类型(本机有这个扩展,今天没用)。另外 Day 18 的 <code>CreateUserDto</code> 已经在入口把邮箱转成小写,两层一起保证。索引到底是什么,Week 5 讲。</p>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测</b>:下面 6 条插入,每条会被哪条约束拦下?错误码是什么?最后表里多了几行?真实结果(<code>05-violations.sql</code>,开了 <code>\set VERBOSITY verbose</code>,所以能看到错误码、表名和约束名):</p>
+  <pre><code>-- 没给标题
+ERROR:  23502: null value in column "title" of relation "tasks" violates not-null constraint
+DETAIL:  Failing row contains (5, null, f, 1, 2026-11-04 12:57:05.637786+00, null).
+SCHEMA NAME:  day24
+TABLE NAME:  tasks
+COLUMN NAME:  title
+
+-- 同一个邮箱,大小写不同
+ERROR:  23505: duplicate key value violates unique constraint "users_email_lower_key"
+DETAIL:  Key (lower(email))=(alice@example.com) already exists.
+CONSTRAINT NAME:  users_email_lower_key
+
+-- 标题全是空白
+ERROR:  23514: new row for relation "tasks" violates check constraint "tasks_title_check"
+CONSTRAINT NAME:  tasks_title_check
+
+-- 角色不在白名单里
+ERROR:  23514: new row for relation "users" violates check constraint "users_role_check"
+CONSTRAINT NAME:  users_role_check
+
+-- 截止时间早于创建时间
+ERROR:  23514: new row for relation "tasks" violates check constraint "tasks_due_at_check"
+CONSTRAINT NAME:  tasks_due_at_check
+
+-- 负责人不存在
+ERROR:  23503: insert or update on table "tasks" violates foreign key constraint "tasks_owner_id_fkey"
+DETAIL:  Key (owner_id)=(999) is not present in table "users".
+CONSTRAINT NAME:  tasks_owner_id_fkey
+
+ 用户数 | 任务数
+--------+--------
+      2 |      4</code></pre>
+  <p>(为了阅读,只保留了每条错误的关键行;完整输出里每条还有 <code>SCHEMA NAME</code>、<code>TABLE NAME</code> 和一行 <code>LOCATION</code>,后者是 PostgreSQL 源码里报错的位置,可以忽略。)6 条全部被拒,一行都没写进去。顺便看 <code>Failing row contains (5, …)</code>:失败的插入也用掉了 id 5、6、7,这就是上一张卡说的「号码空洞」。</p>
+
+  <p><b>ON DELETE 的效果</b>(<code>06-on-delete.sql</code>,每个实验都在事务里,做完回滚)。✍️ <b>预测</b>:删掉任务 3,它的清单项和标签对照还剩几行?删掉标签 <code>urgent</code>,任务会被删吗?删 Bob 呢?</p>
+  <pre><code>-- CASCADE:删任务 3 之前 / 之后
+ 清单项 | 标签对照
+--------+----------
+      3 |        2
+DELETE 1
+ 清单项 | 标签对照
+--------+----------
+      0 |        0
+
+-- CASCADE 的另一头:删掉标签 urgent,只删对照行,任务都还在
+DELETE 1
+ id |   title    | 还剩几个标签
+----+------------+--------------
+  1 | 学 psql    |            1
+  2 | 建第一张表 |            1
+  3 | 买菜       |            1
+  4 | 修自行车   |            1
+
+-- RESTRICT:Bob 还有任务
+ERROR:  update or delete on table "users" violates foreign key constraint "tasks_owner_id_fkey" on table "tasks"
+DETAIL:  Key (id)=(2) is still referenced from table "tasks".
+
+-- 在事务里把外键临时换成 SET NULL,再删 Bob
+ALTER TABLE
+ALTER TABLE
+DELETE 1
+ id |   title    | owner_id
+----+------------+----------
+  1 | 学 psql    |        1
+  2 | 建第一张表 |        1
+  3 | 买菜       |        1
+  4 | 修自行车   |
+ROLLBACK
+-- 回滚之后,外键还是原来的 RESTRICT
+ tasks_owner_id_fkey | FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT</code></pre>
+  <table>
+    <tr><th>选项</th><th>被指向的行删除时</th><th>业务含义</th><th>nest-lab 里用在</th></tr>
+    <tr><td><code>CASCADE</code></td><td>指向它的行一起删</td><td>「它离开父对象就没有意义」</td><td>清单项 → 任务;标签对照 → 任务 / 标签</td></tr>
+    <tr><td><code>RESTRICT</code></td><td>直接拒绝删除</td><td>「先处理掉孩子,才能删父亲」:逼调用方做一个明确的决定</td><td>任务 → 负责人</td></tr>
+    <tr><td><code>SET NULL</code></td><td>把指向它的那一列设成 NULL(列必须允许为空)</td><td>「孩子保留,变成无主的」</td><td>如果业务规定「注销后任务保留」</td></tr>
+    <tr><td><code>NO ACTION</code>(默认)</td><td>拒绝删除,但检查推迟到语句结束(配合 <code>DEFERRABLE</code> 可以推迟到事务结束)</td><td>和 RESTRICT 几乎一样;区别只在检查时机</td><td>Day 23 没写 <code>ON DELETE</code>,用的就是它</td></tr>
+  </table>
+  <p>两个顺带的发现:① <b>PostgreSQL 的建表 / 改表语句也能在事务里回滚</b>(上面 <code>ALTER TABLE</code> 换外键后 <code>ROLLBACK</code>,一切复原),这对 Day 27 写迁移脚本很有用,不是所有数据库都这样(MySQL 的 DDL 会隐式提交);② <b><code>CASCADE</code> 很方便,也很危险</b>:删一个用户如果一路级联,可能悄悄删掉几万行。所以「负责人」用了 <code>RESTRICT</code>:删用户这种动作,宁可报错让人决定。<code>DEFERRABLE</code>(把约束检查推迟到事务提交时)今天只点到,用于「互相引用的两行要在同一个事务里一起插入」这类少见场景。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「什么规矩都能贴上墙」——约束只能表达「单行 / 唯一性 / 引用存在」这几类规则。</b>「每人最多 10 个未完成任务」「已完成的任务不能改标题(Day 15 的 409 规则)」这种要看<b>别的行</b>或<b>修改前的状态</b>的规则,约束表达不了。CHECK 只能看<b>同一行</b>的列,不能引用别的表。这类规则要放在应用的 Service 里(还要考虑并发,Week 6),或者用触发器。</li>
+      <li><b>「规矩越多越安全,没有代价」——每条约束都要在写入时检查。</b>唯一约束和外键尤其需要查索引;插入一条任务,数据库要去 <code>users</code> 里确认负责人存在。约束越多,写入越慢,但这个代价通常值得,因为坏数据进了库以后的清理成本高得多。另外一个容易被忽略的点:<b>PostgreSQL 不会自动给外键列建索引</b>(主键和唯一约束会自动带索引,外键不会)。<code>tasks.owner_id</code> 没有索引时,删除一个用户要扫描整张 <code>tasks</code> 来检查 RESTRICT。这是 Week 5 的第一批实验之一。</li>
+      <li><b>「账房会告诉你哪里不对、怎么改」——约束报错是给程序看的,不是给最终用户看的。</b><code>violates check constraint "tasks_title_check"</code> 对用户毫无意义,更不能原样塞进 API 响应(会泄露表结构,Day 17 讲过 500 里不能有内部细节)。友好的、字段级的错误提示仍然是 DTO 的工作,下一张卡讲两层怎么分工。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>integrity constraint</b>;<b>NOT NULL / UNIQUE / CHECK / PRIMARY KEY / FOREIGN KEY</b>;<b>referential integrity</b>;<b>referential actions</b>(<code>ON DELETE / ON UPDATE</code>:<code>CASCADE</code>、<code>RESTRICT</code>、<code>SET NULL</code>、<code>SET DEFAULT</code>、<code>NO ACTION</code>);<b>expression index</b>(<code>lower(email)</code>);<b><code>citext</code></b>;<b>DEFERRABLE / INITIALLY DEFERRED</b>;<b>transactional DDL</b>。
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:两层校验与错误码 —— 前台查过了,账房为什么还要再核</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>DTO 校验</b>(Day 16)站在 API 门口,防的是「格式不对的请求」,能给调用方友好的、字段级的错误;<b>数据库约束</b>站在数据旁边,防的是「<b>任何来源</b>的坏数据」:别的服务、手工 SQL、迁移脚本、以及两个请求同时进来时的竞态。两层不是重复劳动,各防各的。数据库拒绝时会给一个 5 位的 <b>SQLSTATE</b> 错误码,应用据此翻译成 HTTP 状态码。
+  </div>
+
+  <h3>② 生活类比:前台和账房</h3>
+  <p>前台接待员看表格,发现邮箱格式写错了,当场就能指着那一栏说「这里填错了」,客人马上改,体验很好。账房不负责跟客人解释,但它守着最后一道门:如果有人不经过前台、拿着一张单子直接来账房(别的分店的系统、老板半夜手工改账),或者<b>两个前台在同一秒给同一个邮箱各收了一张表</b>(两边各自查名册:「没这个人,可以办」),只有账房能拦下第二张。账房拦下时只会说一句「第 23505 条规矩」,由前台把它翻译成客人听得懂的话。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th></th><th>前台:DTO 校验(Day 16)</th><th>账房:数据库约束(今天)</th></tr>
+    <tr><td>防什么</td><td>格式不对的请求:类型、必填、长度、取值范围、未知字段</td><td>任何来源的坏数据,包括绕过 API 的写入和并发竞态</td></tr>
+    <tr><td>能检查</td><td>请求本身(还能做跨字段、调用外部服务)</td><td>单行条件、唯一性、引用是否存在</td></tr>
+    <tr><td>不能检查</td><td>「库里是不是已经有了」(就算先查,并发下也不可靠)</td><td>跨行的业务规则、修改前的状态</td></tr>
+    <tr><td>错误长什么样</td><td>422 problem+json,<code>errors[].pointer</code> 指到字段</td><td>SQLSTATE + 约束名,要由应用翻译</td></tr>
+    <tr><td>谁能绕过</td><td>任何不走这个 API 的写入</td><td>几乎没有(除非有人删掉约束)</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证:先查后插,拦得住并发注册吗?</b>很多人会这样写注册:先 <code>SELECT</code> 看邮箱有没有被注册,没有再 <code>INSERT</code>。<code>07-race-session.sql</code> 就是这个流程,中间用 <code>pg_sleep(1)</code> 模拟「查完到插入之间」的那段时间(业务逻辑、网络往返)。观察脚本同时起两个 psql 进程(请求 A、B)跑它。✍️ <b>预测</b>:没有唯一约束时,最后表里有几个 <code>carol@example.com</code>?有唯一约束时呢?两个请求查到的「已注册几个」各是多少?真实结果(第 2 幕):</p>
+  <pre><code>========== 第 2 幕 A:没有唯一约束,只靠「先查后插」 ==========
+--- 请求 A(用时 1.1 秒)
+ 请求 | 查到已注册几个
+------+----------------
+ A    |              0
+INSERT 0 1
+COMMIT
+--- 请求 B(用时 1.1 秒)
+ 请求 | 查到已注册几个
+------+----------------
+ B    |              0
+INSERT 0 1
+COMMIT
+--- 最后表里有几个 carol@example.com:
+ id |       email       | who
+----+-------------------+-----
+  1 | carol@example.com | A
+  2 | carol@example.com | B
+(2 rows)
+
+========== 第 2 幕 B:同样的流程,邮箱上有唯一约束 ==========
+--- 请求 A(用时 1.1 秒)
+ 请求 | 查到已注册几个
+------+----------------
+ A    |              0
+INSERT 0 1
+COMMIT
+--- 请求 B(用时 1.1 秒)
+ 请求 | 查到已注册几个
+------+----------------
+ B    |              0
+psql:sql/day24/07-race-session.sql:10: ERROR:  duplicate key value violates unique constraint "signup_uk_email_key"
+DETAIL:  Key (email)=(carol@example.com) already exists.
+ROLLBACK
+--- 最后表里有几个 carol@example.com:
+ id |       email       | who
+----+-------------------+-----
+  1 | carol@example.com | A
+(1 row)</code></pre>
+  <p>(每个请求开头的 <code>SET</code> / <code>BEGIN</code> 回执省略了。谁先插进去是随机的,你那边可能是 B 赢。)<b>两个请求查的时候都看到 0</b>,因为查询发生时谁都还没插入。没有唯一约束,于是两个都插进去了:同一个邮箱两个账号,之后登录、找回密码都会出问题。有唯一约束时,第二个 <code>INSERT</code> 被拒绝(<code>COMMIT</code> 换来的是 <code>ROLLBACK</code>,因为事务里已经出错了)。<b>「先查」这一步并没有错,它能在绝大多数情况下给出友好的提示;但它保证不了正确性,保证正确性的只有唯一约束。</b>正确的写法是:直接插入,捕获 <code>23505</code>,翻译成 409。具体为什么两个事务互相看不见、第二个 <code>INSERT</code> 在等什么,是 Week 6 事务与隔离级别的内容。</p>
+
+  <h3>SQLSTATE → HTTP 状态码(约定写在 <code>docs/er-diagram.md</code>,Day 27 落地)</h3>
+  <table>
+    <tr><th>SQLSTATE</th><th>名称</th><th>典型场景</th><th>nest-lab 映射</th><th>理由</th></tr>
+    <tr><td><code>23505</code></td><td>unique_violation</td><td>邮箱已被注册</td><td><b>409</b></td><td>请求本身没问题,和资源<b>当前状态</b>冲突(Day 15 的 409 定义)</td></tr>
+    <tr><td><code>23503</code></td><td>foreign_key_violation(插入 / 更新)</td><td>引用了不存在的负责人 / 标签</td><td><b>422</b></td><td>请求内容不合规:它指向了一个不存在的东西</td></tr>
+    <tr><td><code>23503</code></td><td>foreign_key_violation(删除)</td><td>删除仍有任务的用户(RESTRICT)</td><td><b>409</b></td><td>和当前状态冲突:先处理掉他的任务</td></tr>
+    <tr><td><code>23502</code></td><td>not_null_violation</td><td>必填字段没给</td><td><b>422</b> + 警告日志</td><td>DTO 本该先拦住;走到数据库说明 DTO 漏了一条规则</td></tr>
+    <tr><td><code>23514</code></td><td>check_violation</td><td>标题全空白、角色不在白名单</td><td><b>422</b> + 警告日志</td><td>同上</td></tr>
+  </table>
+  <p>错误码的前两位 <code>23</code> 是「完整性约束违反」这一类。应用里<b>按 SQLSTATE 和约束名判断</b>,不要去匹配英文错误信息:信息的措辞可能随版本、语言设置变化,错误码和约束名不会。翻译出来的 problem+json 里也<b>不要</b>带上表名、约束名、<code>DETAIL</code> 原文:<code>Key (lower(email))=(alice@example.com) already exists</code> 等于告诉所有人「这个邮箱在我们这儿注册过」。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「账房会核,前台可以偷懒」——有了约束,DTO 校验也不能省。</b>数据库的错误是给程序看的,一次只报一个(第一个违反的约束),没有字段级的 <code>pointer</code>,还可能泄露表结构。用户填错三个字段,DTO 一次告诉他三处;数据库只会说「<code>23514</code>」。两层一起用:DTO 负责体验,约束负责底线。</li>
+      <li><b>「前台先查一下,就不会撞了」——先查后插在并发下必然有窗口期。</b>上面的实验把窗口拉到了 1 秒,真实系统里窗口可能只有几毫秒,但流量一大总会撞上。同样的道理适用于「库存够不够再扣」「余额够不够再转账」,这些是 Week 6 的超卖 / 丢失更新实验。</li>
+      <li><b>「错误码一对一对应状态码」——同一个错误码在不同场景下意思不同。</b><code>23503</code> 在插入时是「你引用的东西不存在」(422),在删除时是「还有别的东西引用着它」(409)。映射要结合「这是什么操作」来做,Day 27 的仓储里会按约束名分别处理。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>defense in depth</b>(纵深防御);<b>check-then-act race condition</b>(先检查后执行的竞态,TOCTOU 的一种);<b>SQLSTATE</b>(SQL 标准的 5 位错误码,class <code>23</code> = integrity constraint violation);<b>unique_violation 23505 / foreign_key_violation 23503 / not_null_violation 23502 / check_violation 23514</b>;<b>constraint name</b>(驱动里通常是 <code>err.constraint</code>);<b>error translation</b>。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p>约束是数据库的能力,和语言无关;不同的是 ORM 怎么声明它们、怎么把 SQLSTATE 包成异常。</p>
+  <table>
+    <tr><th>命题</th><th>Node.js / TS</th><th>C# / EF Core(Npgsql)</th><th>Java / JPA(Hibernate)+ Spring</th><th>Go(pgx)</th></tr>
+    <tr>
+      <td>主键与发号</td>
+      <td>Prisma:<code>id BigInt @id @default(autoincrement())</code>;原生 SQL 直接写 <code>GENERATED ALWAYS AS IDENTITY</code></td>
+      <td><code>HasKey(t =&gt; t.Id)</code>、<code>Property(t =&gt; t.Id).ValueGeneratedOnAdd()</code>;Npgsql 提供程序默认用 identity 列,可以选 <code>UseIdentityAlwaysColumn()</code></td>
+      <td><code>@Id @GeneratedValue(strategy = GenerationType.IDENTITY)</code></td>
+      <td>没有 ORM 时直接在迁移 SQL 里写;插入用 <code>RETURNING id</code> 拿回号码(Day 26)</td>
+    </tr>
+    <tr>
+      <td>唯一约束</td>
+      <td>Prisma <code>@unique</code></td>
+      <td><code>HasIndex(u =&gt; u.Email).IsUnique()</code></td>
+      <td><code>@Column(unique = true)</code> 或 <code>@Table(uniqueConstraints = …)</code></td>
+      <td>迁移 SQL</td>
+    </tr>
+    <tr>
+      <td>外键删除行为</td>
+      <td>Prisma <code>@relation(…, onDelete: Cascade)</code></td>
+      <td><code>OnDelete(DeleteBehavior.Cascade / Restrict / SetNull)</code></td>
+      <td><code>@ManyToOne</code> + Hibernate 的 <code>@OnDelete(action = OnDeleteAction.CASCADE)</code>(JPA 的 <code>cascade = REMOVE</code> 是在应用里删,不是数据库的 ON DELETE)</td>
+      <td>迁移 SQL</td>
+    </tr>
+    <tr>
+      <td>约束违反怎么接</td>
+      <td><code>pg</code>:<code>err.code === '23505'</code>、<code>err.constraint</code>(Day 27);Prisma:错误码 <code>P2002</code>(唯一)、<code>P2003</code>(外键)</td>
+      <td><code>DbUpdateException</code>,<code>InnerException</code> 是 <code>PostgresException</code>,看 <code>SqlState</code>(如 <code>PostgresErrorCodes.UniqueViolation</code>)和 <code>ConstraintName</code></td>
+      <td>Spring 把它翻译成 <code>DataIntegrityViolationException</code>(唯一冲突是它的子类 <code>DuplicateKeyException</code>)</td>
+      <td><code>var pgErr *pgconn.PgError</code>;<code>errors.As(err, &amp;pgErr) &amp;&amp; pgErr.Code == "23505"</code>,约束名在 <code>pgErr.ConstraintName</code></td>
+    </tr>
+  </table>
+  <p>注意 JPA 那一格的区别:ORM 自己的「级联删除」(在应用里先查出子对象再逐个删)和数据库的 <code>ON DELETE CASCADE</code> 是两回事。前者只在通过这个 ORM 删除时生效,后者对任何来源的删除都生效,这正是今天「账房」和「前台」的区别。</p>
+
+  <p><b>和 SQL Server / MySQL 的差异</b>:</p>
+  <table>
+    <tr><th>事情</th><th>PostgreSQL</th><th>MySQL</th><th>SQL Server</th></tr>
+    <tr><td>自增主键</td><td><code>GENERATED ALWAYS AS IDENTITY</code>(旧写法 <code>serial</code>)</td><td><code>AUTO_INCREMENT</code></td><td><code>IDENTITY(1,1)</code></td></tr>
+    <tr><td>有序 UUID</td><td>PG 18 内置 <code>uuidv7()</code>;16 用函数 / 应用层</td><td>没有内置 v7(<code>UUID()</code> 是 v1)</td><td><code>NEWSEQUENTIALID()</code>(只能做列默认值)</td></tr>
+    <tr><td>CHECK 约束</td><td>一直生效</td><td><b>8.0.16 之前会解析但直接忽略</b>,8.0.16 起才真正检查</td><td>生效</td></tr>
+    <tr><td>字符串唯一是否区分大小写</td><td>区分(要用 <code>lower()</code> 索引或 <code>citext</code>)</td><td>取决于排序规则,默认的 <code>utf8mb4_0900_ai_ci</code> 不区分</td><td>取决于排序规则,默认通常不区分</td></tr>
+    <tr><td>建表 / 改表能否回滚</td><td>能(事务性 DDL)</td><td>不能,DDL 会隐式提交</td><td>大部分能</td></tr>
+  </table>
+  <p>MySQL 那一行是一个经典的坑:在 8.0.16 之前的版本上写了 <code>CHECK</code>,建表成功、没有任何警告,但规则从来没被检查过。换数据库时,不能只看「语句能执行」,要用一条违反规则的数据真的试一下。</p>
+  <p>📌 roadmap 顶部对照表的「输入校验」一行目前只写了 DTO 层的工具。建议你在 Day 28 复盘时补一句「数据库层:约束 + SQLSTATE」(<code>23505</code> ↔ EF Core <code>DbUpdateException</code> / Spring <code>DataIntegrityViolationException</code> / Prisma <code>P2002</code> / pgx <code>PgError.Code</code>),内容自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"We already validate input in the API layer. Why do we still need database constraints? And how do you choose a primary key?"</b>(或者:「API 层已经校验过了,为什么数据库还要加约束?主键你会怎么选?」)你可以答:<br>
+    <b>"两层防的东西不一样。API 层的校验负责请求格式,能给出字段级的友好错误;数据库约束负责数据本身的正确性,它对任何来源的写入都生效,包括别的服务、手工 SQL 和迁移脚本,而且只有它能处理并发:两个请求同时注册同一个邮箱,应用里先查后插,两边都会查到没有,只有唯一约束能拦下第二个。所以我会用 NOT NULL、UNIQUE、CHECK 和外键表达数据的底线规则,应用里直接插入,捕获 23505 这类 SQLSTATE 再翻译成 409 或 422,判断时用错误码和约束名,不解析错误信息。主键我用代理键,不用邮箱这类会变的自然键;类型默认 bigint,用 GENERATED ALWAYS AS IDENTITY 生成,避免 integer 在 21 亿处用完,也避免手写 id 和序列撞车。如果 id 要对外暴露,我会考虑另加一个 UUID,最好是时间有序的 v7,因为完全随机的 v4 会让 B-tree 索引频繁分裂、变大;同时 id 不连续是正常的,序列不参与回滚。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:跟着撞一遍(动手,约 8 min)</h3>
+    <ol>
+      <li>先把第 3、4、5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day24</code> 批改。</li>
+      <li>psql 连进去,<code>SET search_path = day24;</code>,<code>\set VERBOSITY verbose</code>。✍️ <b>预测</b>:<code>INSERT INTO tags (name) VALUES ('home');</code>、<code>UPDATE checklist_items SET position = 0 WHERE task_id = 1 AND position = 1;</code>、<code>DELETE FROM tags WHERE name = 'learning';</code> 各会怎样?错误码是什么?最后一条会连带删掉什么?(放在 <code>BEGIN … ROLLBACK</code> 里做。)</li>
+      <li>开两个终端,手动跑并发实验:两边都 <code>psql -v tbl=signup_uk -v who=你的名字 -f sql/day24/07-race-session.sql</code>,第二个在第一个开始后 1 秒内回车。✍️ <b>预测</b>:后回车的那个,是在 <code>SELECT</code> 时就失败,还是在 <code>INSERT</code> 时?它会不会卡住一会儿?(先跑一次 <code>07-race-setup.sql</code> 清空表。)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:给新表定约束(动笔 + 动手,约 10 min)</h3>
+    <p>接 Day 23 习题 2 的「任务评论」:<code>comments</code> 表有 <code>id</code>、<code>task_id</code>、<code>author_id</code>、<code>body</code>、<code>created_at</code>。</p>
+    <ol>
+      <li>✍️ 写出完整的 <code>CREATE TABLE</code>:主键用什么?哪些列 NOT NULL?<code>body</code> 要什么 CHECK?</li>
+      <li>两个外键各用什么 <code>ON DELETE</code>?说出业务理由:任务被删时评论怎么办?评论的作者注销时呢?(提示:想想「删掉一个离职员工的账号,他写过的评论还要不要留着」。)</li>
+      <li>在 <code>day24</code> 里建出来,每条约束故意违反一次,记下 SQLSTATE,并按第 5 节的表写出 nest-lab 应该回的状态码。</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:规则放哪一层(思考,约 7 min)</h3>
+    <p>下面 6 条规则,各应该放在 DTO、数据库约束、Service(业务逻辑)中的哪一层或哪几层?为什么?</p>
+    <ol>
+      <li>任务标题去掉首尾空格后 1–100 字</li>
+      <li>一个邮箱只能注册一个账号</li>
+      <li>已完成的任务不能改标题(Day 15 的 409 规则)</li>
+      <li>每个用户最多 10 个未完成任务</li>
+      <li>清单项的 <code>position</code> 从 1 开始</li>
+      <li>负责人必须是一个存在的用户</li>
+    </ol>
+    <p>✍️ 第 4 条:如果放在 Service 里「先数一下再插入」,会不会遇到和并发注册一样的问题?(想一想就好,Week 6 解决。)</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/24-keys-constraints/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「前端表单已经用 zod 校验过了,后端 DTO 又校验一遍,数据库还要加约束,这不是重复三遍吗?」用前台和账房的比喻讲清楚每一层防的是什么,举出「只有数据库拦得住」的例子,并说出这个比喻在哪里会骗人。</li>
+      <li>自然键和代理键怎么选?<code>serial</code>、<code>GENERATED ALWAYS AS IDENTITY</code>、<code>BY DEFAULT</code> 有什么区别?为什么默认用 <code>bigint</code>?为什么 id 有空洞不是 bug?</li>
+      <li>UUID v4 和 v7 有什么区别?为什么随机主键会让索引变大?PG 16 下要用 v7 有哪几种办法?什么时候要对外暴露 UUID 而不是自增 id?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里补上你自己做的改动(比如习题 2 的 <code>comments</code> 表要不要加进 <code>docs/er-diagram.md</code>);确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>主键用代理键,默认 <code>bigint GENERATED ALWAYS AS IDENTITY</code></b>:自然键会变;<code>integer</code> 会在 21 亿处用完;<code>ALWAYS</code> 拒绝手写 id,<code>BY DEFAULT</code> / <code>serial</code> 允许手写但会和序列撞车。序列不参与回滚,id 有空洞是正常的,主键只保证唯一、不保证连续。</li>
+    <li><b>UUID v4 完全随机,v7 前面是毫秒时间戳</b>;随机主键让 B-tree 索引页频繁分裂,实测主键索引 v4 约 8.4 MB、v7 约 6.2 MB(20 万行)。PG 16 没有 <code>uuidv7()</code>,用 SQL 函数、应用层或扩展替代。对外暴露 id 时考虑「内部 bigint + 对外 UUID」。</li>
+    <li><b>约束是数据库层的最后一道校验</b>:NOT NULL、UNIQUE(邮箱用 <code>lower(email)</code> 唯一索引)、CHECK(只能看同一行)、外键(<code>ON DELETE CASCADE / RESTRICT / SET NULL / NO ACTION</code> 表达业务含义)。约束要命名,外键不会自动建索引。</li>
+    <li><b>两层校验各防各的</b>:DTO 给友好的字段级错误,约束防任何来源的坏数据和并发竞态(先查后插拦不住并发注册)。违反时按 SQLSTATE 和约束名翻译:<code>23505</code> → 409,<code>23503</code> 插入时 → 422、删除时 → 409,<code>23502</code> / <code>23514</code> → 422 并记警告。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>为什么 <code>BY DEFAULT</code> 的表手写了 1、2 之后,下一次自动发号会报主键重复?<code>ALWAYS</code> 怎么避免?</li>
+    <li>回滚的插入、违反约束的插入,为什么都会让 id 出现空洞?如果序列参与回滚会怎样?</li>
+    <li>邮箱的唯一约束为什么要建在 <code>lower(email)</code> 上?MySQL 默认为什么不需要?</li>
+    <li>删掉任务 3,它的清单项为什么会消失?删 Bob 为什么报错?要让 Bob 的任务保留下来,外键要怎么改、列要怎么改?</li>
+    <li>两个请求同时注册同一个邮箱,为什么两边都查到「0 个」?最后靠什么保证只有一个成功?</li>
+    <li><code>23503</code> 为什么有时映射成 422、有时映射成 409?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 25</b>:SQL 查询深入 I。今天的数据分散在五张表里,Day 23 只用了最基本的 <code>JOIN</code> 把它们拼回来。明天系统地学 JOIN 全家(INNER / LEFT / 自连接 / 用 <code>NOT EXISTS</code> 找「没有任何任务的用户」)、<code>GROUP BY</code> / <code>HAVING</code> 做统计、子查询和 CTE(<code>WITH</code>),以及 NULL 的三值逻辑(为什么 <code>WHERE owner_id &lt;&gt; 1</code> 查不出 <code>owner_id</code> 为 NULL 的行)。</p>
+</section>
+
+<footer>
+  Day 24 · Phase 2 / Week 4 · 产出:<code>docs/24-keys-constraints/</code> 本文档 + <code>nest-lab/</code>(<code>sql/day24/</code> 八个实验文件、<code>docs/er-diagram.md</code> 的主键与约束、<code>npm run day24</code>)+ <code>src/24-keys-constraints/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

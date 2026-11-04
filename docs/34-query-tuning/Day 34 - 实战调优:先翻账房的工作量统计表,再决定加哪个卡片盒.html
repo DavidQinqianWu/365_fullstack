@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 34 - 实战调优:先翻账房的工作量统计表,再决定加哪个卡片盒</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 5</div>
+  <h1>Day 34 - 实战调优:先翻账房的工作量统计表,再决定加哪个卡片盒</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>pg_stat_statements · 先测量后优化 · 给 nest-lab 灌 30 万任务并加负载 · 修 keyset 混合方向的深分页 · 按负载挑索引 · 统计目标与计划不稳定 · offset vs keyset · 优化报告</b> ·
+    项目:今天是 Week 5 的落地日,<b>会改 nest-lab 的 <code>sql/schema.sql</code> 和 <code>src/</code></b>;新增 <code>npm run db:seed:big</code>、<code>npm run load</code>、<code>npm run day34</code>(约 30 秒)、优化报告 <code>docs/query-tuning.md</code> ·
+    系统配置:本机 PostgreSQL 开启了 <code>pg_stat_statements</code>(改了 <code>postgresql.conf</code> 一行并重启)· 所有输出来自 PostgreSQL 16.15 的真实运行,耗时类数字跑 3 遍、每遍 3 次,写区间
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:Week 5 攒了一张清单,今天拿真实负载来挑</a></li>
+    <li><a href="#sec2">🚀 先跑起来:开启 pg_stat_statements、灌数据、加负载</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:pg_stat_statements —— 账房的「每日工作量统计表」</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:先测量,后优化 —— 一次优化,一次回退,一次修复</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:一个查询一个索引,还是少数索引服务多数查询</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:Week 5 攒了一张清单,今天拿真实负载来挑</h2>
+  <p>这一周你攒下了一堆「候选卡片盒」:</p>
+  <ul>
+    <li>Day 31 的排序组合索引清单(<code>(created_at DESC, id ASC)</code>、<code>(title COLLATE "C", id)</code>……),以及一个 bug:<code>keysetCondition()</code> 在方向混合时只生成 OR,深分页会越翻越慢。</li>
+    <li>Day 32 的 <code>?done=false</code> 部分索引,以及「每个索引都在收写入的钱」。</li>
+    <li>Day 33 的 trigram GIN 方案。</li>
+  </ul>
+  <p>全建上?Day 32 刚实测过,6 个索引让插入慢 9 倍。今天的做法反过来:<b>先让 nest-lab 有真实的数据量和请求,用数据找出最费时的查询,再一条条地改、一条条地复测</b>。最后留下的索引比清单少,还发现了一次「优化之后反而变慢」,以及它的原因。</p>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你做过前端性能优化:不是凭感觉把每个组件都包上 <code>React.memo</code>,而是先跑 Lighthouse、看 Web Vitals(LCP、INP、CLS),找出最影响用户的那个指标,再用 Performance 面板定位是哪段代码,改完再跑一次对比。后端是一样的流程,只是 Lighthouse 换成了 <code>pg_stat_statements</code>,Performance 面板换成了 <code>EXPLAIN ANALYZE</code>。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:开启 pg_stat_statements、灌数据、加负载</h2>
+
+  <h3>① 开启 pg_stat_statements(一次性,要超级用户)</h3>
+  <p>它是 PostgreSQL 自带的扩展,但必须在<b>服务器启动时</b>就加载(它要在每条语句执行时记账),所以分三步:</p>
+  <pre><code># 本机安装(本课程环境就是这么做的):改 /etc/postgresql/16/main/postgresql.conf 第 752 行
+#   原来:#shared_preload_libraries = ''
+#   改成: shared_preload_libraries = 'pg_stat_statements'
+sudo service postgresql restart              # 改这个参数必须重启,reload 不够
+
+# 在 nest_lab 库里建扩展:它不是「受信任的扩展」(Day 33),普通用户建不了
+sudo -u postgres psql -d nest_lab -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements WITH SCHEMA public'
+# 可选:让 nest_lab 用户自己能清零统计(默认只有超级用户能)
+sudo -u postgres psql -d nest_lab -c 'GRANT EXECUTE ON FUNCTION public.pg_stat_statements_reset(oid, oid, bigint) TO nest_lab'</code></pre>
+  <p><b>Docker</b>:<code>nest-lab/compose.yaml</code> 今天加了一行 <code>command: ['postgres', '-c', 'shared_preload_libraries=pg_stat_statements']</code>,<code>docker compose up -d</code> 重建容器后,用 <code>POSTGRES_USER</code>(它是超级用户)执行一次 <code>CREATE EXTENSION</code>。本课程环境没有 Docker,<b>这个写法没有实测</b>。它是数据库<b>实例</b>的配置,不是应用的表结构,所以不写进 <code>schema.sql</code>。</p>
+
+  <h3>② 灌数据、加负载、看结果</h3>
+  <pre><code>cd nest-lab
+npm run db:seed:big      # 重建 schema app,灌 30 万任务 + 24 万清单项(本机约 8 秒);拒绝对 app_test 执行
+npm run build
+npm run load             # 启动 PG 版 nest-lab,8 个并发打 15 种请求 10 秒,按请求类型统计 p50 / p95
+npm run day34            # 把今天的全过程串起来(约 30 秒;-- --quick 负载各 3 秒)
+npm run db:reset         # 回到 3 条样品数据</code></pre>
+  <ul>
+    <li><code>seed-big.sql</code> 的数据尽量像真的待办:一半英文标题(<code>Fix invoice export 3</code>)、一半中文(<code>修复发票导出 4</code>),少数带「(加急)」或「 urgent」;越早的任务越可能已完成(整体约 27% 未完成);40% 的任务有 1–5 条清单项。<code>setseed</code> 保证每次相同。</li>
+    <li><code>load-tasks.mjs</code> 打的请求:列表第一页(默认、<code>-createdAt</code>、<code>title</code>)、深分页、<code>?done=false</code>、<code>?q=</code>(少见 / 常见 / 中文 4 字 / 中文 2 字 / 只有十几条 / 没有结果)、<code>GET /tasks/:id</code>、PATCH、POST。</li>
+    <li>应用以 <code>DB_RESET_ON_START=false</code> 启动,不会清空数据,也不碰 <code>test:e2e:pg</code> 用的 <code>app_test</code>。</li>
+    <li>按协调要求,观察脚本控制在 60 秒以内:<code>npm run day34</code> 本机 30–32 秒,<code>--quick</code> 把两轮负载各缩到 3 秒。</li>
+  </ul>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用</th></tr>
+    <tr><td><code>sql/schema.sql</code></td><td>修改</td><td><code>CREATE EXTENSION pg_trgm</code>;3 个索引;<code>title</code> 的 <code>SET STATISTICS 1000</code>(理由都写在注释里)</td></tr>
+    <tr><td><code>src/tasks/pg-tasks.repository.ts</code></td><td>修改</td><td><code>keysetCondition()</code>:方向混合时补一个冗余范围条件</td></tr>
+    <tr><td><code>src/tasks/pg-tasks.repository.spec.ts</code></td><td>新增</td><td>单元测试:断言生成的 keyset SQL 片段、<code>escapeLike</code></td></tr>
+    <tr><td><code>test/pagination.e2e-spec.ts</code></td><td>修改</td><td>新增一条 e2e:<code>sort=createdAt,-id</code> 一路翻到底、顺序正确(内存版和 PG 版都跑)</td></tr>
+    <tr><td><code>sql/seed-big.sql</code>、<code>scripts/db-reset.mjs</code>、<code>package.json</code> 的 <code>db:seed:big</code></td><td>新增 / 修改</td><td>30 万任务的种子;<code>--big</code> 参数,拒绝 <code>app_test</code>,超时放宽到 180 秒</td></tr>
+    <tr><td><code>scripts/load-tasks.mjs</code> + <code>npm run load</code></td><td>新增</td><td>负载脚本(也能被 import)</td></tr>
+    <tr><td><code>sql/day34/01–03</code>、<code>scripts/day34-try.mjs</code> + <code>npm run day34</code></td><td>新增</td><td>统计报表、优化前后的计划、offset vs keyset;观察脚本</td></tr>
+    <tr><td><code>docs/query-tuning.md</code></td><td>新增</td><td>优化报告:每条查询的问题 → 证据 → 改法 → 代价 → 结论,已建 / 未建索引表</td></tr>
+    <tr><td><code>compose.yaml</code>、<code>README.md</code></td><td>修改</td><td>预加载 pg_stat_statements(未实测);命令、成长日志</td></tr>
+  </table>
+  <p>API 契约没有变:DTO 没改,<code>openapi.json</code> 不用重新生成(<code>openapi:check</code> 仍然一致)。</p>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:pg_stat_statements —— 账房的「每日工作量统计表」</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>pg_stat_statements</b> 给数据库执行过的每一种 SQL 记账:执行了几次、一共花了多少时间、平均多久、最慢多久、返回多少行、碰了多少缓存页和磁盘页。参数不同、形状相同的 SQL 合成一行(字面值都换成 <code>$1</code>)。按<b>总耗时</b>排序,排在最上面的就是最值得先优化的。
+  </div>
+
+  <h3>② 生活类比:每日工作量统计表</h3>
+  <p>账房想让大家干活快一点,不是去问「哪件事最难」,而是让每个伙计在一张表上记账:「查会员的单子」今天做了 260 次,一共花了 14 分钟;「按日期找最新的单子」做了 135 次,一共花了 15 个钟头。一看就知道该先改哪件事。表上记的是<b>事情的种类</b>,不分具体是哪个会员:查 5000 号和查 42 号会员,记在同一行。表只记伙计在账房里干活的时间,客人在门口排队、跑腿送货的时间不在上面。表是从上次清零开始累计的。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th></tr>
+    <tr><td>每日工作量统计表</td><td><code>pg_stat_statements</code> 视图(需要 <code>shared_preload_libraries</code> + <code>CREATE EXTENSION</code>)</td></tr>
+    <tr><td>做了几次 / 一共花了多久 / 平均多久</td><td><code>calls</code> / <code>total_exec_time</code> / <code>mean_exec_time</code>(还有 <code>min</code>、<code>max</code>、<code>stddev</code>)</td></tr>
+    <tr><td>交出去几张单子</td><td><code>rows</code></td></tr>
+    <tr><td>翻手边的账本 / 去库房搬账本</td><td><code>shared_blks_hit</code> / <code>shared_blks_read</code>(Day 30)</td></tr>
+    <tr><td>按事情的种类记,不分哪个会员</td><td><b>查询规范化</b>:字面值变成 <code>$1</code>,按 <code>queryid</code> 合并</td></tr>
+    <tr><td>从上次清零开始累计</td><td><code>pg_stat_statements_reset()</code> 手动清零;统计放在共享内存里,正常关机时会存盘、重启后还在(<code>pg_stat_statements.save</code>,默认开),崩溃时会丢;默认最多记 5000 种语句,多了会挤掉最少用的</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证:给优化前的 nest-lab 加负载。</b>✍️ <b>预测(先写再运行)</b>:30 万任务、只有两个主键,8 个并发打 10 秒。总耗时排第一的会是哪个请求?<code>GET /tasks/:id</code> 会上榜吗?真实结果(修改前的代码,单次负载,字段省略了相同的 <code>SELECT_TASKS</code> 前缀):</p>
+  <pre><code>  8 个并发跑了 10 秒,共 833 个请求(83 个/秒)
+
+ calls | total_ms | mean_ms | 语句
+-------+----------+---------+--------------------------------------------------------------------
+   158 |    24623 |  155.84 | WHERE t.title ILIKE $1 ESCAPE $7 ORDER BY t.id ASC LIMIT $2
+   135 |    14798 |  109.61 | ORDER BY t.created_at DESC, t.id ASC LIMIT $1
+    42 |    10181 |  242.41 | ORDER BY t.title COLLATE "C" ASC, t.id ASC LIMIT $1
+    94 |     6019 |   64.03 | WHERE t.done = $1 ORDER BY t.created_at DESC, t.id ASC LIMIT $2
+    44 |     1815 |   41.24 | WHERE t.done = $1 AND ((t.created_at &lt; $2::timestamptz) OR (…)) ORDER BY …
+    36 |     1779 |   49.42 | WHERE ((t.created_at &lt; $1::timestamptz) OR (…)) ORDER BY …
+   261 |       14 |    0.05 | WHERE t.id = $1
+   111 |       13 |    0.12 | ORDER BY t.id ASC LIMIT $1
+    47 |        5 |    0.10 | UPDATE tasks SET done = $2 WHERE id = $1
+    46 |        4 |    0.09 | INSERT INTO tasks (title, done, created_at) VALUES ($1, $2, $3) RETURNING id</code></pre>
+  <ul>
+    <li><b>按总耗时排,不按平均排。</b><code>sort=title</code> 平均最慢(242 ms),但只调用了 42 次,总耗时排第三;<code>GET /tasks/:id</code> 调用次数最多,但每次 0.05 ms,总共才 14 ms。</li>
+    <li><b>规范化会合并。</b><code>?q=</code> 的 4 种关键词(urgent、invoice、发票导出、加急)合成了第一行。连 SQL 里写死的 <code>ON true</code>、<code>'[]'::json</code> 也被换成了 <code>$5</code>、<code>$2</code>。这一行的平均 155.84 ms 是快的和慢的混出来的,要拆开得回到 EXPLAIN。</li>
+    <li><b><code>shared_blks_read</code> 全是 0。</b>30 万行的表只有 21 MB,全在缓存里。生产上数据比内存大时,同样的查询会更慢。</li>
+  </ul>
+  <p>接下来按排名逐条 <code>EXPLAIN ANALYZE</code>(<code>sql/day34/02-before-after.sql</code>)。第二名 <code>?sort=-createdAt</code> 第一页是这样的:</p>
+  <pre><code> Limit (actual time=45.564..51.896 rows=21 loops=1)
+   Buffers: shared hit=2867, temp read=968 written=2083
+   -&gt;  Nested Loop Left Join (…)
+         -&gt;  Gather Merge (…)
+               -&gt;  Sort (actual time=42.614..42.651 rows=466 loops=2)
+                     Sort Key: t.created_at DESC, t.id
+                     Sort Method: external merge  Disk: 8584kB
+                     -&gt;  Parallel Seq Scan on tasks t (… rows=150000 loops=2)
+         -&gt;  Aggregate (… loops=21)
+               -&gt;  Index Scan using checklist_items_pkey on checklist_items c (…)</code></pre>
+  <p>为了一页 21 条,把 30 万行都排了一遍,排序还溢出到了磁盘(<code>temp written</code>)。一个细节:取清单项的 LATERAL 子查询(Nested Loop)夹在 Limit 和 Sort 之间,排序节点不知道「只要前 21 条」,连 Day 30 的 top-N heapsort 都用不上。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「表上的时间就是客人等的时间」——它只记数据库内部的执行时间。</b>网络往返、连接池排队、Nest 的校验和 JSON 序列化都不在里面。优化后「按 id 排的第一页」在数据库里只要 0.1 ms,HTTP 的 p50 却是 8–10 ms。用户感受到的慢,要从应用层的指标(Week 19 的 APM / OpenTelemetry)往下找,pg_stat_statements 只负责数据库这一段。</li>
+      <li><b>「一行就是一种请求」——规范化会把差别很大的调用合成一行。</b>同一行里,<code>?q=12345</code> 要 75 ms,<code>?q=invoice</code> 只要 0.4 ms。看 <code>min</code> / <code>max</code> / <code>stddev</code>,差得大就说明这一行里混着不同的情况。反过来,同一个请求换了 SQL 写法(比如今天修 keyset 后)会变成新的一行。</li>
+      <li><b>「表上排第一的就是生产上最慢的」——这是本机、这份数据、这个负载比例下的结果。</b>生产的数据量、缓存命中率、请求比例都不一样。今天的结论(以及 <code>docs/query-tuning.md</code>)要拿到生产规模的数据上复验。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>pg_stat_statements</b>、<b><code>shared_preload_libraries</code></b>(改了要重启)、<b>query normalization / <code>queryid</code></b>(<code>compute_query_id</code>)、<code>calls</code> / <code>total_exec_time</code> / <code>mean_exec_time</code> / <code>stddev_exec_time</code> / <code>rows</code> / <code>shared_blks_hit</code> / <code>shared_blks_read</code>、<code>pg_stat_statements_reset()</code>、<code>pg_stat_statements.max</code>;相关的还有 <b><code>log_min_duration_statement</code></b>(慢查询日志)和 <b><code>auto_explain</code></b>(把慢查询的计划写进日志)。
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:先测量,后优化 —— 一次优化,一次回退,一次修复</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    优化是一个循环:<b>测量</b>(找到最费时的那一条)→ <b>解释</b>(EXPLAIN 看它为什么慢)→ <b>改一处</b> → <b>用同样的方法再测</b>(确认真的变快了,而且别处没变慢)。每一步都留下证据,改了什么、为什么、代价是什么都写下来。不测量的优化是猜;只测一次的优化可能是巧合。
+  </div>
+
+  <h3>② 生活类比:先查表,改一件事,再查表</h3>
+  <p>账房查完统计表,发现「按日期找最新的单子」最费时,于是给它做了一个按日期排的卡片盒。第二天再查表,这件事果然快了;可「找标题里有 invoice 的单子」却变慢了。翻了半天才发现,伙计做决定前会先「估一下大概有多少张」,而他估的时候只随手翻了几页样本,有时估成 30 张,有时估成 2 万张。估成 30 张时,他就选了「把卡片全拿出来再排」的办法。于是账房让伙计估的时候多翻一些样本。改完再查一次表,确认这回真的好了。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实</th><th>今天的实测</th></tr>
+    <tr><td>查表找最费时的事</td><td><code>pg_stat_statements</code> 按 <code>total_exec_time</code> 排序</td><td>见概念卡 #1</td></tr>
+    <tr><td>看他具体怎么干的</td><td><code>EXPLAIN (ANALYZE, BUFFERS)</code></td><td><code>Seq Scan</code> + <code>Sort … Disk</code></td></tr>
+    <tr><td>改一件事,再查表</td><td>改一处 → 同样的负载、同样的计时方法再测</td><td><code>npm run day34</code> 的「优化前 / 后」</td></tr>
+    <tr><td>伙计先估一下有多少张</td><td>优化器的<b>行数估算</b>,来自 ANALYZE 的抽样统计</td><td><code>invoice</code> 估成 30 ~ 27281 行,实际 15060</td></tr>
+    <tr><td>多翻一些样本</td><td><code>ALTER TABLE … ALTER COLUMN title SET STATISTICS 1000</code></td><td>估算稳定在 15320</td></tr>
+  </table>
+
+  <h3>⑤ 动手验证:今天的优化循环</h3>
+  <p>「优化前」是在一个事务里 <code>DROP INDEX</code> 掉三个新索引、测完 <code>ROLLBACK</code>(PostgreSQL 的 DDL 也能回滚),所以前后用的是同一份数据。✍️ <b>预测</b>:三个索引加上以后,下面每一行各快多少?哪几行几乎不变?</p>
+
+  <p><b>第 1 圈:排序类的查询加索引。</b>改法和理由在概念卡 #3。各跑 3 次、脚本跑 3 遍:</p>
+  <table>
+    <tr><th>查询</th><th>优化前</th><th>优化后</th><th>优化后的计划</th></tr>
+    <tr><td>A <code>?sort=-createdAt</code> 第一页</td><td>41.2 – 62.5 ms</td><td>0.055 – 0.456 ms</td><td><code>Index Scan Backward</code> + <code>Incremental Sort</code></td></tr>
+    <tr><td>B <code>?sort=title</code> 第一页</td><td>81.1 – 98.1 ms</td><td>0.055 – 0.420 ms</td><td><code>Index Scan using tasks_title_c_id_idx</code></td></tr>
+  </table>
+
+  <p><b>第 2 圈:修 keyset 的深分页。</b>Day 31 发现的 bug:<code>?sort=-createdAt</code> 补上 tie-breaker 后是 <code>created_at DESC, id ASC</code>,方向混合,<code>keysetCondition()</code> 生成的是只有 OR 的条件。索引都建好了,只差 SQL 写法(书签前有 29.7 万条):</p>
+  <pre><code>-- 修复前:只有 OR
+ Index Scan Backward using tasks_created_at_id_idx on tasks t (actual time=29.546..29.550 rows=22 loops=1)
+   Filter: ((created_at &lt; '2024-01-07 06:00:20.467016+00') OR ((created_at = '…') AND (id &gt; '3000'::bigint)))
+   Rows Removed by Filter: 297001
+ Execution Time: 29.729 ms
+-- 修复后:OR 前面多一个 created_at &lt;= 书签
+ Index Scan Backward using tasks_created_at_id_idx on tasks t (actual time=0.014..0.017 rows=22 loops=1)
+   Index Cond: (created_at &lt;= '2024-01-07 06:00:20.467016+00'::timestamp with time zone)
+   Filter: ((created_at &lt; '…') OR ((created_at = '…') AND (id &gt; '3000'::bigint)))
+   Rows Removed by Filter: 1
+ Execution Time: 0.153 ms</code></pre>
+  <p>各跑 3 次、脚本跑 3 遍:修复前 <b>28.5 – 37.9 ms</b>,修复后 <b>0.056 – 0.202 ms</b>。代码改动只有两行(<code>src/tasks/pg-tasks.repository.ts</code>):</p>
+  <pre><code>const range = `${cols[0]!.expr} ${sort[0]!.dir === 'asc' ? '&gt;=' : '&lt;='} ${placeholders[0]}`;
+return `(${range} AND (${ors.join(' OR ')}))`;</code></pre>
+  <p>测试有三层:</p>
+  <ul>
+    <li>新增的单元测试 <code>pg-tasks.repository.spec.ts</code>:断言三种生成的 SQL 片段,包括同一个 <code>$1</code> 在 SQL 里出现三次、参数只传一次。</li>
+    <li>新增的 e2e:<code>sort=createdAt,-id</code>(第一列升序,走 <code>&gt;=</code> 分支)一路翻到底,不重不漏、顺序和完整列表一致。</li>
+    <li>原有的 e2e:「<code>sort=-createdAt</code> 一路翻到底(createdAt 有大量相同值)」「<code>sort=-title</code> + 过滤」在 <code>test:e2e:pg</code> 上继续通过。</li>
+  </ul>
+
+  <p><b>第 3 圈:<code>?q=</code> 加 trigram GIN,出现了一次回退。</b>第一次建好 GIN 后,负载下大部分搜索快了,但常见词 <code>q=invoice</code> 的 HTTP p50 反而从约 20 ms 变成了 77–123 ms(3 遍里有 2 遍)。EXPLAIN 解释了原因:优化器要在两种计划里选,</p>
+  <ul>
+    <li>「按主键顺序扫、边扫边过滤、凑够 21 条就停」:命中多的词很快,invoice 只要扫 388 行,0.34 ms。</li>
+    <li>「用 GIN 找出全部匹配行、再排序」:命中少的词很快,命中多的词要取出 1.5 万行再排,强制走这个计划时 23.7 ms(单次)。</li>
+  </ul>
+  <p>选哪个,取决于它估计有多少行匹配。✍️ <b>预测</b>:同一份数据连续 ANALYZE 5 次,<code>ILIKE '%invoice%'</code> 的估算会一样吗?真实结果:</p>
+  <pre><code> stat |   kw    |                         plan                          | count
+------+---------+-------------------------------------------------------+-------
+  100 | invoice | Index Scan using tasks_pkey ; est 12125 ;             |     1
+  100 | invoice | Index Scan using tasks_pkey ; est 18187 ;             |     1
+  100 | invoice | Index Scan using tasks_pkey ; est 27281 ;             |     1
+  100 | invoice | Index Scan using tasks_pkey ; est 3031 ;              |     1
+  100 | invoice | est 30 ; Bitmap Index Scan on tasks_title_trgm_idx ;  |     1   ← 估成 30 行,选了 GIN
+  100 | 加急    | Seq Scan on tasks ; est 12 ;                          |     4
+  100 | 加急    | Index Scan using tasks_pkey ; est 3031 ;              |     1
+ 1000 | invoice | Index Scan using tasks_pkey ; est 15320 ;             |     5   ← 实际 15060
+ 1000 | 加急    | Index Scan using tasks_pkey ; est 300 ;               |     2
+ 1000 | 加急    | Index Scan using tasks_pkey ; est 601 ;               |     2
+ 1000 | 加急    | Seq Scan on tasks ; est 12 ;                          |     1</code></pre>
+  <p>默认的统计目标(100)下,ANALYZE 只抽 3 万行样本、记 100 个直方图桶。<code>LIKE '%…%'</code> 的命中率就是拿这些样本去匹配估出来的,同一份数据,估算能差将近 1000 倍。把 <code>title</code> 的统计目标调到 1000 后,<code>invoice</code> 5 次都估在 15320 行,都选了快的计划;<code>加急</code> 也从多数时候全表扫描(75–110 ms),变成多数时候按主键扫(7–12 ms)。这一行写进了 <code>schema.sql</code>:</p>
+  <pre><code>ALTER TABLE tasks ALTER COLUMN title SET STATISTICS 1000;</code></pre>
+  <p>修完再测一遍(各跑 3 次、脚本跑 3 遍):</p>
+  <table>
+    <tr><th>关键词</th><th>命中</th><th>没有 GIN</th><th>有 GIN</th><th>计划</th></tr>
+    <tr><td><code>12345</code></td><td>13 行</td><td>71.9 – 99.8 ms</td><td><b>0.119 – 0.644 ms</b></td><td>GIN 位图</td></tr>
+    <tr><td><code>不存在的任务</code></td><td>0 行</td><td>77.0 – 90.0 ms</td><td><b>0.018 – 0.204 ms</b></td><td>GIN 位图</td></tr>
+    <tr><td><code>urgent</code></td><td>约 300 行</td><td>6.7 – 16.9 ms</td><td>6.8 – 12.1 ms</td><td>按主键扫、凑够就停</td></tr>
+    <tr><td><code>加急</code>(2 个字)</td><td>约 300 行</td><td>7.2 – 8.8 ms</td><td>7.2 – 11.9 ms</td><td>同上(抽不出三元组)</td></tr>
+  </table>
+  <p>GIN 真正派上用场的,是<b>很少或没有结果的搜索</b>(用户拼错了、搜一个编号):从全表扫描降到 1 ms 以内。命中 0.1% 以上的词,按主键扫很快就能凑够一页,本来就不慢。负载下的整体效果(只差这三个索引,8 个并发 × 6 秒,跑了 3 遍):</p>
+  <table>
+    <tr><th></th><th>吞吐</th><th><code>-createdAt</code> p50</th><th><code>title</code> p50</th><th><code>q=12345</code> p50</th><th><code>q=没有结果</code> p50</th><th><code>q=加急</code> p50</th></tr>
+    <tr><td>没有这 3 个索引</td><td>84 – 91 个/秒</td><td>131 – 150 ms</td><td>235 – 264 ms</td><td>223 – 255 ms</td><td>217 – 251 ms</td><td>41 – 49 ms</td></tr>
+    <tr><td>有这 3 个索引</td><td>619 – 686 个/秒</td><td>8.9 – 9.8 ms</td><td>8.5 – 9.5 ms</td><td>8.9 – 11.0 ms</td><td>9.3 – 10.6 ms</td><td>21 – 23 ms</td></tr>
+  </table>
+  <p>优化后的统计表里,<code>?q=</code> 那一行仍然排第一,占数据库总耗时的 89–90%,但平均从 155.84 ms 降到了 3.6 – 4.1 ms;其余语句平均都在 1 ms 以内。</p>
+
+  <p><b>短关键词的决定:接受,不改 DTO。</b></p>
+  <ul>
+    <li>1–2 个字符抽不出三元组(Day 33)。可以给 <code>q</code> 加 <code>@MinLength(3)</code>,但这会让以前合法的请求变成 422,是破坏性的契约变更(<code>openapi.json</code> 和客户端都要跟着改),而中文里 2 个字的词(「登录」「加急」)是完全合理的搜索。</li>
+    <li>实测:统计目标调高后,命中 0.1% 的短词 7–12 ms,负载下 p50 21–23 ms,可以接受。</li>
+    <li>最坏的情况是「命中很少或没有结果的短词」,要扫完整张表,70–100 ms。负载脚本里没有模拟这种请求。</li>
+    <li>要不要为它做点什么(<code>pg_bigm</code> 二元组、中文分词、v3 接口加最短长度),先得有数据。但 pg_stat_statements 把所有关键词合成了一行,拆不出「短词占多少」,需要在应用层按 <code>q</code> 的长度和结果数打指标。这是 Week 19 可观测性要解决的事。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「改一件事,只影响那一件事」——一处优化可能让别处变慢。</b>加 GIN 让常见词的计划变差;调高统计目标让常见词稳定了,却让「少见词 + 按时间排序」(<code>?q=urgent&amp;sort=-createdAt</code>)从 GIN 的 2.6 ms 变成了倒着扫时间索引的 20.0 ms(单次):优化器假设匹配的行均匀分布,估计扫 2 万行就够,实际扫了 4 万多行。这是成本模型的局限。权衡下来保留了这个设置,并写进了报告。<b>所以每改一处,都要把整套负载重新跑一遍</b>,不能只看改的那一条。</li>
+      <li><b>「测一次就知道」——测量本身有抖动,而且会被计划选择放大。</b>同一份数据上,<code>?q=urgent</code> 在优化前有一遍是 9 ms、另两遍是 75 ms,就是因为 ANALYZE 抽样不同选了不同的计划。只测一次,很可能把「这次抽样运气好」当成「优化有效」。所以这门课的每个数字都跑 3 遍、写区间。</li>
+      <li><b>「本机测好了就行」——本机数据小、全在缓存里、负载和应用跑在同一台机器上。</b>吞吐的绝对值(600 多个/秒)没有参考意义,只看相对变化。上线后用生产的 pg_stat_statements 复验,是优化循环的最后一步。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>measure → explain → change → re-measure</b>;<b>baseline</b>(基线);<b>regression</b>(回退);<b>row estimate / selectivity</b>;<b><code>default_statistics_target</code></b> 与列级 <code>SET STATISTICS</code>;<b>plan instability / plan flip</b>;<b>cost model</b>;<b>load test</b>(p50 / p95、吞吐);<b>observer effect</b>(测量本身会影响结果)。
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:一个查询一个索引,还是少数索引服务多数查询</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    最省事的想法是「每条慢查询配一个专门的索引」,但每个索引都在每次写入时收费(Day 32)。更好的做法是<b>找出能同时服务好几条查询的少数几个索引</b>:一个索引既能正着读也能倒着读,能用最左前缀,能「按顺序扫、边扫边过滤」;对剩下那些已经足够快的查询,就不建。每个建或不建的决定,都要写下证据和代价。
+  </div>
+
+  <h3>② 生活类比:少做几个卡片盒,每个都多管几件事</h3>
+  <p>账房本来打算做六个卡片盒:按日期正着排的、倒着排的、只收未完成单子的、按标题排的……每多一个盒子,每记一笔账就要多抄一张卡。后来他发现:按日期排的那一盒,从前往后翻、从后往前翻都行;问「最新的未完成单子」,从后往前翻、看到已完成的跳过,翻不了几张就凑够了。最后只留了三个盒子,另外三个不做,并且在墙上贴了一张纸,写清每个盒子管哪些事、哪些盒子为什么没做。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实</th><th>今天的实测</th></tr>
+    <tr><td>一个盒子正着翻、倒着翻都行</td><td><code>Index Scan</code> / <code>Index Scan Backward</code> + <code>Incremental Sort</code></td><td><code>(created_at, id)</code> 服务 <code>±createdAt</code></td></tr>
+    <tr><td>翻的时候跳过不要的</td><td>按索引顺序扫 + <code>Filter</code>,凑够 <code>LIMIT</code> 就停</td><td><code>done=false</code>:扔掉 19 行,0.125 ms</td></tr>
+    <tr><td>每个盒子都在吃抄卡的工夫</td><td>写放大(Day 32)</td><td>插入 1 万行:17–29 ms → 115–179 ms</td></tr>
+    <tr><td>墙上那张纸</td><td><code>docs/query-tuning.md</code> 的「已建 / 未建」表</td><td>4 个建、7 个不建</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:按顺序扫,就能服务过滤。</b>✍️ <b>预测</b>:没有为 <code>done</code> 建任何索引,<code>?done=false&amp;sort=-createdAt</code> 第一页要多久?</p>
+  <pre><code>=== A4. ?done=false&amp;sort=-createdAt 第一页(没有专门给 done 建索引)
+   -&gt;  Incremental Sort (…)
+         Presorted Key: t.created_at
+         -&gt;  Nested Loop Left Join (…)
+               -&gt;  Index Scan Backward using tasks_created_at_id_idx on tasks t (actual time=0.012..0.018 rows=22 loops=1)
+                     Filter: (NOT done)
+                     Rows Removed by Filter: 19
+ Execution Time: 0.125 ms</code></pre>
+  <p>未完成的约占 27%,倒着扫 41 行就凑够了。Day 32 的部分索引在这里没有必要;而且改 <code>done</code>(PATCH)是最常见的写操作,部分索引的条件列还会让它不能 HOT。<b>什么时候要重新考虑</b>:未完成的比例掉到 1% 以下时(比如一个用了好几年的系统),要扫很久才凑够一页。</p>
+
+  <p><b>⑤ 动手验证 B:Day 31 说要声明方向,为什么今天没这么做?</b>Day 31 建议给 <code>created_at DESC, id ASC</code> 这种混合方向建同方向的索引,以省掉 Incremental Sort。✍️ <b>预测</b>:逐行插入 30 万个时间递增的任务,<code>(created_at DESC, id)</code> 和 <code>(created_at, id)</code> 一样大吗?</p>
+  <pre><code>INSERT 0 300000
+ indexrelid | pg_size_pretty
+------------+----------------
+ a_desc     | 16 MB
+ a_asc      | 9248 kB
+REINDEX
+ indexrelid | after_reindex
+------------+---------------
+ a_desc     | 9256 kB
+ a_asc      | 9256 kB</code></pre>
+  <p>新任务的 <code>created_at</code> 总是最大的。在升序索引里,它总插在最右边,B-tree 对「一直往最右边插」有优化,页可以填得很满;在降序索引里,它总插在<b>最左边</b>,页满了只能对半分裂,结果大了 70%。重建后两者一样大,说明差别全在插入的方式上。<code>-createdAt</code> 倒着读升序索引,得到的是 <code>created_at DESC, id DESC</code>,再对「时间完全相同的几行」做一次 Incremental Sort。这里几乎没有时间相同的行,代价可以忽略(计划里是 <code>Full-sort Groups: 1</code>、内存 28kB)。Day 31 的结论在一般情况下仍然成立,但对<b>按时间追加</b>的列,方向会影响索引的大小。</p>
+
+  <p><b>⑤ 动手验证 C:代价,以及 offset vs keyset。</b>✍️ <b>预测</b>:这三个索引让一次插入 1 万个任务慢多少?翻到第 10001 页,offset 和 keyset 差多少?各跑 3 次、脚本跑 3 遍:</p>
+  <table>
+    <tr><th>操作</th><th>结果</th></tr>
+    <tr><td>插入 1 万个任务(事务里做,最后回滚)</td><td>没有这 3 个索引 17.2 – 29.1 ms;有 115.1 – 178.6 ms(慢 5–8 倍)</td></tr>
+    <tr><td><code>db:seed:big</code> 灌 30 万行</td><td>约 3.6 秒 → 约 8 秒</td></tr>
+    <tr><td>索引大小</td><td><code>(created_at, id)</code> 9.2 MB、<code>(title COLLATE "C", id)</code> 27 MB、trigram GIN 17 MB;合计约 53 MB,表本身 21 MB</td></tr>
+    <tr><td>第 10001 页:<code>OFFSET 200000</code></td><td>17.8 – 28.1 ms(<code>Index Scan … rows=200020</code>:先数过 20 万行再扔掉)</td></tr>
+    <tr><td>第 10001 页:keyset <code>(created_at, id) &gt; 书签</code></td><td>0.008 – 0.073 ms(<code>Index Cond: (ROW(created_at, id) &gt; …)</code>,只读 20 行;两种写法拿到的是同一页)</td></tr>
+  </table>
+  <p>offset 的代价随页码线性增长,这就是 Day 19 只对外开放 cursor 分页的证据之一(另一个是翻页途中有新增时会重复或漏项)。</p>
+
+  <h3>nest-lab 最后的索引(<code>sql/schema.sql</code>)</h3>
+  <table>
+    <tr><th>索引 / 设置</th><th>状态</th><th>服务哪些请求</th><th>理由</th></tr>
+    <tr><td><code>tasks_pkey (id)</code></td><td>已有</td><td><code>GET /tasks/:id</code>、默认排序、写操作、常见词的 <code>?q=</code></td><td>主键</td></tr>
+    <tr><td><code>checklist_items_pkey (task_id, position)</code></td><td>已有</td><td>读清单项、删任务时的级联删除</td><td>以外键列打头(Day 32)</td></tr>
+    <tr><td><code>(created_at, id)</code></td><td><b>新建</b></td><td><code>±createdAt</code> 第一页 / 深分页、<code>done=false</code>、常见词 + 按时间排</td><td>优化前总耗时第 2、4、5、6 名</td></tr>
+    <tr><td><code>(title COLLATE "C", id)</code></td><td><b>新建</b></td><td><code>±title</code>、前缀 LIKE</td><td>优化前总耗时第 3;27 MB,上线后第一个用 <code>idx_scan</code> 复核</td></tr>
+    <tr><td>trigram GIN <code>(title public.gin_trgm_ops)</code></td><td><b>新建</b></td><td>命中很少或没有结果的 <code>?q=</code></td><td>优化前总耗时第 1</td></tr>
+    <tr><td><code>title</code> 的 <code>SET STATISTICS 1000</code></td><td><b>新设</b></td><td><code>?q=</code> 的计划选择</td><td>默认抽样下估算差将近 1000 倍</td></tr>
+    <tr><td><code>(created_at DESC, id)</code></td><td>不建</td><td>—</td><td>按时间追加时 16 MB vs 9.2 MB;Incremental Sort 几乎免费</td></tr>
+    <tr><td><code>(title COLLATE "C" DESC, id)</code></td><td>不建</td><td>—</td><td>倒着读 + Incremental Sort</td></tr>
+    <tr><td><code>done</code> 的各种索引</td><td>不建</td><td>—</td><td>27% 未完成,扫几十行就够;改 <code>done</code> 最频繁</td></tr>
+    <tr><td>全文搜索 GIN、trigram GiST、<code>pg_bigm</code></td><td>不建</td><td>—</td><td>中文不分词;不需要相似度排序;未安装、未实测</td></tr>
+  </table>
+  <p>完整的证据、代价和遗留问题(包括已弃用的 <code>GET /v1/tasks</code> 一次返回全部任务,30 万行时光 SQL 就要 820 ms,单次)在 <code>nest-lab/docs/query-tuning.md</code>。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「盒子越少越好」——少不是目标,够用且代价可接受才是。</b>今天的负载是读多写少;如果系统主要是批量导入(写多读少),连这三个索引都可能太多,要在导入时先删索引、导完再建(Day 33:先插数据后建 GIN 快得多)。索引是取舍,不是越少越好,也不是越多越好(回扣 Day 32)。</li>
+      <li><b>「我建了索引,账房就会用」——优化器按估算选计划,可能不用你想让它用的那个。</b>今天的常见词就不走 GIN,而少见词 + 排序在调高统计目标后也不走 GIN。建了索引,要用 EXPLAIN 确认它在哪些查询里真的被用了,上线后再看 <code>pg_stat_user_indexes.idx_scan</code>。</li>
+      <li><b>「墙上那张纸写一次就行」——数据和请求会变。</b>未完成任务的比例、标题的写法、哪种排序最常用,都会随着产品变化。今天不建的 <code>done</code> 索引,明年可能就该建了;今天建的 <code>title</code> 索引,可能一直没人用。报告要和 pg_stat_statements 一起定期复看。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>index consolidation</b>(让少数索引服务多数查询);<b>Incremental Sort</b>;<b>B-tree page split</b>(rightmost split 的优化 vs 50/50 分裂)、<b>index bloat</b>、<b><code>REINDEX</code></b>;<b>write amplification</b>;<b>keyset / seek pagination vs OFFSET</b>;<b>sargable predicate</b>(冗余范围条件让 OR 变得能用索引);<b>transactional DDL</b>(在事务里 DROP INDEX 再 ROLLBACK)。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <table>
+    <tr><th></th><th>PostgreSQL</th><th>MySQL</th><th>SQL Server</th></tr>
+    <tr><td>按语句汇总的统计</td><td><code>pg_stat_statements</code></td><td>Performance Schema:<code>events_statements_summary_by_digest</code>(sys schema 里有更好读的视图)</td><td>DMV:<code>sys.dm_exec_query_stats</code>(只覆盖还在计划缓存里的)</td></tr>
+    <tr><td>长期保存、能看历史和计划变化</td><td>没有内置;靠定期快照 pg_stat_statements,或者监控工具</td><td>—</td><td><b>Query Store</b>(SQL Server 2016 起):按时间保存每条查询的统计和计划,还能强制使用某个计划</td></tr>
+    <tr><td>慢查询日志</td><td><code>log_min_duration_statement</code>、<code>auto_explain</code></td><td><b>slow query log</b>(<code>long_query_time</code>)</td><td>Extended Events</td></tr>
+    <tr><td>看执行计划</td><td><code>EXPLAIN (ANALYZE, BUFFERS)</code></td><td><code>EXPLAIN ANALYZE</code>(8.0.18 起)</td><td>实际执行计划(Actual Execution Plan)</td></tr>
+  </table>
+  <p><b>应用层</b>:Node 里可以用 OpenTelemetry 的 <code>pg</code> instrumentation,把每次查询记成一个数据库 span,带上 SQL 和耗时,和 HTTP 请求的 trace 连在一起。Datadog、New Relic 这类 APM 工具做的也是这件事。这样就能回答「这个慢请求里,哪条 SQL 慢、慢多少」,以及 pg_stat_statements 回答不了的「是网络、应用还是数据库」。这是 Week 19 的内容。.NET 的 EF Core 有日志和诊断事件,Java 有 Hibernate statistics 和 Micrometer,Go 常用 OpenTelemetry 包装 <code>database/sql</code>。</p>
+  <p>🔎 核实说明:本节的 MySQL Performance Schema / slow query log、SQL Server 的 Query Store / DMV / Extended Events、OpenTelemetry 和 APM 的细节,都是公认事实或我的记忆,<b>没有在本机实测</b>(本课程环境只有 PostgreSQL)。<code>pg_stat_statements</code> 的启用步骤、列名、规范化行为,以及「不是受信任的扩展、要超级用户」,都在本机实测过。</p>
+  <p>📌 Day 35 补「索引 / 执行计划」那一行时,可以加上:「慢查询统计:PG pg_stat_statements ↔ MySQL Performance Schema digest ↔ SQL Server Query Store」,内容自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"An API endpoint got slow in production. How do you find which SQL query is responsible, and how do you fix it?"</b>(或者:「线上接口变慢了,你怎么定位是哪条 SQL?怎么优化?」)你可以答:<br>
+    <b>"先确认慢在哪一层:看 APM 或 trace 里这个接口的耗时分解,是数据库 span 慢,还是应用、网络慢。如果是数据库,用 pg_stat_statements(MySQL 是 Performance Schema 的 digest 表,SQL Server 是 Query Store)按总耗时排序,找出调用次数乘平均耗时最大的语句,而不是只看最慢的那一次;同时注意它是规范化的,一行里可能混着很不一样的参数,要看最大值和标准差。然后拿一组真实的参数跑 EXPLAIN ANALYZE,看是全表扫描、排序溢出到磁盘、深分页扔掉大量行,还是估算行数和实际差得很远。改法按原因来:加或调整索引、改写条件让它能用索引(比如 keyset 分页给 OR 加一个冗余的范围条件)、用 keyset 代替 offset、更新或加大统计信息。改完用同样的负载和方法再测一遍,确认目标变快了、别的查询没有变慢,也评估写入代价和索引大小。最后把证据和决定写下来,上线后继续看统计。我在自己的项目里这样做过:三个索引加一处 SQL 修复,让吞吐从八九十个每秒提到六百多,中间还遇到过一次因为统计抽样导致的计划回退,是把列的统计目标调高解决的。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:跟着跑一遍(动手,约 10 min)</h3>
+    <ol>
+      <li>先把第 3、4、5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区。如果你的环境还没开 pg_stat_statements,按第 2 节开启(Docker 用 compose.yaml 里的写法,本机安装改 <code>postgresql.conf</code>)。</li>
+      <li>跑 <code>npm run day34</code>,对照讲义批改。你的数字会不同,看谁快谁慢、量级是否一致。特别留意 <code>?q=</code> 那几行:你的计划选择和我的一样吗?</li>
+      <li>✍️ <b>预测</b>:把 <code>schema.sql</code> 里的 <code>SET STATISTICS 1000</code> 那一行注释掉,<code>npm run db:seed:big</code>,再在 psql 里对 <code>?q=invoice</code> 的 SQL 连续 <code>ANALYZE tasks; EXPLAIN …</code> 几次,计划会变吗?(做完把那一行恢复。)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:找下一个瓶颈(动手 + 动笔,约 10 min)</h3>
+    <ol>
+      <li>在 <code>scripts/load-tasks.mjs</code> 里加一个场景:<code>?q=查无</code>(2 个字、没有结果)。✍️ <b>预测</b>:它的 p50 会是多少?跑 <code>npm run load</code>,再看 pg_stat_statements:你能从统计表里看出是它慢吗?为什么?</li>
+      <li>给 <code>?q=</code> 的短关键词写一个方案对比:接受全表扫描 / DTO 加最短长度 / 装 pg_bigm / 中文分词。每个写一句好处、一句代价。你需要什么数据才能决定?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:复核一个索引(思考,约 5 min)</h3>
+    <p><code>tasks_title_c_id_idx</code> 有 27 MB,是三个新索引里最大的。负载里 <code>sort=title</code> 只占约 1/20。写出你上线后打算怎么判断它值不值(提示:<code>pg_stat_user_indexes</code> 的 <code>idx_scan</code> 和 <code>last_idx_scan</code>、统计从什么时候开始算、PATCH 改标题的频率、Day 32 的 HOT)。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/34-query-tuning/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事说:「我们做前端性能优化时先跑 Lighthouse、看 Web Vitals,优化最影响用户的那个指标。后端怎么知道该先优化哪条 SQL?」用账房「每日工作量统计表」的比喻讲清楚 pg_stat_statements 和「按总耗时排序」,并说出这个比喻在哪里会骗人。</li>
+      <li>今天的优化循环里出现了一次回退:加了 GIN 之后常见词反而变慢。原因是什么?怎么发现的?怎么修的?修完又带来了什么新的代价?</li>
+      <li>为什么最后只建了三个索引,而不是 Day 31 清单里的全部?举两个「不建」的例子和理由。为什么 <code>created_at</code> 的索引是升序的?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:读一遍 <code>nest-lab/docs/query-tuning.md</code>,把你不同意或想补充的地方写进 <code>notes.md</code>;<code>npm run db:reset</code> 让 schema app 回到 3 条样品数据;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>先测量</b>:pg_stat_statements 要 <code>shared_preload_libraries</code> + 重启 + 超级用户 <code>CREATE EXTENSION</code>;按<b>总耗时</b>(次数 × 平均)排序找优化对象。它只统计数据库内部的时间,而且会把参数不同的同一种 SQL 合成一行。</li>
+    <li><b>逐条改、逐条复测</b>:<code>(created_at, id)</code> 让 <code>-createdAt</code> 第一页从 41–62 ms 到 0.06–0.46 ms;<code>keysetCondition</code> 补一个冗余范围条件,深分页从 28–38 ms 到 0.06–0.20 ms;trigram GIN 让很少或没有结果的搜索从 70–100 ms 到 1 ms 以内;负载下吞吐从 84–91 个/秒到 619–686 个/秒。</li>
+    <li><b>优化会回退</b>:加 GIN 后,常见词因为行数估算不稳(ANALYZE 抽样,估算差将近 1000 倍)选错了计划;把 <code>title</code> 的统计目标调到 1000 修好了,但「少见词 + 按时间排序」因此变慢。每改一处都要整套重测,并把权衡写下来。</li>
+    <li><b>少数索引服务多数查询</b>:最后只建了 3 个(写入因此慢 5–8 倍,多占 53 MB)。<code>done</code> 不建,因为按时间扫几十行就够;<code>created_at</code> 用升序,因为按时间追加时降序索引大 70%。offset 翻到第 10001 页要 18–28 ms,keyset 不到 0.1 ms。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>开启 pg_stat_statements 要哪几步?为什么改了参数必须重启?为什么普通用户建不了这个扩展?</li>
+    <li>为什么按 <code>total_exec_time</code> 排序,而不是按 <code>mean_exec_time</code> 或 <code>max_exec_time</code>?</li>
+    <li>pg_stat_statements 的「规范化」是什么?它让哪个问题在今天的数据里看不出来?</li>
+    <li>keyset 的冗余范围条件为什么不改变结果?它在计划里把哪一行从 <code>Filter</code> 变成了 <code>Index Cond</code>?</li>
+    <li><code>ILIKE '%invoice%'</code> 的计划为什么会在两次 ANALYZE 之间变化?<code>SET STATISTICS</code> 解决了什么、又带来了什么?</li>
+    <li>为什么 <code>(created_at DESC, id)</code> 在按时间追加的表上会比 <code>(created_at, id)</code> 大?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 35</b>:Week 5 复盘。把这一周的「卡片盒」从头串一遍:B-tree、执行计划、复合索引与覆盖索引、部分 / 表达式 / 外键索引、GIN 与 BRIN,再到今天的实战。做一套综合练习,补全 roadmap 顶部的跨语言对照表,并为 Week 6 的事务与并发(MVCC、隔离级别、锁)做准备。Week 5 好几次提到「VACUUM」「旧版本」「锁住整张表」,下周会讲清楚它们。</p>
+</section>
+
+<footer>
+  Day 34 · Phase 2 / Week 5 · 产出:<code>docs/34-query-tuning/</code> 本文档 + <code>nest-lab/</code>(<code>sql/schema.sql</code> 的索引与扩展、<code>keysetCondition</code> 修复与测试、<code>db:seed:big</code>、<code>load</code>、<code>sql/day34/</code>、<code>npm run day34</code>、<code>docs/query-tuning.md</code>)+ <code>src/34-query-tuning/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

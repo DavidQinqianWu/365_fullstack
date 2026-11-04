@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 30 - 读执行计划:账房先生的取货路线单,从最里面那一步往外读</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 5</div>
+  <h1>Day 30 - 读执行计划:账房先生的取货路线单,从最里面那一步往外读</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>计划树的读法 · 估算 vs 实际 · actual × loops · BUFFERS(shared hit / read)· Index Only / Bitmap(lossy)/ Gather · Sort 与 work_mem · LIMIT · Nested Loop / Hash / Merge Join · 统计信息与 ANALYZE · EXPLAIN ANALYZE 会真的执行</b> ·
+    项目:<code>nest-lab/</code> 新增 <code>sql/day30/</code>(schema <code>day30</code>)、<code>npm run day30</code>(应用代码今天不改)·
+    今天没有新依赖;所有输出来自 PostgreSQL 16.15 的真实运行,耗时类数字跑 3 遍、每遍 3 次,写区间
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:Day 29 没解释的那几个词</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:计划树与 BUFFERS —— 取货路线单从最里面往外读</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:JOIN 算法 —— 逐个去查、先做速查表、两本排好序并排翻</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:统计信息 —— 账房对每个柜子的印象,过期了就派错路线</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:Day 29 没解释的那几个词</h2>
+  <p>Day 29 只认识了 <code>Seq Scan</code> 和 <code>Index Scan</code>,还留下几个问号:<code>Bitmap Heap Scan</code> 是什么?<code>Gather</code> 和 <code>loops=3</code> 是什么?为什么有索引时「每组 3 次里第一次明显更慢」?为什么强行走索引只慢一点点,和 cost 显示的差距对不上?Day 25 说「JOIN 的逻辑结果和数据库实际怎么执行是两回事」,实际到底怎么执行?</p>
+  <p>今天学会<b>读一整张执行计划</b>:它是一棵树,每个节点有估算和实际两组数字;<code>BUFFERS</code> 告诉你碰了多少页、多少页已经在缓存里;JOIN 有三种做法;优化器的判断全靠统计信息,统计信息过期时会派出一条很差的路线。</p>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你在 Chrome DevTools 里看过 Performance 的火焰图和 Network 的瀑布图:一个页面加载慢,你不会从头到尾一行行看,而是<b>先找最宽的那一条</b>,看它是在等网络、在执行脚本还是在排版。读执行计划是同一个思路:一棵树里通常只有一两个节点占了绝大部分时间,找到它,再看它为什么慢(估错了行数?读了太多页?排序溢出到了磁盘?)。
+  </div>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    账房先生接到一张单子,会先写一张<b>取货路线单</b>:「第一步去 A 柜按卡片盒取出这 2 个会员;第二步对每个会员去 B 柜取他的订单;第三步把结果按金额排好;第四步只留前 3 条。」路线单是<b>一层套一层</b>的:最外层的「只留前 3 条」要等里面的「排好序」做完,「排序」又要等更里面的「取订单」。读的时候从最里面那一步往外读。路线单上还写着估计:「大概取 10 本」;办完以后旁边再写上实际:「其实取了 10 万本」。两个数对不上,就是问题所在。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+docker compose up -d     # 或本机的 PostgreSQL 已在运行(Day 22)
+npm run day30            # 造 100 万任务 + 1 万用户(本机约 3 秒)→ 读计划树 → BUFFERS → 扫描节点 → 排序 → 三种 JOIN → 统计过期
+
+psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab
+nest_lab=&gt; SET search_path = day30;</code></pre>
+  <p>今天的数据在独立的 schema <code>day30</code> 里,<b>不依赖 Day 29 的表</b>:<code>tasks</code> 和 Day 29 一模一样(100 万行,1 号用户占约 10%,90% 已完成),另加一张 <code>users</code>(1 万人,每 10 人里 1 个付费用户)用来做 JOIN。索引只有三个:<code>tasks_pkey</code>、<code>tasks_owner_id_idx</code>、<code>users_pkey</code>。为了让计划树好读,大部分实验先关掉了并行(<code>SET max_parallel_workers_per_gather = 0</code>),并行的样子在第 3 节单独看一次。</p>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用</th></tr>
+    <tr><td><code>sql/day30/01-setup.sql</code></td><td>新增</td><td>建 schema <code>day30</code>:100 万 <code>tasks</code> + 1 万 <code>users</code>,三个索引,<code>VACUUM ANALYZE</code></td></tr>
+    <tr><td><code>sql/day30/02-read-plan.sql</code></td><td>新增</td><td>读一棵完整的计划树(Limit → Sort → HashAggregate → Hash Join);并行时的 Gather 与 loops</td></tr>
+    <tr><td><code>sql/day30/03-buffers.sql</code></td><td>新增</td><td>刚复制出来的表:第一次 / 第二次查询的 shared hit vs read</td></tr>
+    <tr><td><code>sql/day30/04-node-types.sql</code></td><td>新增</td><td>Index Scan / Index Only Scan / Bitmap(精确 vs lossy)</td></tr>
+    <tr><td><code>sql/day30/05-sort-limit.sql</code></td><td>新增</td><td>排序溢出到磁盘 vs 全在内存;top-N heapsort;LIMIT 提前停止</td></tr>
+    <tr><td><code>sql/day30/06-joins.sql</code></td><td>新增</td><td>三种 JOIN 各自被选中的场景,以及关掉它时的替代计划</td></tr>
+    <tr><td><code>sql/day30/07a-stale-setup.sql</code>、<code>07b-stale-stats.sql</code></td><td>新增</td><td>关闭 autovacuum 制造统计过期 → ANALYZE 修复;<code>pg_stats</code>;两列相关与 <code>CREATE STATISTICS</code></td></tr>
+    <tr><td><code>sql/day30/08-analyze-executes.sql</code></td><td>新增</td><td><code>EXPLAIN ANALYZE DELETE</code> 真的删了(在事务里,回滚)</td></tr>
+    <tr><td><code>scripts/day30-try.mjs</code> + <code>package.json</code> 的 <code>day30</code></td><td>新增</td><td>观察脚本:关键对比各跑 3 次(<code>EXPLAIN (ANALYZE, TIMING OFF)</code> 的 Execution Time)</td></tr>
+    <tr><td><code>README.md</code></td><td>修改</td><td>命令、成长日志 Day 30</td></tr>
+  </table>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:计划树与 BUFFERS —— 取货路线单从最里面往外读</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    执行计划是一棵<b>节点树</b>:缩进最深的节点最先产出数据,一层层往上交,最上面的节点给出最终结果。每个节点有两组数字:<b>估算</b>(<code>cost</code>、<code>rows</code>、<code>width</code>)和<b>实际</b>(<code>actual time</code>、<code>rows</code>、<code>loops</code>)。读计划最重要的一眼,是<b>估算的 rows 和实际的 rows 差了多少</b>。<code>BUFFERS</code> 告诉你每个节点碰了多少个 8 KB 的页,其中多少已经在 PostgreSQL 的缓存里(<code>shared hit</code>)、多少要去读(<code>read</code>)。
+  </div>
+
+  <h3>② 生活类比:取货路线单</h3>
+  <p>路线单一层套一层,最里面的「先去哪个柜子」最先做。每一步旁边写着预计和实际:预计取几本、实际取了几本、这一步做了几趟(比如「对每个会员去 B 柜取一次」,会员有 2 个就是 2 趟)。还有一栏「这些账页是本来就摊在桌上的(hit),还是要去库房搬的(read)」。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>怎么读</th></tr>
+    <tr><td>路线单一层套一层</td><td>计划树:每个 <code>-&gt;</code> 是一个子节点</td><td><b>从缩进最深的往外读</b>;同一层的两个子节点,上面的通常是「外层」,下面的是「内层」</td></tr>
+    <tr><td>预计要花几个工分</td><td><code>cost=启动..总</code></td><td>不是毫秒;「启动」= 吐出第一行之前的代价(Sort 的启动代价很高,因为要先排完)</td></tr>
+    <tr><td>预计 / 实际取几本</td><td><code>rows=</code>(估算)/ <code>actual … rows=</code></td><td>两者差 10 倍以上就值得怀疑</td></tr>
+    <tr><td>这一步做了几趟</td><td><code>loops=</code></td><td><code>actual time</code> 和 <code>rows</code> 都是<b>每一趟的平均值</b>,总量要 × loops</td></tr>
+    <tr><td>桌上的 / 去库房搬的</td><td><code>Buffers: shared hit=… read=…</code></td><td>单位是页(8 KB);hit = 已在 <code>shared_buffers</code>,read = 从操作系统要(可能来自 OS 缓存,也可能真的读磁盘)</td></tr>
+    <tr><td>写路线单花的时间 / 跑完全程</td><td><code>Planning Time</code> / <code>Execution Time</code></td><td>最后两行;后者不含把结果传给客户端的时间</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:读一整棵树。</b>「未完成任务最多的 3 个用户」。✍️ <b>预测</b>:这棵树最里面是哪两个节点?Hash Join 估计会产出多少行?<code>LIMIT 3</code> 会让下面的排序变便宜吗?真实结果(<code>02-read-plan.sql</code>):</p>
+  <pre><code> Limit  (cost=19613.46..19613.47 rows=3 width=19) (actual time=99.376..99.383 rows=3 loops=1)
+   Buffers: shared hit=8409
+   -&gt;  Sort  (cost=19613.46..19638.46 rows=10000 width=19) (actual time=99.374..99.379 rows=3 loops=1)
+         Sort Key: (count(*)) DESC
+         Sort Method: top-N heapsort  Memory: 25kB
+         -&gt;  HashAggregate  (cost=19384.21..19484.21 rows=10000 width=19) (actual time=97.328..98.216 rows=9742 loops=1)
+               Group Key: u.name
+               Batches: 1  Memory Usage: 1169kB
+               -&gt;  Hash Join  (cost=297.00..18890.37 rows=98767 width=11) (actual time=2.501..76.091 rows=100325 loops=1)
+                     Hash Cond: (t.owner_id = u.id)
+                     -&gt;  Seq Scan on tasks t  (cost=0.00..18334.00 rows=98767 width=8) (actual time=0.021..54.562 rows=100325 loops=1)
+                           Filter: (NOT done)
+                           Rows Removed by Filter: 899675
+                           Buffers: shared hit=8334
+                     -&gt;  Hash  (cost=172.00..172.00 rows=10000 width=19) (actual time=2.397..2.398 rows=10000 loops=1)
+                           Buckets: 16384  Batches: 1  Memory Usage: 675kB
+                           -&gt;  Seq Scan on users u  (cost=0.00..172.00 rows=10000 width=19) (actual time=0.005..0.898 rows=10000 loops=1)
+                                 Buffers: shared hit=72
+ Planning:
+   Buffers: shared hit=154
+ Planning Time: 0.757 ms
+ Execution Time: 99.892 ms</code></pre>
+  <p>(每个节点的 <code>Buffers</code> 行为了排版删掉了几行,完整输出在脚本里。)从最里面往外读:</p>
+  <ol>
+    <li><b>两个 Seq Scan</b>:<code>users</code> 全表 1 万行(72 页),被做成一张哈希表(<code>Hash</code>,675 kB);<code>tasks</code> 全表扫描 8334 页,扔掉 89.9 万个已完成的,留下 10 万个未完成的。估算 98767,实际 100325,很准。</li>
+    <li><b>Hash Join</b>:每个未完成任务拿 <code>owner_id</code> 去哈希表里找用户名,产出 10 万行。<code>actual time=2.501..76.091</code>:第一行在 2.5 ms 时出来(要先建好哈希表),最后一行在 76 ms。</li>
+    <li><b>HashAggregate</b>:按用户名分组计数,得到 9742 组(估算 10000)。</li>
+    <li><b>Sort + Limit</b>:只要前 3 个,所以用的是 <code>top-N heapsort</code>,只占 25 kB,不用把 9742 组全排好。</li>
+  </ol>
+  <p>这棵树里最「宽」的一段是 <code>tasks</code> 的全表扫描(54.6 ms,占了一半多),它在为了 10% 的未完成任务读完整张表:这正是 Day 32 部分索引(<code>WHERE done = false</code>)要解决的问题。</p>
+
+  <p><b>并行的样子</b>(同一个文件,打开并行后):</p>
+  <pre><code> Finalize Aggregate  (…) (actual time=29.562..34.238 rows=1 loops=1)
+   -&gt;  Gather  (…) (actual time=29.356..34.228 rows=3 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         -&gt;  Partial Aggregate  (…) (actual time=26.135..26.137 rows=1 loops=3)
+               -&gt;  Parallel Seq Scan on tasks  (…) (actual time=0.267..24.417 rows=37037 loops=3)
+                     Filter: (title ~~ '任务 9%'::text)
+                     Rows Removed by Filter: 296296</code></pre>
+  <p><code>loops=3</code>:主进程加 2 个 worker,一共 3 个进程各扫三分之一(Day 22 的「每个连接一个后端进程」之外,一个查询还可以临时多开几个 worker 进程)。<code>rows=37037</code> 是<b>每个进程的平均值</b>,总共是 37037 × 3 = 111111 行;每个进程扔掉 29.6 万行,总共扔掉约 89 万行。<code>Gather</code> 把 3 个进程的部分结果收齐,<code>Finalize Aggregate</code> 再合成最终的 count。</p>
+
+  <p><b>⑤ 动手验证 B:BUFFERS,第一次 vs 第二次。</b><code>tasks_cold</code> 是刚用 <code>CREATE TABLE … AS</code> 复制出来的一份,索引也是刚建的,它们的页还没进 PostgreSQL 的共享缓存(本机 <code>shared_buffers = 128MB</code>)。✍️ <b>预测</b>:按 id 查一行,第一次和第二次的 hit / read 各是多少?全表扫描两次呢?真实结果(<code>03-buffers.sql</code>):</p>
+  <pre><code>-- 按 id 找一行:第一次
+ Index Scan using tasks_cold_id_idx on tasks_cold  (…) (actual time=0.057..0.058 rows=1 loops=1)
+   Buffers: shared hit=4 read=3
+ Execution Time: 0.158 ms
+-- 第二次
+   Buffers: shared hit=4
+ Execution Time: 0.036 ms
+
+-- 全表扫描 65 MB:第一次
+ Seq Scan on tasks_cold  (…) (actual time=0.026..79.423 rows=1000000 loops=1)
+   Buffers: shared hit=2144 read=6240
+ Execution Time: 129.294 ms
+-- 第二次
+   Buffers: shared hit=2176 read=6208
+ Execution Time: 124.834 ms</code></pre>
+  <ul>
+    <li><b>按 id 查</b>:第一次要从操作系统读 3 页,第二次全部命中缓存,只碰了 4 页(B-tree 三层 + 表里那一页),耗时从 0.158 ms 降到 0.036 ms。这就是 Day 29「每组 3 次里第一次明显更慢」的原因。</li>
+    <li><b>全表扫描</b>:第二次<b>还在 read</b>。这不是 bug:大表的顺序扫描用的是一个很小的「环形缓冲区」(只有几百 KB),扫过的页不会挤占共享缓存,免得一次报表查询把所有热数据都挤出去。所以大表的全表扫描每次都要向操作系统要页。</li>
+    <li><b>read 也很快</b>:本机的这些页其实都在<b>操作系统的页缓存</b>里,所谓 read 只是从内核内存拷一份过来,6000 多页才多花几十毫秒。在生产环境里,数据比内存大很多、或者放在网络盘上时,read 才意味着真的磁盘 I/O,差距会是数量级的。<code>BUFFERS</code> 看不出这两种 read 的区别,这是它的局限。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 C:扫描节点和排序。</b>(<code>04-node-types.sql</code> / <code>05-sort-limit.sql</code>)</p>
+  <pre><code>-- SELECT *:Index Scan,要回表
+ Index Scan using tasks_pkey on tasks  (…) (actual … rows=101 loops=1)
+   Buffers: shared hit=9
+-- SELECT id:Index Only Scan,只读索引
+ Index Only Scan using tasks_pkey on tasks  (…) (actual … rows=101 loops=1)
+   Heap Fetches: 0
+   Buffers: shared hit=5
+
+-- Bitmap(work_mem 默认 4MB):精确记下每一页里的哪几行
+ Bitmap Heap Scan on tasks  (…) (actual time=3.878..24.484 rows=41366 loops=1)
+   Recheck Cond: ((owner_id &gt;= 2) AND (owner_id &lt;= 4))
+   Heap Blocks: exact=8285
+ Execution Time: 27.181 ms
+-- Bitmap(work_mem = 64kB):记不下,只记页号(lossy),到页里再逐行复查
+   Rows Removed by Index Recheck: 887677
+   Heap Blocks: exact=557 lossy=7728
+ Execution Time: 75.714 ms
+
+-- 排序 100 万行:work_mem 4MB / 256MB
+   Sort Method: external merge  Disk: 48968kB
+   Sort Method: quicksort  Memory: 87077kB
+-- 只要前 10 个
+   Sort Method: top-N heapsort  Memory: 26kB      Execution Time: 146.785 ms
+-- 按主键倒序取前 10 个:读到第 10 行就停
+ Limit  (cost=0.42..0.77 …) (actual time=0.103..0.106 rows=10 loops=1)
+   -&gt;  Index Scan Backward using tasks_pkey …        Execution Time: 0.126 ms</code></pre>
+  <ul>
+    <li><b>Index Only Scan</b>:要的列(<code>id</code>)索引里就有,连表都不用回,碰的页从 9 降到 5。<code>Heap Fetches: 0</code> 能成立,是因为 <code>01-setup.sql</code> 做了 <code>VACUUM</code>(建好了 visibility map)。为什么需要它、什么时候 Heap Fetches 会很多,Day 31 讲。</li>
+    <li><b>Bitmap</b> 介于 Index Scan 和 Seq Scan 之间:先在索引里把<b>要去的页</b>都标出来(位图),再按页号<b>顺序</b>去表里读,每页只读一次。4 万行分散在 8285 页里时,这比 Index Scan 一行一行跳着读省事。<code>Recheck Cond</code> 是「到了页里再核对一次条件」:位图在 <code>work_mem</code> 装不下时会变成 <b>lossy</b>(只记页号、不记是哪几行),于是那 7728 页里的每一行都要复查,扔掉了 88.8 万行,耗时从 27 ms 变成 76 ms。</li>
+    <li><b>Sort</b>:<code>work_mem</code>(默认 4MB)是<b>每个排序 / 哈希操作</b>能用的内存,装不下就写临时文件分段排序再合并(<code>external merge Disk: 48968kB</code>)。</li>
+    <li><b>LIMIT</b>:没有合适索引时,<code>ORDER BY … LIMIT 10</code> 仍要扫完 100 万行,但只维护「当前最小的 10 个」(top-N heapsort,26 kB);有一个顺序对得上的索引时,读到第 10 行就停(总 cost 只有 0.77)。这正是 keyset 分页要的东西。</li>
+  </ul>
+  <p><b>一个反直觉的实测</b>:排序 100 万行,脚本跑了 3 遍、每遍 3 次,<code>work_mem = 4MB</code>(溢出到磁盘)<b>350–851 ms</b>,<code>256MB</code>(全在内存 quicksort)<b>652–784 ms</b>,溢出版多数时候反而更快。原因有两个:临时文件写进了操作系统的页缓存,并没有真的写盘;分段排序时每段只有几 MB,能放进 CPU 缓存,而对 87 MB 的数据做 quicksort 会频繁地缓存未命中。结论不是「溢出更好」,而是<b>调大 work_mem 不是万能的,要实测</b>;而且 work_mem 是「每个排序 / 哈希操作」的额度,一个查询可能有好几个这样的操作,几百个连接同时用就是几百倍,所以不能随手全局调大。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「路线单上的工分就是要花的分钟数」——cost 和毫秒不是一回事。</b>今天就有反例:不许 Hash Join 时,优化器换成的 Merge Join 估算代价 36366,比 Hash Join 的 26257 高,但实际<b>更快</b>(下一张卡的表格:126–170 ms 对 180–294 ms)。代价模型按「数据可能要从磁盘读」来估,本机数据都在内存里,估算就会偏。读计划时,cost 用来理解优化器<b>为什么这么选</b>,快慢要看 actual。</li>
+      <li><b>「每一步写的时间就是这一步花的时间」——actual time 是每趟的平均值,而且包含子节点。</b><code>loops=3</code> 时要乘 3;嵌套循环里 <code>loops=500001</code> 的内层节点,0.001 ms × 50 万次就是 500 ms(第 3 张卡)。一个节点的 actual time 包含了它下面所有子节点的时间,算「这一步自己花了多久」要减去子节点。</li>
+      <li><b>「量体温的时候不影响体温」——EXPLAIN ANALYZE 本身有开销。</b>它要给每个节点、每一行计时。同一条「不许 Nested Loop」的查询,带计时的 <code>EXPLAIN ANALYZE</code> 报告 166 ms,用 <code>TIMING OFF</code> 跑只有 55–88 ms。所以脚本里比较耗时用的都是 <code>EXPLAIN (ANALYZE, TIMING OFF)</code>,看计划结构时才打开计时。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>plan tree / plan node</b>;<b>startup cost / total cost</b>;<b>estimated rows vs actual rows</b>;<b>loops</b>;<b><code>EXPLAIN (ANALYZE, BUFFERS)</code></b>;<b>shared hit / shared read</b>(还有 <code>dirtied</code>、<code>written</code>、<code>temp read/written</code>);<b><code>shared_buffers</code></b> 与 OS page cache;<b>buffer ring</b>(大表顺序扫描不污染缓存);<b>Index Only Scan</b> / <b>Heap Fetches</b>;<b>Bitmap Index Scan / Bitmap Heap Scan</b>、<b>Recheck Cond</b>、<b>exact / lossy</b>;<b>Gather / parallel workers</b>;<b>Sort Method</b>(quicksort / top-N heapsort / external merge);<b><code>work_mem</code></b>。
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:JOIN 算法 —— 逐个去查、先做速查表、两本排好序并排翻</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    Day 25 学的 JOIN 是「结果长什么样」,数据库实际有三种做法:<b>Nested Loop</b>(外层每一行,都去内层找一遍配对;内层有索引时很快,适合外层很小)、<b>Hash Join</b>(先把较小的一边做成哈希表,再扫一遍另一边逐行查表;适合大表的等值连接)、<b>Merge Join</b>(两边都按连接键排好序,并排往下走;适合两边本来就有序,比如都有索引、或者结果本来就要按这个键排序)。优化器按估算的行数和代价挑一种。
+  </div>
+
+  <h3>② 生活类比:三种对账方式</h3>
+  <ul>
+    <li><b>Nested Loop</b>:手里拿着一张 2 个人的名单,对每个人去卡片盒里查他的订单。名单短、卡片盒好查时最快;名单有 1 万人时就要查 1 万次。</li>
+    <li><b>Hash Join</b>:先把 1 万个会员抄成一张<b>速查表</b>(按会员号能一眼找到),然后把 100 万张订单从头翻一遍,每张订单在速查表里查一下是谁的。速查表太大、桌子放不下时,就把订单和会员按会员号尾数分成几堆,一堆一堆地对(分批)。</li>
+    <li><b>Merge Join</b>:会员名册和订单本<b>都已经按会员号排好了</b>,左右手各拿一本,从头并排往下翻,号码对上就配一对。</li>
+  </ul>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>JOIN 算法</th><th>适合</th><th>计划里的线索</th></tr>
+    <tr><td>拿着名单逐个去查</td><td><b>Nested Loop</b></td><td>外层行很少,内层有索引</td><td>内层节点 <code>loops=</code> 外层行数</td></tr>
+    <tr><td>先做速查表再扫大账本</td><td><b>Hash Join</b></td><td>大表等值连接,没有有用的顺序</td><td><code>Hash</code> 子节点的 <code>Buckets / Batches / Memory Usage</code></td></tr>
+    <tr><td>两本都排好序并排翻</td><td><b>Merge Join</b></td><td>两边能按连接键有序地读出来;结果本来就要按这个键排序</td><td><code>Merge Cond</code>,两边通常是 Index Scan 或 Sort</td></tr>
+    <tr><td>桌子放不下速查表,分堆对</td><td>Hash 的多批(Batches &gt; 1)</td><td><code>work_mem</code> 不够时</td><td><code>Batches: 8</code></td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证:让优化器分别选出三种。</b>✍️ <b>预测</b>:「2 个用户的任务」「全部任务按套餐统计」「用户和任务按用户 id 排序取前 100」各会选哪种 JOIN?真实结果(<code>06-joins.sql</code>;<code>enable_nestloop / enable_hashjoin / enable_mergejoin = off</code> 只用于学习对照,生产里不要动):</p>
+  <pre><code>-- ① 2 个用户的任务 → Nested Loop
+ Nested Loop  (cost=5.66..909.36 rows=200 width=24) (actual time=0.119..0.857 rows=85 loops=1)
+   -&gt;  Index Scan using users_pkey on users u  (… rows=2 …) (actual … rows=2 loops=1)
+   -&gt;  Bitmap Heap Scan on tasks t  (… rows=122 …) (actual … rows=42 loops=2)
+         Recheck Cond: (u.id = owner_id)
+         -&gt;  Bitmap Index Scan on tasks_owner_id_idx  (…) (actual … rows=42 loops=2)
+-- 不许 Nested Loop → Hash Join,扫了整张 tasks
+ Hash Join  (cost=12.63..20972.74 rows=200 width=24) (actual time=2.846..166.268 rows=85 loops=1)
+   -&gt;  Seq Scan on tasks t  (… rows=1000000 …)
+
+-- ② 全部任务按套餐统计 → Hash Join
+   -&gt;  Hash Join  (cost=297.00..21257.11 rows=1000000 width=4) (actual time=3.228..218.582 rows=1000000 loops=1)
+         -&gt;  Seq Scan on tasks t
+         -&gt;  Hash  (…)
+               Buckets: 16384  Batches: 1  Memory Usage: 597kB
+-- work_mem = 64kB:分 8 批
+               Buckets: 4096  Batches: 8  Memory Usage: 92kB
+-- 不许 Hash Join → Merge Join(估算代价更高)
+ HashAggregate  (cost=36366.64..36366.66 …)
+   -&gt;  Merge Join  (cost=0.71..31366.64 rows=1000000 width=4) (actual time=0.016..165.342 rows=1000000 loops=1)
+         Merge Cond: (t.owner_id = u.id)
+         -&gt;  Index Only Scan using tasks_owner_id_idx on tasks t  (…)
+         -&gt;  Index Scan using users_pkey on users u  (…)
+
+-- ③ 按用户 id 排序取前 100 → Merge Join(两边的索引本来就有序,LIMIT 让它很早停下)
+ Limit  (cost=0.71..7.18 rows=100 width=27) (actual time=0.018..0.072 rows=100 loops=1)
+   -&gt;  Merge Join  (cost=0.71..64699.13 rows=1000000 width=27) (actual time=0.016..0.065 rows=100 loops=1)
+         Merge Cond: (u.id = t.owner_id)
+         -&gt;  Index Scan using users_pkey on users u
+         -&gt;  Index Scan using tasks_owner_id_idx on tasks t
+ Execution Time: 0.131 ms</code></pre>
+  <p>(只保留了关键行。)各跑 3 次、脚本跑 3 遍的实际耗时(<code>TIMING OFF</code>):</p>
+  <table>
+    <tr><th>查询</th><th>优化器选的</th><th>关掉它之后</th></tr>
+    <tr><td>① 2 个用户的任务</td><td>Nested Loop:<b>0.054 – 0.964 ms</b></td><td>Hash Join:<b>55 – 88 ms</b></td></tr>
+    <tr><td>② 全部任务按套餐统计</td><td>Hash Join(1 批):<b>180 – 294 ms</b>;work_mem 64kB(8 批):<b>269 – 338 ms</b></td><td>Merge Join:<b>126 – 170 ms</b></td></tr>
+    <tr><td>③ 按用户 id 排序取前 100</td><td>Merge Join:约 0.13 ms</td><td>Nested Loop:约 0.07 ms(都只读了很少几页)</td></tr>
+  </table>
+  <ul>
+    <li><b>① 选对了,差 100 倍</b>:只有 2 个用户时,去索引里查两次就够;不许嵌套循环后,只能把 100 万行都扫一遍再配对。内层节点 <code>loops=2</code>、<code>rows=42</code>,意思是查了 2 次、平均每次 42 行,共 85 行。</li>
+    <li><b>② 选了「看起来更便宜」的 Hash Join,实际 Merge Join 更快</b>。在本机,两边的索引页都在内存里,按顺序读完一个 100 万条的索引非常快;代价模型却按「随机读索引页要从磁盘读」估了更高的代价。这是上一张卡边界 1 的实例:<b>优化器按模型选,模型和你的硬件不一定一致</b>。生产里不会去关 Hash Join,而是先确认数据和内存的真实情况(调 <code>random_page_cost</code>、<code>effective_cache_size</code> 这类参数是 DBA 的工作,Week 9 再提)。分 8 批时慢了约 30%:多了一轮写临时文件再读回来。</li>
+    <li><b>③ Merge Join 配 LIMIT</b>:两边都有现成的顺序,而且结果本来就要按 <code>u.id</code> 排序,并排往下走,拿到 100 行就停,整张 <code>tasks</code> 一行都不用多读。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「哪种对账方式最好,记住就行」——没有固定最好的算法,只有在这份数据上最合适的。</b>同样是「用户 JOIN 任务」,换个 <code>WHERE</code> 条件(2 个用户 vs 全部用户)、加个 <code>ORDER BY … LIMIT</code>,优化器就换了算法,而且换得对。所以背「什么时候用 Hash Join」不如学会读计划里的 rows 和 loops。</li>
+      <li><b>「关掉某种方式,就能逼它走对的路」——<code>enable_*</code> 开关只是学习工具。</b>它不是「禁止」,而是给那种算法加一个巨大的惩罚代价(实在没别的路时还会用)。在生产里用它「修」慢查询,等于给所有查询都换了规则;数据一变,昨天对的今天就错。真正的修法是让优化器有正确的信息(统计信息、索引、合适的参数),下一张卡就是一个例子。</li>
+      <li><b>「速查表多大都放得下」——Hash Join 和排序一样受 <code>work_mem</code> 限制。</b>估错行数时,优化器可能以为速查表只有几十行,实际几百万行,就会分很多批、甚至写大量临时文件。看到 <code>Batches</code> 远大于 1、或者 <code>temp read/written</code> 很大,就要怀疑估算或内存。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>Nested Loop Join</b>(outer / inner,<b>parameterized index scan</b>:内层用外层的值作为索引条件);<b>Hash Join</b>(build side / probe side、<b>buckets</b>、<b>batches</b>、spill to disk);<b>Merge Join</b>(sort-merge join,<code>Merge Cond</code>);<b>join order</b>;<b>planner method configuration</b>(<code>enable_hashjoin</code> 等,仅用于调试);<b><code>random_page_cost</code> / <code>effective_cache_size</code></b>。
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:统计信息 —— 账房对每个柜子的印象,过期了就派错路线</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    优化器不会在每次查询前去数表里有多少行,它靠一份<b>统计信息</b>:这张表大概有多少行多少页、每一列有多少种不同的值、最常见的几个值各占多少、其余的值大致怎么分布(直方图)。这份信息由 <b><code>ANALYZE</code></b> 抽样收集(平时由后台的 autovacuum 自动做)。数据变了很多而统计没更新时,优化器会把「50 万行」估成「1 行」,于是选出一条只适合 1 行的路线。
+  </div>
+
+  <h3>② 生活类比:账房对柜子的印象</h3>
+  <p>账房先生不会每接一张单子都去数一遍柜子,他心里有个印象:「B 柜大概 1000 本,42 号会员只有 1 本。」所以接到「把 42 号的都拿来」时,他写的路线是「去卡片盒查一下就行,拿回来再排个序」。可是昨晚有人一次性往 B 柜塞了 50 万本 42 号的账,他不知道,于是照着「1 本」的路线去执行:一张张查卡片、拿回来再排序,累得半死。等他重新清点一遍(ANALYZE),印象更新了,就改成「直接把 B 柜从头搬一遍」。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>在哪看</th></tr>
+    <tr><td>「这个柜子大概几本、几层」</td><td><code>pg_class.reltuples</code> / <code>relpages</code></td><td>上次 ANALYZE / VACUUM 时的值</td></tr>
+    <tr><td>「这一栏有几种不同的值」</td><td><code>n_distinct</code></td><td><code>pg_stats</code></td></tr>
+    <tr><td>「最常见的几个值各占多少」</td><td><code>most_common_vals</code> / <code>most_common_freqs</code>(MCV)</td><td><code>pg_stats</code></td></tr>
+    <tr><td>「其余的值大致怎么分布」</td><td><code>histogram_bounds</code>(等频直方图)</td><td><code>pg_stats</code></td></tr>
+    <tr><td>重新清点一遍</td><td><code>ANALYZE</code>(抽样,不是全数)</td><td>手动,或 autovacuum 自动</td></tr>
+    <tr><td>「城市和国家是绑在一起的」</td><td>扩展统计 <code>CREATE STATISTICS … (dependencies)</code></td><td><code>pg_stats_ext</code></td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:制造一次统计过期。</b><code>07a-stale-setup.sql</code>:<code>imports</code> 表关掉 autovacuum,先放 1000 行(<code>owner_id</code> 1–1000 各一行)并 <code>ANALYZE</code>,然后一次性导入 50 万行、全部属于 42 号用户。✍️ <b>预测</b>:「42 号用户的导入记录,按套餐统计」,优化器估计有几行?会选什么计划?<code>ANALYZE</code> 之后呢?真实结果(<code>07b-stale-stats.sql</code>):</p>
+  <pre><code> 以为有几行 | 以为有几页
+------------+------------
+       1000 |          7
+ 实际有几行
+------------
+     501000
+
+-- 统计过期时
+ GroupAggregate  (cost=16.77..16.79 rows=1 width=12) (actual time=614.805..614.809 rows=1 loops=1)
+   Group Key: u.plan
+   -&gt;  Sort  (cost=16.77..16.77 rows=1 width=4) (actual time=546.532..583.113 rows=500001 loops=1)
+         Sort Key: u.plan
+         Sort Method: external merge  Disk: 4416kB
+         -&gt;  Nested Loop  (cost=0.71..16.76 rows=1 width=4) (actual time=0.067..495.815 rows=500001 loops=1)
+               -&gt;  Index Only Scan using imports_owner_id_idx on imports i  (cost=0.42..8.44 rows=1 width=8) (actual time=0.048..77.795 rows=500001 loops=1)
+                     Index Cond: (owner_id = 42)
+                     Heap Fetches: 500001
+               -&gt;  Index Scan using users_pkey on users u  (cost=0.29..8.30 rows=1 width=12) (actual time=0.001..0.001 rows=1 loops=500001)
+                     Index Cond: (id = 42)
+ Execution Time: 615.402 ms
+
+ANALYZE
+ 以为有几行
+------------
+     501000
+ 最常见的值 |   占比
+------------+----------
+ {42}       | {0.9978}
+
+-- ANALYZE 之后
+ HashAggregate  (cost=17452.27..17452.28 rows=1 width=12) (actual time=127.396..127.399 rows=1 loops=1)
+   Batches: 1  Memory Usage: 24kB
+   -&gt;  Nested Loop  (cost=0.29..14952.78 rows=499898 width=4) (actual time=0.018..78.222 rows=500001 loops=1)
+         -&gt;  Index Scan using users_pkey on users u  (… rows=1 …) (actual … rows=1 loops=1)
+         -&gt;  Seq Scan on imports i  (cost=0.00..9945.50 rows=499898 width=8) (actual time=0.007..41.515 rows=500001 loops=1)
+               Filter: (owner_id = 42)
+ Execution Time: 127.437 ms</code></pre>
+  <p>读这两棵树:</p>
+  <ul>
+    <li><b>估算 1 行,实际 500001 行</b>,差了 50 万倍。基于「只有 1 行」,优化器做了三个在 1 行时完全合理、在 50 万行时都很糟的决定:<b>嵌套循环把 users 放在内层</b>(<code>loops=500001</code>:同一个 42 号用户被查了 50 万次,每次 0.001 ms,合起来就是几百毫秒);<b>先排序再分组</b>(GroupAggregate,排 50 万行还溢出到了磁盘);<b>走索引</b>去取 50 万行(还要回表 50 万次:<code>Heap Fetches: 500001</code>,因为新数据还没 VACUUM,visibility map 不知道这些页可见)。</li>
+    <li><b>ANALYZE 之后</b>,统计里 42 号占 99.78%,估算 499898 行,和实际几乎一样。优化器换成:users 在外层只查一次,imports 直接全表扫描,HashAggregate 不用排序。</li>
+    <li>各跑 3 次、脚本跑 3 遍:统计过期时 <b>458 – 560 ms</b>,<code>ANALYZE</code> 之后 <b>69 – 88 ms</b>,快了 6–7 倍。<b>什么都没改,只是让优化器知道了真相。</b></li>
+  </ul>
+  <p>平时这件事由后台的 <b>autovacuum</b> 自动做:表里改动的行数超过一定比例,它就会对这张表 <code>ANALYZE</code>(它的另一半工作 VACUUM 是 Week 6 MVCC 的内容)。今天特意关掉了它。真实系统里最容易踩坑的时刻是<b>刚做完大批量导入、马上就查</b>:autovacuum 还没来得及跑。批量导入脚本的最后一步通常就是一句 <code>ANALYZE 表名;</code>。</p>
+
+  <p><b>⑤ 动手验证 B:统计信息里有什么,以及它的盲区。</b></p>
+  <pre><code>    列    | n_distinct | 最常见的前5个值 |                   它们的占比                   | 一共记了几个常见值 | 直方图边界数
+----------+------------+-----------------+------------------------------------------------+--------------------+--------------
+ done     |          2 | {t,f}           | {0.8998333,0.10016666}                         |                  2 |
+ owner_id |       8155 | {1,2,3,4,5}     | {0.097433336,0.0172,0.0119,0.0092,0.008766667} |                100 |          101
+
+-- 城市决定国家(两列强相关),各 100 种,条件是 city = 'city-7' AND country = 'country-7'
+ Seq Scan on cities  (cost=0.00..2137.00 rows=10 width=17) (actual … rows=1000 loops=1)
+-- CREATE STATISTICS cities_dep (dependencies) ON city, country; ANALYZE 之后
+ Seq Scan on cities  (cost=0.00..2137.00 rows=1067 width=17) (actual … rows=1000 loops=1)</code></pre>
+  <ul>
+    <li><code>owner_id</code> 实际有 9999 种值,统计说 8155:<code>ANALYZE</code> 只抽样(默认 3 万行),不同值的个数是推算出来的。最常见的 100 个值单独记了占比(1 号约 9.7%),其余的值用 101 个边界的直方图大致描述。</li>
+    <li><b>两列相关时</b>:优化器默认认为各列<b>互相独立</b>,把两个条件的比例相乘:1/100 × 1/100 × 10 万 = 10 行,实际 1000 行,少估了 100 倍。<code>CREATE STATISTICS … (dependencies)</code> 告诉它「知道城市就知道国家」,估算变成 1067。今天只点到为止:nest-lab 里常见的例子是「租户 + 用户」「状态 + 完成时间」这类成对出现的列。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 C:EXPLAIN ANALYZE 会真的执行。</b>(<code>08-analyze-executes.sql</code>)</p>
+  <pre><code> 删除之前
+----------
+       50
+BEGIN
+ Delete on tasks  (cost=5.08..316.83 rows=0 width=0) (actual time=0.917..0.919 rows=0 loops=1)
+   -&gt;  Bitmap Heap Scan on tasks  (…) (actual time=0.057..0.446 rows=50 loops=1)
+ Execution Time: 4.837 ms
+ 事务里再数一次
+----------------
+              0
+ROLLBACK
+ 回滚之后
+----------
+       50</code></pre>
+  <p>「看一下这条 DELETE 的计划」时加了 ANALYZE,50 行就真的被删了。<b>对 INSERT / UPDATE / DELETE 做 <code>EXPLAIN ANALYZE</code>,一定先 <code>BEGIN</code>,看完 <code>ROLLBACK</code></b>(Day 22 的保命习惯);只想看计划就别加 ANALYZE。</p>
+
+  <h3>读计划的顺序清单</h3>
+  <ol>
+    <li>先看最后两行:<code>Execution Time</code> 有多少?值得优化吗?</li>
+    <li>找到最「宽」的节点:actual time(× loops)最大的那个,减去它的子节点。</li>
+    <li>在那个节点上比较<b>估算 rows 和实际 rows</b>:差 10 倍以上,先怀疑统计信息(<code>ANALYZE</code> 一下再看)。</li>
+    <li>看 <code>loops</code>:内层节点循环了几万次以上?是不是嵌套循环选错了?</li>
+    <li>看 <code>Buffers</code>:读了多少页?是不是为了很少的结果读了整张表(该有索引)?</li>
+    <li>看 <code>Rows Removed by Filter</code> / <code>by Index Recheck</code>:扔掉的远多于留下的?</li>
+    <li>看内存:<code>Sort Method: external merge</code>、<code>Batches &gt; 1</code>、<code>lossy</code>?</li>
+  </ol>
+  <p>计划很长时,可以把文本粘到 <b>explain.dalibo.com</b> 或 <b>explain.depesz.com</b> 这类网站上看图形化的结果(它们会标出最耗时的节点);但不要依赖它们,上面的清单才是你自己的能力。⚠️ 生产环境的查询计划里可能有敏感的表名和常量,粘到公网之前想清楚。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「重新清点一遍就是全数一遍」——ANALYZE 是抽样。</b>它很快(百万行也只读几万行),代价是统计本身就是近似的:<code>n_distinct</code> 估成 8155 而不是 9999,很少出现的值可能根本没被抽到。对分布特别不均匀的列,可以用 <code>ALTER TABLE … ALTER COLUMN … SET STATISTICS</code> 让它多抽一些。</li>
+      <li><b>「印象准了,路线就一定对」——统计准确也不等于计划最优。</b>代价模型本身还有假设(随机读比顺序读贵 4 倍、各列独立……),第 2 张卡的 Merge Join 就是统计很准、模型和硬件不符的例子。统计信息是优化器最重要的输入,不是唯一的。</li>
+      <li><b>「账房会自己定期清点」——autovacuum 有触发阈值,会滞后。</b>默认要等改动的行数超过表的约 10%(加一个常数)才会自动 ANALYZE。对一张 1 亿行的表,1000 万行变化之前它都不动;刚导入完的一小段时间里统计也是旧的。大批量写入之后手动 <code>ANALYZE</code>,是很便宜的保险。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>planner statistics</b>;<b><code>pg_stats</code></b>(<code>null_frac</code>、<code>n_distinct</code>、<b>MCV</b> list、<b>histogram_bounds</b>、<code>correlation</code>);<b><code>pg_class.reltuples / relpages</code></b>;<b><code>ANALYZE</code></b>(sampling,<code>default_statistics_target</code> = 100);<b>autovacuum / auto-analyze</b>(<code>autovacuum_analyze_scale_factor</code>,Week 6);<b>cardinality misestimation</b>;<b>extended statistics</b>(<code>CREATE STATISTICS</code>:dependencies / ndistinct / mcv);<b>independence assumption</b>。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p>不管用什么 ORM,分析慢查询的第一步都一样:<b>拿到它真正发给数据库的 SQL</b>,再去 <code>EXPLAIN</code>。</p>
+  <table>
+    <tr><th>工具</th><th>怎么拿到生成的 SQL</th></tr>
+    <tr><td>Prisma(Node / TS)</td><td><code>new PrismaClient({ log: ['query'] })</code>,或监听 <code>$on('query', e =&gt; e.query / e.params)</code></td></tr>
+    <tr><td><code>pg</code>(nest-lab)</td><td>SQL 就在 <code>PgTasksRepository</code> 里;参数是 <code>$1</code> 时,<code>EXPLAIN</code> 要把参数值代进去(或用 <code>PREPARE</code> + <code>EXPLAIN EXECUTE</code>)</td></tr>
+    <tr><td>EF Core(C#)</td><td><code>query.ToQueryString()</code> 直接得到 SQL;或 <code>optionsBuilder.LogTo(Console.WriteLine)</code> 打印所有命令</td></tr>
+    <tr><td>Hibernate / JPA(Java)</td><td><code>spring.jpa.show-sql=true</code> + <code>hibernate.format_sql=true</code>;参数值要再开日志级别(如 <code>org.hibernate.orm.jdbc.bind</code>)</td></tr>
+    <tr><td>Go(sqlx / sqlc / pgx)</td><td>SQL 是自己写的;pgx 可以挂 tracer 打印每条查询</td></tr>
+  </table>
+  <p><b>其他数据库里的「看执行计划」</b>:</p>
+  <table>
+    <tr><th></th><th>PostgreSQL(今天)</th><th>MySQL 8</th><th>SQL Server</th></tr>
+    <tr><td>只看计划</td><td><code>EXPLAIN</code></td><td><code>EXPLAIN</code>(表格:<code>type</code>、<code>key</code>、<code>rows</code>、<code>Extra</code> 列),<code>EXPLAIN FORMAT=TREE</code>(8.0.16+)</td><td>SSMS「显示估计的执行计划」/ <code>SET SHOWPLAN_XML ON</code></td></tr>
+    <tr><td>真的执行并给实际值</td><td><code>EXPLAIN ANALYZE</code></td><td><code>EXPLAIN ANALYZE</code>(8.0.18+,树形输出,同样会真的执行)</td><td>「包括实际的执行计划」</td></tr>
+    <tr><td>读了多少页</td><td><code>BUFFERS</code></td><td>没有直接对应(看 <code>performance_schema</code> / 状态变量)</td><td><code>SET STATISTICS IO ON</code>(logical / physical reads)、<code>SET STATISTICS TIME ON</code></td></tr>
+    <tr><td>更新统计信息</td><td><code>ANALYZE</code></td><td><code>ANALYZE TABLE</code></td><td><code>UPDATE STATISTICS</code></td></tr>
+  </table>
+  <p>三种 JOIN 算法是通用的:SQL Server 的计划里也叫 Nested Loops / Hash Match / Merge Join;MySQL 很长时间只有嵌套循环(及其块状变体),8.0.18 起才加入了 Hash Join。🔎 核实说明:本节 MySQL / SQL Server 的命令、版本号、MySQL 加入 Hash Join 的版本,以及 Hibernate 参数日志的类别名,是公认事实或我的记忆,<b>没有在本机实测</b>(本课程环境只有 PostgreSQL),Hibernate 的日志类别名在不同大版本间变过,用的时候以你的版本文档为准。</p>
+  <p>📌 Day 29 建议你在 Day 35 补一行「索引 / 执行计划」;今天的内容可以一起写进去(<code>EXPLAIN (ANALYZE, BUFFERS)</code> ↔ MySQL <code>EXPLAIN ANALYZE</code> ↔ SQL Server 实际执行计划 + <code>STATISTICS IO</code>;<code>ANALYZE</code> ↔ <code>ANALYZE TABLE</code> ↔ <code>UPDATE STATISTICS</code>),内容自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"How do you analyze a slow SQL query? When is a hash join better than a nested loop? What happens when statistics are stale?"</b>(或者:「你怎么分析一条慢 SQL?Hash Join 和 Nested Loop 各适合什么场景?统计信息过期会怎样?」)你可以答:<br>
+    <b>"先拿到真实执行的 SQL 和参数,用 EXPLAIN ANALYZE 加 BUFFERS 跑一遍,如果是写操作就包在事务里回滚。读计划时先看总耗时,再找最耗时的节点,注意 actual time 和 rows 是每次 loop 的平均值,要乘以 loops;然后比较估算行数和实际行数,差一个数量级以上通常是统计信息的问题;再看读了多少页、过滤掉了多少行、排序或哈希有没有溢出到磁盘。Nested Loop 适合外层结果很少、内层有索引的情况,每个外层行做一次索引查找;Hash Join 适合两个较大的结果做等值连接,先用小的一边建哈希表,再扫描另一边;两边本来就按连接键有序时,Merge Join 也很合适,配合 LIMIT 可以很早停止。统计信息过期时,优化器可能把几十万行估成一行,于是选出嵌套循环、先排序再分组这种只适合少量数据的计划,慢好几倍;修法是 ANALYZE,批量导入后要主动做,平时靠 autovacuum。两列强相关时可以用扩展统计。我不会用关闭某种 JOIN 的开关去修生产问题。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:跟着跑一遍(动手,约 8 min)</h3>
+    <ol>
+      <li>先把第 3、4、5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day30</code> 批改。你那边的耗时数字会不同,看量级和谁快谁慢。</li>
+      <li>psql 连进去,<code>SET search_path = day30;</code>,用读计划的顺序清单读一遍 <code>02-read-plan.sql</code> 那棵树,在 <code>notes.md</code> 里写下:最耗时的节点是哪个、它<b>自己</b>花了多少毫秒(减掉子节点)。</li>
+      <li>Docker 用户:<code>docker compose restart postgres</code> 之后马上跑 <code>03-buffers.sql</code> 里按 id 查的那条。✍️ <b>预测</b>:hit 和 read 各是多少?(重启会清空 <code>shared_buffers</code>,但不会清空操作系统的页缓存。)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:读懂 nest-lab 的真实查询(动手,约 10 min)</h3>
+    <p>用 Day 27 的 PG 版跑起来(<code>TASKS_STORAGE=postgres</code>),在 schema <code>app</code> 里先造一批数据(提示:<code>INSERT INTO tasks (title, done, created_at) SELECT '任务 ' || n, random() &lt; 0.9, now() - n * interval '1 minute' FROM generate_series(1, 200000) n;</code>,再 <code>ANALYZE tasks;</code>)。</p>
+    <ol>
+      <li>从 <code>PgTasksRepository.findPage</code> 里抄出「第一页:<code>ORDER BY t.created_at DESC, t.id DESC LIMIT 21</code>」那条 SQL(带 LATERAL 拼清单的完整版),把参数换成具体值,做 <code>EXPLAIN (ANALYZE, BUFFERS)</code>。✍️ 先预测:最耗时的节点是什么?LATERAL 子查询的 <code>loops</code> 是多少?</li>
+      <li>再试 <code>?q=999</code>(<code>title ILIKE '%999%'</code>)和 <code>?done=false</code>。各自读了多少页?</li>
+      <li>把结论记下来:哪几条需要索引?需要什么样的索引?(Day 31–34 一条条解决,今天只诊断。)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:再制造一次估错(思考 + 动手,约 7 min)</h3>
+    <ol>
+      <li>在 <code>day30</code> 里给 <code>tasks</code> 关掉 autovacuum(<code>ALTER TABLE tasks SET (autovacuum_enabled = false)</code>),然后 <code>UPDATE tasks SET done = false WHERE done = true AND id % 2 = 0;</code>(大约 45 万行由完成变成未完成)。✍️ <b>预测</b>:<code>EXPLAIN SELECT count(*) FROM tasks WHERE NOT done</code> 现在估计有多少行?实际呢?</li>
+      <li><code>ANALYZE tasks;</code> 再看一次。估算和计划变了吗?</li>
+      <li>想一想:nest-lab 什么时候可能遇到这种情况?(提示:Day 27 的 <code>db:reset</code> 之后立刻跑 e2e;某天运营批量把一批任务标为完成。)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/30-explain-plans/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「我在 Chrome DevTools 里看火焰图和 Network 瀑布图找性能瓶颈,数据库的执行计划也是这么看吗?」用取货路线单的比喻讲清楚怎么读一棵计划树、先看什么,并说出这个比喻在哪里会骗人(至少讲一个 cost / actual time / loops 的坑)。</li>
+      <li>Nested Loop、Hash Join、Merge Join 各是怎么做的、各适合什么情况?为什么不该用 <code>enable_hashjoin = off</code> 去修生产上的慢查询?</li>
+      <li>统计信息是什么?过期了会怎样(用 imports 的例子)?<code>shared hit</code> 和 <code>read</code> 有什么区别,为什么本机上 read 也很快?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:把习题 2 的诊断结论记进 <code>notes.md</code>(Day 34 优化 nest-lab 时要用);在 <code>nest-lab/README.md</code> 的成长日志里记一笔;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>计划树从最里面往外读</b>,每个节点有估算(<code>cost</code>、<code>rows</code>)和实际(<code>actual time</code>、<code>rows</code>、<code>loops</code>);actual 是每趟的平均值,要 × loops,而且包含子节点。读计划最重要的一眼是<b>估算 rows 和实际 rows 差多少</b>。cost 不是毫秒,而且可能和实际快慢相反(Merge Join 的例子)。</li>
+    <li><b><code>BUFFERS</code> 看碰了多少页</b>:shared hit 是已在缓存,read 是向操作系统要(本机多半来自 OS 缓存,所以也快);大表顺序扫描用小环形缓冲区,不会把缓存挤满。<code>work_mem</code> 不够时排序溢出到磁盘、Hash 分批、Bitmap 变 lossy,但「调大 work_mem」也要实测。</li>
+    <li><b>三种 JOIN</b>:Nested Loop(外层小、内层有索引:2 个用户 0.05–1 ms,换成 Hash 要 55–88 ms)、Hash Join(大表等值连接,先建哈希表)、Merge Join(两边有序,配 LIMIT 很早停);优化器按估算选,<code>enable_*</code> 开关只用于学习。</li>
+    <li><b>统计信息决定估算</b>:过期时 50 万行被估成 1 行,选出嵌套循环 + 先排序的计划(458–560 ms);<code>ANALYZE</code> 之后 69–88 ms。批量导入后手动 ANALYZE;两列相关用 <code>CREATE STATISTICS</code>。<code>EXPLAIN ANALYZE</code> 会真的执行,写操作要包在事务里回滚。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li><code>02-read-plan.sql</code> 那棵树最里面是哪两个节点?<code>Hash</code> 节点在做什么?为什么排序用的是 top-N heapsort?</li>
+    <li>并行扫描里 <code>rows=37037 loops=3</code>,一共返回了多少行?</li>
+    <li>为什么 <code>tasks_cold</code> 全表扫描第二次还在 read?为什么本机上 read 也不慢?</li>
+    <li>Bitmap 的 <code>lossy</code> 是什么意思?为什么它会多出 <code>Rows Removed by Index Recheck</code>?</li>
+    <li>「2 个用户的任务」为什么选 Nested Loop?关掉它以后为什么要扫整张 tasks?</li>
+    <li>统计过期时,为什么 users 的 Index Scan 出现了 <code>loops=500001</code>?ANALYZE 之后计划为什么变了?</li>
+    <li>城市和国家两列相关时,优化器为什么少估了 100 倍?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 31</b>:复合索引与覆盖索引。今天的 <code>Index Only Scan</code> 和 <code>Heap Fetches</code> 只露了个面;nest-lab 的列表查询是「<code>WHERE done = …</code> + <code>ORDER BY created_at DESC, id DESC</code> + <code>LIMIT</code>」,单列索引帮不了它。明天学几列一起建的索引:<b>最左前缀</b>规则、列的顺序怎么定(等值在前、范围在后)、一个索引怎么同时服务 WHERE 和 ORDER BY(keyset 分页的行值比较 vs OR 展开在计划上的差别),以及 <code>INCLUDE</code> 覆盖索引和 visibility map(预告 Week 6 的 VACUUM)。</p>
+</section>
+
+<footer>
+  Day 30 · Phase 2 / Week 5 · 产出:<code>docs/30-explain-plans/</code> 本文档 + <code>nest-lab/</code>(<code>sql/day30/</code> 九个实验文件、<code>npm run day30</code>)+ <code>src/30-explain-plans/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,25 @@
+-- Day 36 · 04:隔离性(Isolation)的最小演示 —— 别的会话看不到你还没提交的修改
+-- 这个文件要开两个 psql 窗口手动做(观察脚本 npm run day36 用两个连接自动做了一遍)。详细的隔离级别留给 Day 37。
+--
+--   psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab
+--
+-- 【窗口 A】
+--   SET search_path = day36;
+--   BEGIN;
+--   UPDATE accounts SET balance = balance - 30 WHERE id = 1;
+--   SELECT balance FROM accounts WHERE id = 1;      -- A 自己看到 70
+--
+-- 【窗口 B】
+--   SET search_path = day36;
+--   SELECT balance FROM accounts WHERE id = 1;      -- B 看到的还是 100(A 还没提交)
+--   UPDATE accounts SET balance = balance + 1 WHERE id = 1;   -- 这一句会卡住:A 正锁着这一行(Day 39 讲锁)
+--
+-- 【窗口 A】
+--   COMMIT;                                          -- B 的 UPDATE 立刻继续执行
+--
+-- 【窗口 B】
+--   SELECT balance FROM accounts WHERE id = 1;      -- 71
+--
+-- 最后复原:
+--   UPDATE accounts SET balance = 100 WHERE id = 1;
+SELECT 'two-session demo: see comments in this file' AS 说明;

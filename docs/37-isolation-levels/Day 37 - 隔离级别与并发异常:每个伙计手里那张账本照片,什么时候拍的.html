@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 37 - 隔离级别与并发异常:每个伙计手里那张账本照片,什么时候拍的</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 6</div>
+  <h1>Day 37 - 隔离级别与并发异常:每个伙计手里那张账本照片,什么时候拍的</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>脏读、不可重复读、幻读、丢失更新、写偏斜(两个会话真实复现)· PostgreSQL 的 Read Committed / Repeatable Read / Serializable 实测表 · <code>READ UNCOMMITTED</code> = <code>READ COMMITTED</code> · 40001 与「整个事务重做」的重试 · 对照 SQL 标准、MySQL、SQL Server、Oracle</b> ·
+    项目:<code>nest-lab/</code> 新增 <code>sql/day37/</code>(schema <code>day37</code>)、<code>npm run day37</code>(约 4 秒);<code>src/37-isolation-levels/with-retry.ts</code> 重试辅助函数(今天的实验,<b>不进 nest-lab 的 src</b>;nest-lab 的修复是 Day 40)·
+    所有输出来自 PostgreSQL 16.15 的真实运行;每个场景跑了 3 遍,结果完全一致
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:「关着门办事」到底关得多严</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天新增了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:快照与读到的异常 —— 每个伙计手里那张账本照片</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:丢失更新与写偏斜 —— 各自抄下来、各自算、各自填回去</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:三种隔离级别与重试 —— 更强的隔离,换来的是「请重来一次」</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:「关着门办事」到底关得多严</h2>
+  <p>Day 36 的隔离性只做了一个最小演示:A 没提交的修改,B 看不到;B 想改同一行时要排队,等 A 提交后在 A 的结果上再 +1,得到 71。可「看不到别人没提交的」只是隔离的最低要求。真实系统里还有很多更隐蔽的情况:</p>
+  <ul>
+    <li>同一个事务里读两次同一行,中间别人提交了修改,两次读到的不一样;</li>
+    <li>两个请求都「先读出计数,在代码里 +1,再写回去」,结果只加了一次;</li>
+    <li>两个请求都检查「这个用户的未完成任务还不到 3 个」,然后各自新建一个,最后变成 4 个。</li>
+  </ul>
+  <p>最后两种就是 Week 4 review 时记下的「先查后改」问题(Day 40 修)。今天先把这些现象一个个复现出来,看 PostgreSQL 的三种隔离级别各拦得住哪些、拦不住哪些,拦下来之后应用该怎么办。</p>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    两个浏览器标签页同时打开同一份文档。标签页 A 改了标题、点保存;标签页 B 改了正文、也点保存。B 保存的是它打开时拿到的那份完整文档,于是 A 改的标题被<b>悄悄覆盖</b>了,没有任何报错。这就是「丢失更新」。Google Docs 用协同编辑算法解决它;普通的表单通常用「版本号不对就提示『别人已经改过了,请刷新』」来解决(Day 40 的乐观锁)。数据库里的隔离级别,是另一种解决办法。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天新增了什么</h2>
+  <pre><code>cd nest-lab
+npm run day37      # 7 个场景 × 4 个隔离级别,每个场景打印 T1 / T2 的时间轴和判定;最后演示重试(本机约 4 秒)
+
+# 手动版:开两个 psql 窗口,按 sql/day37/04-two-windows.sql 里的步骤一步一步做
+psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab
+nest_lab=&gt; SET search_path = day37;
+
+# 重试辅助函数的自检(不连数据库)
+node src/37-isolation-levels/with-retry.check.ts</code></pre>
+  <p>观察脚本用两个 <code>pg</code> 连接扮演 T1 和 T2,按<b>固定的时间顺序</b>一条一条地交替执行,所以每次运行的结果都一样(跑了 3 遍,汇总表完全相同)。每个场景开始前用 <code>02-reset.sql</code> 把数据复原。</p>
+
+  <h3>📂 今天新增了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>干什么用</th></tr>
+    <tr><td><code>nest-lab/sql/day37/01-setup.sql</code></td><td>schema <code>day37</code>:<code>accounts</code>、<code>tasks</code>、<code>counters</code>、<code>doctors</code></td></tr>
+    <tr><td><code>nest-lab/sql/day37/02-reset.sql</code></td><td>把四张表复原成初始状态</td></tr>
+    <tr><td><code>nest-lab/sql/day37/03-levels.sql</code></td><td>隔离级别怎么设、什么时候不能改、<code>READ UNCOMMITTED</code> 的名字</td></tr>
+    <tr><td><code>nest-lab/sql/day37/04-two-windows.sql</code></td><td>五种异常的两个窗口手动步骤</td></tr>
+    <tr><td><code>nest-lab/scripts/day37-try.mjs</code> + <code>package.json</code> 的 <code>day37</code></td><td>观察脚本:场景引擎、自动判定、汇总表、重试演示</td></tr>
+    <tr><td><code>src/37-isolation-levels/with-retry.ts</code></td><td>40001 / 40P01 时整个事务重做:指数退避 + 抖动 + 上限</td></tr>
+    <tr><td><code>src/37-isolation-levels/with-retry.check.ts</code></td><td>重试函数的自检(5 组断言)</td></tr>
+    <tr><td><code>nest-lab/README.md</code></td><td>命令、成长日志 Day 37</td></tr>
+  </table>
+  <p>nest-lab 的 <code>src/</code> 今天不动。</p>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:快照与读到的异常 —— 每个伙计手里那张账本照片</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    PostgreSQL 里,每次读数据都是读一份<b>快照</b>:某一刻已经提交的所有数据。<b>Read Committed</b>(默认)下,<b>每条语句</b>开始时拍一张新快照,所以同一个事务里两次读,中间别人提交了,第二次就会读到新的。这会造成<b>不可重复读</b>(同一行变了)和<b>幻读</b>(按条件数行,多了或少了)。<b>Repeatable Read</b> 和 <b>Serializable</b> 在事务的第一条语句时拍一张快照,一直用到事务结束,这两种现象都不会发生。<b>脏读</b>(读到别人没提交的)在 PostgreSQL 的任何级别下都不会发生。
+  </div>
+
+  <h3>② 生活类比:账本照片</h3>
+  <p>账房不让伙计直接看正在被改的账本,而是给每个伙计发<b>账本照片</b>,照片上只有已经盖过章的内容。有两种发法:</p>
+  <ul>
+    <li><b>每看一页就重新拍一张</b>(Read Committed):伙计第一次查 Alice 的余额是 100;过了一会儿别人盖章把它改成了 200,伙计再查,新照片上就是 200 了。数「1 号会员有几张没办完的单子」也一样,第二次数时多了一张别人刚登记的。</li>
+    <li><b>开工时拍一张整本的照片,一直用到收工</b>(Repeatable Read):不管外面怎么改,伙计手里的照片不变,两次查都是 100、两次数都是 2 张。</li>
+  </ul>
+  <p>不管哪种发法,照片上都不会出现别人还没盖章的内容,所以没有「脏读」。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测</th></tr>
+    <tr><td>只拍盖过章的内容</td><td>快照只包含已提交的数据</td><td>脏读:4 个级别都没发生</td></tr>
+    <tr><td>每看一页重新拍</td><td><b>Read Committed</b>:每条语句一个快照</td><td>两次读到 100、200;两次数到 2、3</td></tr>
+    <tr><td>开工时拍一张,用到收工</td><td><b>Repeatable Read</b> / <b>Serializable</b>:事务一个快照(第一条语句时拍)</td><td>两次都是 100;两次都是 2</td></tr>
+    <tr><td>同一行前后不一样</td><td><b>不可重复读</b>(non-repeatable read)</td><td>RC 发生</td></tr>
+    <tr><td>数出来的张数前后不一样</td><td><b>幻读</b>(phantom read)</td><td>RC 发生</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:隔离级别怎么设。</b>✍️ <b>预测</b>:<code>BEGIN ISOLATION LEVEL READ UNCOMMITTED</code> 之后 <code>SHOW transaction_isolation</code> 显示什么?事务里已经执行过查询之后再 <code>SET TRANSACTION</code> 会怎样?真实结果(<code>03-levels.sql</code>):</p>
+  <pre><code> default_transaction_isolation:read committed
+BEGIN ISOLATION LEVEL REPEATABLE READ;   → transaction_isolation:repeatable read
+BEGIN; SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;   → serializable
+BEGIN; SELECT 1; SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+ERROR:  SET TRANSACTION ISOLATION LEVEL must be called before any query
+BEGIN ISOLATION LEVEL READ UNCOMMITTED;  → transaction_isolation:read uncommitted
+SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ;   → default_transaction_isolation:repeatable read</code></pre>
+  <p>隔离级别是<b>每个事务自己选的</b>:写在 <code>BEGIN</code> 里,或者在事务的第一条语句之前 <code>SET TRANSACTION</code>;也可以改一个会话、一个角色或一个数据库的默认值。<code>READ UNCOMMITTED</code> 这个名字可以设、也会原样显示出来,但下面的实验会看到它的行为和 <code>READ COMMITTED</code> 一模一样。</p>
+
+  <p><b>⑤ 动手验证 B:脏读、不可重复读、幻读。</b>✍️ <b>预测</b>:下面三个时间轴,在 Read Committed 和 Repeatable Read 下 T2 各读到什么?真实结果(<code>npm run day37</code> 第 2–4 幕):</p>
+  <pre><code>── 脏读 · READ UNCOMMITTED ──
+    T1 │ BEGIN                                                  → BEGIN
+    T1 │ UPDATE accounts SET balance = 999 WHERE id = 1         → UPDATE
+    T2 │ BEGIN ISOLATION LEVEL READ UNCOMMITTED                 → BEGIN
+    T2 │ SELECT balance FROM accounts WHERE id = 1              → 100
+    T1 │ ROLLBACK                                               → ROLLBACK
+    判定:✅ 没发生:T2 读到 100
+
+── 不可重复读 · READ COMMITTED ──                    ── 不可重复读 · REPEATABLE READ ──
+    T2 │ BEGIN ISOLATION LEVEL READ COMMITTED                     T2 │ BEGIN ISOLATION LEVEL REPEATABLE READ
+    T2 │ SELECT balance … → 100                                   T2 │ SELECT balance … → 100
+    T1 │ UPDATE accounts SET balance = 200 …(自动提交)             T1 │ UPDATE accounts SET balance = 200 …
+    T2 │ SELECT balance … → 200                                   T2 │ SELECT balance … → 100
+    判定:⚠️ 发生了:第一次 100,第二次 200                       判定:✅ 没发生:两次都是 100
+
+── 幻读 · READ COMMITTED ──                          ── 幻读 · REPEATABLE READ ──
+    T2 │ SELECT count(*) … WHERE owner_id = 1 AND NOT done → 2    T2 │ … → 2
+    T1 │ INSERT INTO tasks (owner_id, title) VALUES (1, '新任务')  T1 │ INSERT …
+    T2 │ SELECT count(*) … → 3                                    T2 │ … → 2
+    判定:⚠️ 发生了:第一次 2 行,第二次 3 行                      判定:✅ 没发生:两次都是 2 行</code></pre>
+  <ul>
+    <li><b>脏读复现不出来</b>:即使 T2 设成 <code>READ UNCOMMITTED</code>,读到的也是 100。PostgreSQL 的快照里根本没有「没提交的数据」,所以它把 RU 当成 RC 处理。这是 SQL 标准允许的:标准规定的是「每个级别<b>至少</b>要防住哪些异常」,数据库可以做得更严。</li>
+    <li><b>Read Committed 下,不可重复读和幻读都发生了</b>:第二条 SELECT 拍了一张新快照,看到了 T1 刚提交的修改和新行。</li>
+    <li><b>Repeatable Read 下都没发生</b>:T2 在第一条 SELECT 时拍了快照,之后一直用它。注意 PostgreSQL 的 RR <b>比 SQL 标准更强</b>,标准允许 RR 出现幻读,PostgreSQL 的 RR 连幻读也防住了,因为它是用快照实现的,不是用锁。</li>
+    <li>RC 下读到新数据<b>不一定是 bug</b>。对「列表页刷新一下看到最新的」这种需求,RC 正合适。只有当一个事务里的多次读<b>必须互相一致</b>时(比如对账报表:先算总数、再算明细,两次必须对得上),才需要更高的级别。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「照片是开工那一刻拍的」——实际是在事务的第一条语句时拍的,不是 BEGIN 那一刻。</b>BEGIN 之后隔了一会儿才执行第一条 SELECT,这段时间里别人提交的修改,这张快照能看到。</li>
+      <li><b>「照片不会变」只对读成立。</b>RR 下 T2 想去<b>改</b>一行,而这一行在它拍照之后被别人改过并提交了,数据库不会让它在旧照片上改,而是直接报错(概念卡 #3)。读和写的规则是不一样的。</li>
+      <li><b>「每看一页重新拍」说的是每条语句,不是每一行。</b>RC 下一条 SELECT 从头到尾用同一张快照,即使它要扫好几秒,结果也是一致的;变化只出现在两条语句之间。照片具体是怎么「拍」的(行版本、<code>xmin</code> / <code>xmax</code>),是 Day 38 的 MVCC。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>snapshot</b>;<b>isolation level</b>:<code>READ UNCOMMITTED</code> / <code>READ COMMITTED</code> / <code>REPEATABLE READ</code> / <code>SERIALIZABLE</code>;<code>BEGIN ISOLATION LEVEL …</code>、<code>SET TRANSACTION</code>、<code>default_transaction_isolation</code>、<code>transaction_isolation</code>;<b>dirty read</b>、<b>non-repeatable read</b>、<b>phantom read</b>;<b>snapshot isolation (SI)</b>(PostgreSQL 的 RR 实际上就是 SI);<b>MVCC</b>(Day 38)。
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:丢失更新与写偏斜 —— 各自抄下来、各自算、各自填回去</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>丢失更新</b>:两个事务都「读出一个值 → 在应用里算出新值 → 写回去」,后写的那个是在旧值上算的,把先写的结果<b>覆盖</b>掉了。<b>写偏斜</b>(write skew):两个事务各自读了一组行,根据读到的结果各自写了<b>不同的行</b>,每一个单独看都没问题,合起来却违反了业务规则(「至少留一个人值班」「每人最多 3 个未完成任务」)。前者 Repeatable Read 能拦下,后者只有 Serializable 能拦下。
+  </div>
+
+  <h3>② 生活类比:各自抄下来、各自算、各自填回去</h3>
+  <p><b>丢失更新</b>:两个伙计都要给计数器加 1。他们各自走到账本前,抄下「现在是 0」,回到座位上算好「0 + 1 = 1」,再回来填上 1。先填的人填了 1,后填的人也填 1,于是加了两次、结果只是 1。如果伙计直接在账本上写「在原来的数上加 1」,第二个人就得等第一个人写完,再在 1 上加 1,得到 2。</p>
+  <p><b>写偏斜</b>:医院规定「至少要有一位医生值班」。Alice 和 Bob 今晚都在值班,都想请假。Alice 看排班表:「值班的有 2 个人,我走了还有 Bob。」Bob 同时看排班表:「值班的有 2 个人,我走了还有 Alice。」两人<b>各自改了自己那一行</b>,谁也没碰对方那一行,改的时候也没有冲突,结果今晚没人值班。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测</th></tr>
+    <tr><td>抄下来、回座位算、回来填</td><td>读 → 应用里计算 → <code>UPDATE … SET n = 算好的值</code></td><td>RC:两次 +1,结果 1</td></tr>
+    <tr><td>直接在账本上「加 1」</td><td><code>UPDATE … SET n = n + 1</code>:读和写在同一条语句里</td><td>RC:结果 2</td></tr>
+    <tr><td>各自看排班表、各自改自己那一行</td><td><b>写偏斜</b>:读的是同一组行,写的是不同的行</td><td>RC、RR:没人值班了</td></tr>
+    <tr><td>「每人最多 3 张单子」,两人同时登记</td><td>写偏斜的另一种:基于 <code>count(*)</code> 的检查 + 各自 INSERT</td><td>RC、RR:变成 4 个</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:丢失更新。</b>✍️ <b>预测</b>:两个事务都读到 0、都写回 1,Read Committed 下最后是多少?Repeatable Read 下呢?换成 <code>SET n = n + 1</code> 呢?真实结果(第 5 幕、第 5½ 幕):</p>
+  <pre><code>── 丢失更新 · READ COMMITTED ──
+    T1 │ BEGIN ISOLATION LEVEL READ COMMITTED          → BEGIN
+    T1 │ SELECT n FROM counters WHERE id = 1           → 0
+    T2 │ BEGIN ISOLATION LEVEL READ COMMITTED          → BEGIN
+    T2 │ SELECT n FROM counters WHERE id = 1           → 0
+    T1 │ UPDATE counters SET n = 1 WHERE id = 1        → UPDATE
+    T1 │ COMMIT                                        → COMMIT
+    T2 │ UPDATE counters SET n = 1 WHERE id = 1        → UPDATE
+    T2 │ COMMIT                                        → COMMIT
+    最终:1   判定:⚠️ 发生了:两次 +1,结果只是 1
+── 丢失更新 · REPEATABLE READ ──
+    …(前六步相同)
+    T2 │ UPDATE counters SET n = 1 WHERE id = 1        → ERROR 40001 could not serialize access due to concurrent update
+    T2 │ COMMIT                                        → ROLLBACK
+    最终:1   判定:🛑 被拦下:40001 could not serialize access due to concurrent update
+
+── 原子自增 · READ COMMITTED ──
+    T1 │ UPDATE counters SET n = n + 1 WHERE id = 1    → UPDATE
+    T2 │ SELECT 1                                      → 1
+    T2 │ (上一条在等 T1 结束)                           ← T2 的 UPDATE n = n + 1 卡住了
+    T1 │ COMMIT                                        → COMMIT
+    T2 │ UPDATE counters SET n = n + 1 WHERE id = 1    → UPDATE
+    最终:2   判定:✅ 没丢:结果 2
+── 原子自增 · REPEATABLE READ ──
+    T2 │ UPDATE counters SET n = n + 1 WHERE id = 1    → ERROR 40001 could not serialize access due to concurrent update
+    最终:1   判定:🛑 被拦下</code></pre>
+  <ul>
+    <li><b>Read Committed 下丢了一次</b>,没有任何报错。这就是 nest-lab 的「先查后改」会遇到的问题。</li>
+    <li><b>Repeatable Read 下被拦下</b>:T2 要改的这一行,在它拍快照之后被 T1 改过并提交了。在旧快照上改,等于覆盖 T1 的结果,所以 PostgreSQL 直接报 <code>40001</code>(<code>serialization_failure</code>),整个事务作废,<b>要应用重试</b>。</li>
+    <li><b>原子自增在 Read Committed 下不会丢</b>:<code>SET n = n + 1</code> 的读和写在<b>同一条语句</b>里。T2 等 T1 提交后,PostgreSQL 会<b>重新读这一行的最新版本</b>,在 1 上再加 1。这也是 Day 36 第 4 幕里 B 得到 71 的原因。</li>
+    <li>反直觉的一点:<b>原子自增在 Repeatable Read 下反而报错</b>。RR 的规则是「不许在旧快照上改被别人改过的行」,不管你的 SQL 是不是原子的。所以把隔离级别调高不是免费的:原来不用重试的代码,也要开始处理 40001 了。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 B:写偏斜。</b>✍️ <b>预测</b>:两个医生同时请假,Repeatable Read 能拦住吗?「每人最多 3 个未完成任务」呢?真实结果(第 6、7 幕):</p>
+  <pre><code>── 写偏斜(值班医生)· REPEATABLE READ ──
+    T1 │ BEGIN ISOLATION LEVEL REPEATABLE READ                       → BEGIN
+    T1 │ SELECT count(*)::int FROM doctors WHERE on_call             → 2
+    T2 │ BEGIN ISOLATION LEVEL REPEATABLE READ                       → BEGIN
+    T2 │ SELECT count(*)::int FROM doctors WHERE on_call             → 2
+    T1 │ UPDATE doctors SET on_call = false WHERE name = 'Alice'     → UPDATE
+    T2 │ UPDATE doctors SET on_call = false WHERE name = 'Bob'       → UPDATE
+    T1 │ COMMIT                                                      → COMMIT
+    T2 │ COMMIT                                                      → COMMIT
+    最终:0   判定:⚠️ 发生了:没人值班了
+
+── 写偏斜(每人最多 3 个)· REPEATABLE READ ── 判定:⚠️ 发生了:未完成任务变成 4 个(上限 3)</code></pre>
+  <p>Repeatable Read 拦不住:两个事务改的是<b>不同的行</b>(Alice 那行、Bob 那行;或者各自 INSERT 一行新的),没有任何一行被两个事务同时改,「在旧快照上改被别人改过的行」这条规则抓不到它们。冲突藏在<b>读</b>里:T1 读到的「还有 2 人值班」,被 T2 的写改变了;T2 读到的,也被 T1 的写改变了。</p>
+  <p>Day 24 说过,「每个用户最多 3 个未完成任务」这种<b>跨行的规则</b>,<code>CHECK</code> 约束表达不了(CHECK 只能看一行)。今天看到,在 RC 和 RR 下,应用里的「先 count 再 insert」也守不住它。能守住的办法有:Serializable(下一张卡)、显式加锁(Day 39 / 40)、或者把规则变成数据库能检查的形式(比如在用户表上维护一个计数列,配合 <code>CHECK</code>)。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「直接在账本上加 1 就不会丢」——只对「一条语句能算完」的情况成立。</b><code>SET n = n + 1</code>、<code>SET stock = stock - 1 WHERE stock &gt; 0</code> 可以;但「先查出价格、调用外部的折扣服务、再算出总价写回去」这种逻辑,写不进一条 SQL,只能靠锁、版本号或更高的隔离级别。</li>
+      <li><b>「两人改的是不同的行,就不会冲突」——写偏斜恰恰就是这种情况。</b>只盯着「写了哪些行」的检查(包括 RR 的检查,以及很多人手写的乐观锁)发现不了它;要看「读了什么、读到的东西有没有被别人改掉」。</li>
+      <li><b>「没报错就说明没出事」——RC 下丢失更新和写偏斜都是静默发生的。</b>没有异常、没有日志,只有数据悄悄错了。这是并发 bug 难查的原因:测试时只有一个人在点,线上才偶尔出现。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>lost update</b>;<b>read-modify-write cycle</b>;<b>atomic update</b>(<code>SET n = n + 1</code>);RC 下更新时重新检查最新行版本(PostgreSQL 文档里叫 EvalPlanQual / re-check);<b>write skew</b>;<b>SQLSTATE <code>40001</code> <code>serialization_failure</code></b>;<b>cross-row invariant</b>。
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:三种隔离级别与重试 —— 更强的隔离,换来的是「请重来一次」</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    PostgreSQL 实际上只有三种行为:<b>Read Committed</b>(每条语句一张快照,不报序列化错误,但丢失更新和写偏斜会静默发生)、<b>Repeatable Read</b>(整个事务一张快照,并发改同一行时报 40001)、<b>Serializable</b>(在 RR 的基础上,再追踪事务之间「谁读了谁写的东西」,发现可能出现写偏斜时也报 40001)。越往上,数据越不容易错,但应用越要准备好<b>把整个事务从头重做</b>。
+  </div>
+
+  <h3>② 生活类比:监工</h3>
+  <p>Serializable 相当于账房请了一位<b>监工</b>。他不拦着大家同时干活,只是在旁边记下:谁看过排班表的哪部分、谁改了哪几行。等有人来盖章时,他检查一下:「你看过的东西,被另一个已经盖了章的人改过;而那个人看过的东西,又被你改了。你们俩不可能按任何先后顺序依次办完还得到这个结果。」于是让其中一个人<b>作废重来</b>。重来时,这个人重新看排班表,发现只剩自己一个了,就不请假了。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th></tr>
+    <tr><td>监工记下谁看了什么</td><td><b>谓词锁</b>(predicate lock,<code>SIReadLock</code>):只记录、不阻塞</td></tr>
+    <tr><td>你看的被他改了,他看的被你改了</td><td>读写依赖形成「危险结构」(dangerous structure)</td></tr>
+    <tr><td>让其中一个作废重来</td><td><b>SSI</b>(Serializable Snapshot Isolation)报 <code>40001</code></td></tr>
+    <tr><td>重来时重新看排班表</td><td>应用重试:<b>整个事务</b>从 BEGIN 开始重做</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:Serializable 下的写偏斜。</b>✍️ <b>预测</b>:同样的两个时间轴,Serializable 下在哪一步报错?真实结果:</p>
+  <pre><code>── 写偏斜(值班医生)· SERIALIZABLE ──
+    T1 │ SELECT count(*)::int FROM doctors WHERE on_call             → 2
+    T2 │ SELECT count(*)::int FROM doctors WHERE on_call             → 2
+    T1 │ UPDATE doctors SET on_call = false WHERE name = 'Alice'     → UPDATE
+    T2 │ UPDATE doctors SET on_call = false WHERE name = 'Bob'       → UPDATE
+    T1 │ COMMIT                                                      → COMMIT
+    T2 │ COMMIT                                                      → ERROR 40001 could not serialize access due to read/write dependencies among transactions
+         DETAIL: Reason code: Canceled on identification as a pivot, during commit attempt.
+         HINT:   The transaction might succeed if retried.
+    最终:1   判定:🛑 被拦下
+── 写偏斜(每人最多 3 个)· SERIALIZABLE ──
+    T2 │ COMMIT  → ERROR 40001 could not serialize access due to read/write dependencies among transactions
+    最终:3   判定:🛑 被拦下</code></pre>
+  <p>两个 UPDATE 都没报错(改的是不同的行,不互相阻塞),错误在 <b>T2 提交的那一刻</b>才出现,而且 PostgreSQL 自己就在 HINT 里提示「重试可能会成功」。</p>
+
+  <h3>三种隔离级别 × 五种异常:实测汇总表</h3>
+  <p>这是 <code>npm run day37</code> 第 8 幕的输出(跑了 3 遍,完全一样):</p>
+  <pre><code>  异常                        RU          RC          RR          SER
+  脏读                        ✅ 没发生    ✅ 没发生    ✅ 没发生    ✅ 没发生
+  不可重复读                  ⚠️ 发生      ⚠️ 发生      ✅ 没发生    ✅ 没发生
+  幻读                        ⚠️ 发生      ⚠️ 发生      ✅ 没发生    ✅ 没发生
+  丢失更新(读-算-写)         ⚠️ 发生      ⚠️ 发生      🛑 40001     🛑 40001
+  原子自增 n = n + 1          ✅ 没发生    ✅ 没发生    🛑 40001     🛑 40001
+  写偏斜(值班医生)           ⚠️ 发生      ⚠️ 发生      ⚠️ 发生      🛑 40001
+  写偏斜(每人最多 3 个)      ⚠️ 发生      ⚠️ 发生      ⚠️ 发生      🛑 40001</code></pre>
+  <p>和 SQL 标准对照(标准规定的是每个级别「<b>允许</b>」出现哪些异常;标准只定义了前三种,丢失更新和写偏斜是后来的研究补上的):</p>
+  <table>
+    <tr><th>级别</th><th>SQL 标准允许</th><th>PostgreSQL 实际</th></tr>
+    <tr><td>Read Uncommitted</td><td>脏读、不可重复读、幻读</td><td>和 RC 一样,没有脏读</td></tr>
+    <tr><td>Read Committed</td><td>不可重复读、幻读</td><td>不可重复读、幻读、丢失更新、写偏斜都会静默发生</td></tr>
+    <tr><td>Repeatable Read</td><td>幻读</td><td>没有幻读(比标准严);并发改同一行报 40001;写偏斜会发生</td></tr>
+    <tr><td>Serializable</td><td>都不允许</td><td>都不会发生;代价是更多的 40001</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 B:40001 之后怎么办。</b><code>src/37-isolation-levels/with-retry.ts</code> 的设计:</p>
+  <ol>
+    <li><b>重试整个事务,不是最后一条语句。</b>传进来的函数要从 <code>BEGIN</code> 做到 <code>COMMIT</code>,包括里面所有的读。失败的那次读到的东西已经过时了,必须重新读、重新算。</li>
+    <li><b>只重试可重试的错误</b>:<code>40001</code>(序列化失败)和 <code>40P01</code>(死锁,Day 39)。约束违反、语法错误重试多少次都一样,直接抛出。</li>
+    <li><b>有上限、有退避</b>:默认最多 5 次;每次等 <code>[0, min(500, 10 × 2<sup>n−1</sup>))</code> 毫秒之间的随机时间(指数退避 + 全抖动),避免冲突的几个事务又在同一时刻撞在一起。</li>
+  </ol>
+  <pre><code>export async function withRetry&lt;T&gt;(runTransaction: (attempt: number) =&gt; Promise&lt;T&gt;, options: RetryOptions = {}): Promise&lt;T&gt; {
+  …
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await runTransaction(attempt);
+    } catch (error) {
+      if (attempt &gt;= maxAttempts || !isRetryable(error)) throw error;
+      const delayMs = backoffDelay(attempt, baseDelayMs, maxDelayMs, random);
+      onRetry?.({ attempt, delayMs, error });
+      await sleep(delayMs);
+    }
+  }
+}</code></pre>
+  <p>自检(<code>node src/37-isolation-levels/with-retry.check.ts</code>):<code>with-retry.check.ts:5 组断言全部通过</code>。断言覆盖:只有 40001 / 40P01 可重试;失败两次后第三次成功,共调用 3 次;不可重试的错误第一次就原样抛出;一直失败时做满上限次数后抛出;退避有上限。</p>
+  <p>用真实的 PostgreSQL 演示(第 9 幕,两个并发的事务,第一次尝试时用一个「栅栏」保证两边都先读完再写,让冲突一定发生):</p>
+  <pre><code>  ① REPEATABLE READ 下的「读 → 算 → 写回」
+    T1 第 1 次:读到 n = 0
+    T2 第 1 次:读到 n = 0
+    T2 第 1 次失败:40001 could not serialize access due to concurrent update → 等 1 ms 后整个事务重做
+    T2 第 2 次:读到 n = 1
+    T1 在第 1 次提交,写入 1
+    T2 在第 2 次提交,写入 2
+    最终 n = 2(两次 +1 都没丢)
+
+  ② SERIALIZABLE 下的值班请假
+    T1 第 1 次:值班的还有 2 人
+    T2 第 1 次:值班的还有 2 人
+    T2 第 1 次失败:40001 could not serialize access due to read/write dependencies among transactions → 等 2 ms 后整个事务重做
+    T2 第 2 次:值班的还有 1 人
+    T1 第 1 次:请假成功
+    T2 第 2 次:只剩自己了,不批准请假
+    最终值班表:Alice=false, Bob=true</code></pre>
+  <p>3 遍里,① 每次都是 2;② 每次都只有一个人请假成功(谁先提交谁赢,有两次是 Alice、一次是 Bob)。第二个人重试时<b>重新执行了业务检查</b>,所以规则被遵守了。只重试最后那个 UPDATE 是做不到这一点的。</p>
+  <p><b>nest-lab 用哪种?</b>Day 40 再决定:Read Committed + 乐观锁(版本号,冲突回 409)、Read Committed + 悲观锁(<code>SELECT … FOR UPDATE</code>),还是 Serializable + 重试。三种都能修好「先查后改」,代价和适用场景不同。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「请了监工就万事大吉」——更高的隔离级别不是免费的。</b>每个参与的事务都要能处理 40001 并从头重做;冲突多时,重试会叠加,延迟变长,极端情况下一直重试失败。监工本身(谓词锁)也占内存和 CPU。Serializable 适合「冲突不多、但一旦出错代价很大」的业务。</li>
+      <li><b>「监工看得见一切」——它只看得见数据库里的读和写。</b>如果「值班人数」是从 Redis 缓存里读的,或者从另一个服务查来的,数据库不知道你读过它,SSI 就检测不到。另外,只有<b>两边都用 Serializable</b> 的事务之间才会被检测;一个用 SER、另一个用 RC,照样可能写偏斜。</li>
+      <li><b>「隔离级别是全库的开关」——它是每个事务自己选的。</b>同一个数据库里可以有的事务用 RC、有的用 SER。好处是可以只给关键操作开 SER;坏处是很容易漏掉某一处,而漏掉的那一处恰好会破坏规则。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>Serializable Snapshot Isolation (SSI)</b>;<b>predicate lock</b>(<code>pg_locks</code> 里的 <code>SIReadLock</code>);<b>rw-dependency / rw-antidependency</b>、<b>pivot</b>、<b>dangerous structure</b>;<b>serialization failure</b>;<b>retry with exponential backoff and jitter</b>;<code>40P01</code> <code>deadlock_detected</code>(Day 39);<code>max_pred_locks_per_transaction</code>;<code>SET TRANSACTION READ ONLY DEFERRABLE</code>(只读的 SER 事务可以等一个「安全快照」,永远不会被取消)。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <table>
+    <tr><th></th><th>PostgreSQL</th><th>MySQL(InnoDB)</th><th>SQL Server</th><th>Oracle</th></tr>
+    <tr><td>默认隔离级别</td><td>Read Committed</td><td><b>Repeatable Read</b></td><td>Read Committed</td><td>Read Committed</td></tr>
+    <tr><td>Read Committed 怎么实现</td><td>快照(MVCC),每条语句一个</td><td>快照(一致性读)</td><td>默认用<b>共享锁</b>(读会被写挡住);打开 <code>READ_COMMITTED_SNAPSHOT</code> 后改成行版本(Azure SQL Database 默认打开)</td><td>快照</td></tr>
+    <tr><td>Repeatable Read</td><td>事务快照(即快照隔离),没有幻读;并发改同一行报 40001</td><td>普通 SELECT 读事务快照;<code>SELECT … FOR UPDATE</code> / UPDATE 是<b>当前读</b>(读最新版本),并用<b>间隙锁 / next-key lock</b> 挡住别人在范围里插入</td><td>用锁实现;另有单独的 <code>SNAPSHOT</code> 级别</td><td>不提供</td></tr>
+    <tr><td>Serializable</td><td>SSI:检测读写依赖,报 40001</td><td>普通 SELECT 自动变成加共享锁的读</td><td>用范围锁实现</td><td>名字叫 SERIALIZABLE,实际是快照隔离,写偏斜仍可能发生</td></tr>
+  </table>
+  <p><b>MySQL 的 RR 能防幻读吗?</b>这是面试常问的问题,要分两种读来回答:</p>
+  <ul>
+    <li><b>快照读</b>(普通 <code>SELECT</code>):读的是事务开始时的快照,看不到别人新插入的行。</li>
+    <li><b>当前读</b>(<code>SELECT … FOR UPDATE</code>、<code>UPDATE</code>、<code>DELETE</code>):读最新版本,靠 next-key lock 锁住范围,别人插不进来。</li>
+    <li>但如果在同一个事务里先快照读、再当前读,两次可能看到不同的行数。所以说它「基本防住、但不是完全防住」。</li>
+  </ul>
+  <p><b>在代码里设置隔离级别:</b></p>
+  <table>
+    <tr><th>生态</th><th>写法</th></tr>
+    <tr><td>Node(<code>pg</code>)</td><td><code>await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE')</code>;重试自己写(今天的 <code>withRetry</code>)</td></tr>
+    <tr><td>C# / .NET</td><td><code>conn.BeginTransaction(IsolationLevel.Serializable)</code>;EF Core:<code>context.Database.BeginTransaction(IsolationLevel.Serializable)</code>;重试常用 Polly,或 EF Core 的执行策略(<code>EnableRetryOnFailure</code>)</td></tr>
+    <tr><td>Java / Spring</td><td><code>@Transactional(isolation = Isolation.SERIALIZABLE)</code>;重试:Spring Framework 7 起自带 <code>@Retryable</code>(<code>org.springframework.resilience.annotation</code>,参数是 <code>maxRetries</code>,只数重试次数);更早的版本用 Spring Retry 项目的 <code>@Retryable</code>(<code>maxAttempts</code> 包括第一次)。重试必须包在事务<b>外面</b>,每次重试开一个新事务</td></tr>
+    <tr><td>Go</td><td><code>db.BeginTx(ctx, &amp;sql.TxOptions{Isolation: sql.LevelSerializable})</code>;重试自己写一个循环,判断 pgx 的错误码</td></tr>
+  </table>
+  <p>🔎 核实说明:</p>
+  <ul>
+    <li>联网核对过:SQL Server 默认 Read Committed、<code>READ_COMMITTED_SNAPSHOT</code> 在 SQL Server 上默认关闭、在 Azure SQL Database 上默认打开;Oracle 默认 Read Committed、不提供 Read Uncommitted 和 Repeatable Read、它的 SERIALIZABLE 是快照隔离(这一条来自第三方资料,没有找到 Oracle 官方页面);Spring Framework 7 自带的 <code>@Retryable</code> 及其 <code>maxRetries</code> 语义。</li>
+    <li>公认事实或我的记忆、<b>没有在本机实测</b>(本课程环境只有 PostgreSQL):MySQL InnoDB 默认 RR、快照读 / 当前读、间隙锁 / next-key lock、Serializable 的实现;SQL Server 的锁实现细节和 <code>SNAPSHOT</code> 级别;.NET、Go 的 API 写法;Polly、EF Core 执行策略。</li>
+    <li>PostgreSQL 的所有行为都在本机实测过(上面的汇总表)。</li>
+  </ul>
+  <p>📌 Day 42 复盘时,可以在 roadmap 顶部的对照表里新增一行「隔离级别默认值与实现」:PG RC(快照)、MySQL RR(快照 + 间隙锁)、SQL Server RC(锁,可改为快照)、Oracle RC。内容自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"What do the four isolation levels protect against? What is a phantom read? Does MySQL's Repeatable Read prevent phantoms? How do you fix lost updates?"</b>(或者:「四种隔离级别分别解决什么问题?什么是幻读?MySQL 的 RR 能防幻读吗?丢失更新怎么解决?」)你可以答:<br>
+    <b>"SQL 标准按允许出现的异常来定义四个级别:读未提交允许脏读;读已提交防住脏读,但允许不可重复读和幻读;可重复读还防住不可重复读,但标准仍允许幻读;可串行化什么都不允许,效果等同于事务一个接一个执行。不可重复读是同一个事务里两次读同一行,值变了;幻读是两次按同一个条件查,行数变了,因为别人插入或删除了满足条件的行。实际数据库会比标准更严:我在 PostgreSQL 上实测过,它的读未提交和读已提交一样,不会脏读;它的可重复读用事务级快照实现,幻读也不会发生。MySQL InnoDB 默认是可重复读,普通 SELECT 是快照读,看不到别人新插的行,加锁读和 UPDATE 是当前读,靠 next-key lock 挡住插入,所以基本能防幻读,但同一事务里混用快照读和当前读时,还是可能看到不一样的结果。丢失更新是两个事务都读出值、在应用里算好再写回,后写的覆盖了先写的;读已提交下它会静默发生。解决办法有几种:能写成一条语句的,用原子更新,比如 SET n = n + 1;否则用乐观锁,带版本号更新,影响 0 行就说明冲突了,返回 409 或重试;或者用悲观锁 SELECT ... FOR UPDATE 先锁住再改;或者用可重复读、可串行化,让数据库报序列化失败,由应用把整个事务重做。还有一种更隐蔽的是写偏斜,两个事务读同一组数据、写不同的行,比如两个值班医生同时请假,可重复读也拦不住,只有可串行化或者显式加锁才行。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:两个窗口手动做一遍(动手,约 12 min)</h3>
+    <ol>
+      <li>先把第 3、4、5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day37</code> 批改。</li>
+      <li>开两个 psql 窗口,按 <code>sql/day37/04-two-windows.sql</code> 做「丢失更新」和「写偏斜」,分别用 Read Committed 和 Serializable 各做一遍。✍️ <b>预测</b>:Serializable 下的写偏斜,如果把 T1 和 T2 的 COMMIT 顺序反过来,报错的是谁?</li>
+      <li>✍️ <b>预测</b>:Serializable 下,如果 T2 只读不写(<code>SELECT count(*)</code> 之后直接 COMMIT),T1 照常请假,会有人报错吗?做一遍验证。</li>
+      <li>做「原子自增」时,T2 的 <code>UPDATE … SET n = n + 1</code> 卡住的那几秒,在第三个窗口查 <code>SELECT pid, state, wait_event_type, wait_event FROM pg_stat_activity WHERE datname = 'nest_lab';</code>。和 Day 36 第 4 幕看到的一样吗?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:给 nest-lab 的规则选方案(动笔,约 10 min)</h3>
+    <ol>
+      <li>nest-lab 的 PUT 先 <code>findOne</code> 检查 409 规则,再 <code>update</code>(Week 4 遗留)。两个请求同时 PUT 同一个任务,在默认的 Read Committed 下会怎样?是丢失更新还是写偏斜?</li>
+      <li>假设要加一条规则:「每个用户最多 100 个未完成任务」。写出三种实现(Serializable + 重试 / 用户表上的计数列 + <code>CHECK</code> / 先锁住用户那一行再检查),各一句话说好处和代价。</li>
+      <li>如果 nest-lab 用 Serializable + <code>withRetry</code>,POST 创建任务被重试了一次,会不会建出两条?为什么?(提示:重试的是数据库事务,不是 HTTP 请求。)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:改进重试函数(动手,约 3 min)</h3>
+    <p><code>withRetry</code> 现在不知道「整个请求还剩多少时间」。✍️ 想一想:如果 HTTP 请求的超时是 3 秒,第 4 次重试时已经过去 2.9 秒了,还应该重试吗?给 <code>RetryOptions</code> 加一个 <code>deadline</code> 字段应该怎么设计?(只写设计,不用实现。)</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/37-isolation-levels/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事说:「两个浏览器标签页同时编辑同一份文档,后保存的把先保存的覆盖了。数据库里也会这样吗?隔离级别能解决吗?」用「各自抄下来、各自算、各自填回去」的比喻讲清楚丢失更新,说出 Read Committed 和 Repeatable Read 下各会怎样,并说出这个比喻在哪里会骗人。</li>
+      <li>不可重复读和幻读有什么区别?PostgreSQL 的 Read Committed 和 Repeatable Read 各用什么时候的快照?为什么 PostgreSQL 里复现不出脏读?</li>
+      <li>写偏斜是什么?为什么 Repeatable Read 拦不住它?Serializable 拦下它之后,应用要怎么重试,为什么不能只重试最后一条语句?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里记一笔;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>快照</b>:Read Committed 每条语句一张,Repeatable Read / Serializable 整个事务一张(第一条语句时拍)。所以 RC 下会有不可重复读(100 → 200)和幻读(2 行 → 3 行),RR 下都没有;脏读在 PostgreSQL 的任何级别下都不会发生,<code>READ UNCOMMITTED</code> 就是 <code>READ COMMITTED</code>。</li>
+    <li><b>丢失更新</b>:「读 → 应用里算 → 写回」在 RC 下静默地丢了一次(两次 +1,结果 1);<code>SET n = n + 1</code> 在 RC 下不会丢(2);RR 下两种写法都报 <code>40001 could not serialize access due to concurrent update</code>。</li>
+    <li><b>写偏斜</b>:两个事务读同一组行、写不同的行,RC 和 RR 都拦不住(没人值班、4 个未完成任务);只有 Serializable 在提交时报 <code>40001 could not serialize access due to read/write dependencies among transactions</code>。</li>
+    <li><b>重试</b>:40001 / 40P01 要把<b>整个事务</b>从头重做,带退避和上限;重做时重新读、重新做业务检查,规则才守得住(最终 n = 2、只有一个人请假成功)。更高的隔离级别不是免费的,它把「数据静默地错了」换成了「请重来一次」。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>RC 和 RR 的快照各是什么时候拍的?为什么 RR 下第二次 <code>count(*)</code> 还是 2?</li>
+    <li>为什么 <code>SET n = n + 1</code> 在 RC 下不会丢更新,在 RR 下却报错?</li>
+    <li>写偏斜和丢失更新的区别是什么?举一个 nest-lab 里可能出现的写偏斜。</li>
+    <li>Serializable 是怎么发现写偏斜的?它看不到哪些「读」?</li>
+    <li>40001 之后为什么要重做整个事务?重试函数为什么要有上限和随机抖动?</li>
+    <li>MySQL InnoDB 默认是什么隔离级别?它的 RR 防幻读靠的是什么?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 38</b>:MVCC 与 VACUUM。今天的「账本照片」到底是怎么拍出来的?每一行有好几个版本,靠 <code>xmin</code> / <code>xmax</code> 判断哪个版本对哪个快照可见;为什么读不阻塞写;旧版本变成死元组、表膨胀,<code>VACUUM</code> 和 autovacuum 怎么清理;为什么一个忘了提交的长事务(<code>idle in transaction</code>)会让整个库的清理都停下来。也会回头解释 Day 31 的 visibility map 和 Day 32 的 HOT。</p>
+</section>
+
+<footer>
+  Day 37 · Phase 2 / Week 6 · 产出:<code>docs/37-isolation-levels/</code> 本文档 + <code>nest-lab/</code>(<code>sql/day37/</code> 四个文件、<code>npm run day37</code>)+ <code>src/37-isolation-levels/</code>(<code>with-retry.ts</code>、<code>with-retry.check.ts</code>、<code>notes.md</code> 默写骨架)· 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

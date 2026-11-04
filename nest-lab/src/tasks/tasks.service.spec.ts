@@ -26,20 +26,21 @@ describe('TasksService(用真实的 TasksModule,只换掉时钟)', () => {
     vi.restoreAllMocks();
   });
 
-  it('findAll 返回两条样品任务,开业时间来自注入的时钟', () => {
-    const tasks = service.findAll();
+  it('findAll 返回两条样品任务,开业时间来自注入的时钟', async () => {
+    const tasks = await service.findAll();
     expect(tasks).toHaveLength(2);
     expect(tasks[0]?.createdAt).toBe('2026-01-01T00:00:00.000Z');
   });
 
-  it('findOne 找不到时抛 NotFoundException', () => {
-    expect(() => service.findOne(999)).toThrow(NotFoundException);
+  it('findOne 找不到时抛 NotFoundException', async () => {
+    // Day 27:方法变成 async,异常变成了「被拒绝的 Promise」,断言要换成 rejects
+    await expect(service.findOne(999)).rejects.toThrow(NotFoundException);
   });
 
-  it('create 分配自增 id,createdAt = 时钟的时间', () => {
-    const task = service.create({ title: '写单元测试' });
+  it('create 分配自增 id,createdAt = 时钟的时间', async () => {
+    const task = await service.create({ title: '写单元测试' });
     expect(task).toEqual({ id: 3, title: '写单元测试', done: false, checklist: [], createdAt: '2026-01-01T00:00:00.000Z' });
-    expect(service.findOne(3)).toBe(task);
+    expect(await service.findOne(3)).toBe(task);
   });
 });
 
@@ -48,12 +49,13 @@ describe('TasksService(把仓储换成假的,只测业务逻辑)', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     const saved: Task = { id: 42, title: '假的', done: false, checklist: [], createdAt: '2026-01-01T00:00:00.000Z' };
     const fakeRepo: TasksRepository = {
-      findAll: vi.fn(() => []),
-      findById: vi.fn(() => undefined),
-      insert: vi.fn(() => saved),
-      remove: vi.fn(() => undefined), // Day 11:接口新增了 remove,假仓储也要补上
-      update: vi.fn(() => undefined), // Day 15:接口新增了 update
-      findPage: vi.fn(() => []), // Day 19:接口新增了 findPage
+      // Day 27:接口改成 async,假仓储也要返回 Promise
+      findAll: vi.fn(async () => []),
+      findById: vi.fn(async () => undefined),
+      insert: vi.fn(async () => saved),
+      remove: vi.fn(async () => undefined), // Day 11:接口新增了 remove,假仓储也要补上
+      update: vi.fn(async () => undefined), // Day 15:接口新增了 update
+      findPage: vi.fn(async () => []), // Day 19:接口新增了 findPage
     };
     const moduleRef = await Test.createTestingModule({ imports: [TasksModule] })
       .overrideProvider(TASKS_REPOSITORY)
@@ -62,7 +64,7 @@ describe('TasksService(把仓储换成假的,只测业务逻辑)', () => {
       .useValue(fixedClock)
       .compile();
 
-    const result = moduleRef.get(TasksService).create({ title: '学 DI' });
+    const result = await moduleRef.get(TasksService).create({ title: '学 DI' });
 
     expect(fakeRepo.insert).toHaveBeenCalledWith({
       title: '学 DI',

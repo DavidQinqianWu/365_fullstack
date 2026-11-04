@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 23 - 数据建模与范式:一本什么都记的大流水账,拆成会员名册、任务本和标签对照表</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 4</div>
+  <h1>Day 23 - 数据建模与范式:一本什么都记的大流水账,拆成会员名册、任务本和标签对照表</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>宽表的三类异常 · 实体与关系(1:1 / 1:N / N:M)· 函数依赖 · 1NF → 2NF → 3NF · 反范式与计数缓存 · 表 ≠ API 资源 · ER 图</b> ·
+    项目:<code>nest-lab/</code> 新增 <code>sql/day23/</code>(独立 schema <code>day23</code>)、<code>docs/er-diagram.md</code>、<code>npm run day23</code>(应用代码今天不改)·
+    今天没有新依赖;SQL 输出均来自 PostgreSQL 16.15 的真实运行
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:一张表够用吗?</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:实体与关系 —— 大流水账为什么会记乱</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:范式 —— 整理账本的三条规矩</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:反范式,以及「schema 设计是最难改的决定」</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:一张表够用吗?</h2>
+  <p>Day 22 我们建了一张孤零零的 <code>tasks</code> 表。可 nest-lab 里的东西不止任务:Day 18 有了用户(邮箱、显示名、角色、密码哈希),Day 16 每个任务带一个 <code>checklist</code> 数组。以后任务还会有负责人、标签。这些东西在数据库里该怎么放?</p>
+  <p>最省事的想法是:<b>全塞进一张表</b>。一行一个任务,负责人的邮箱和名字直接写在旁边,标签开三列 <code>tag1</code> / <code>tag2</code> / <code>tag3</code>,清单项用逗号拼成一个字符串。写的时候很爽,一条 <code>INSERT</code> 全搞定。今天的第一个实验就是看它<b>什么时候开始出错</b>。</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    餐厅刚开张时,老板只有一本<b>大流水账</b>:每来一单就记一行,「哪位会员、会员电话、点了什么、菜品标签、做菜步骤」全写在这一行里。生意大了以后问题来了:会员换了电话,要把他以前的几十行都改一遍;新会员办了卡但还没点过菜,流水账里没地方写他;一个老会员唯一的一单被退掉,划掉这一行,这个会员也从账上消失了。于是总店把账拆开:一本<b>会员名册</b>,一本<b>订单本</b>(只写会员编号),一本<b>菜品标签本</b>,再加一张「哪道菜贴了哪些标签」的<b>对照表</b>。
+  </div>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你在 Redux 里一定见过这种建议:不要在 state 里存嵌套的 <code>posts[].author{...}</code>,而是用 normalizr 或 Redux Toolkit 的 <code>createEntityAdapter</code> 存成 <code>{ ids: [...], entities: { 1: {...} } }</code>,每个作者只存一份,文章里只放 <code>authorId</code>。理由是:作者改了名字,只需要改一个地方。<b>这就是数据库的范式化,同一个思想。</b>今天你会看到它在数据库里的完整版本,以及它的反面:什么时候故意「不范式化」。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+docker compose up -d     # 或本机的 PostgreSQL 已在运行(Day 22)
+npm run day23            # 依次跑 sql/day23/01 … 07,最后统计「同一个事实存了几份」
+
+# 自己连进去继续玩
+psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab
+nest_lab=&gt; SET search_path = day23;
+nest_lab=&gt; \dt</code></pre>
+  <p>今天的所有表都建在一个独立的 schema <code>day23</code> 里(Day 22 的「柜子」),不碰 <code>public.tasks</code>。<code>01-wide-table.sql</code> 每次都会 <code>DROP SCHEMA IF EXISTS day23 CASCADE</code> 再重建,所以随便重跑。重跑时你会看到 <code>NOTICE: drop cascades to 10 other objects</code>,这是 PostgreSQL 在告诉你「<code>CASCADE</code> 顺带删掉了里面的 10 张表」,在真实的库里看到这句话要心里一紧。</p>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用</th></tr>
+    <tr><td><code>sql/day23/01-wide-table.sql</code></td><td>新增</td><td>建 schema <code>day23</code> 和「大流水账」宽表 <code>tasks_wide</code>,4 条数据</td></tr>
+    <tr><td><code>sql/day23/02-anomalies.sql</code></td><td>新增</td><td>更新 / 插入 / 删除三类异常 + 「不是原子值」的查询问题(都在 <code>BEGIN … ROLLBACK</code> 里)</td></tr>
+    <tr><td><code>sql/day23/03-1nf.sql</code> / <code>04-2nf.sql</code> / <code>05-3nf.sql</code></td><td>新增</td><td>逐级拆表,每一步用 <code>INSERT … SELECT</code> 从上一步搬数据,再演示「哪些异常消失了、哪些还在」</td></tr>
+    <tr><td><code>sql/day23/06-rebuild-view.sql</code></td><td>新增</td><td>用最基本的 <code>JOIN</code> 把拆开的表拼回原来的样子</td></tr>
+    <tr><td><code>sql/day23/07-denormalize.sql</code></td><td>新增</td><td>故意反范式:<code>users.tasks_count</code> 计数缓存、忘了维护时失真、定期校正</td></tr>
+    <tr><td><code>docs/er-diagram.md</code></td><td>新增</td><td>nest-lab 的 ER 图(mermaid <code>erDiagram</code>)、关系一览、「表 ≠ API 资源」对照</td></tr>
+    <tr><td><code>scripts/day23-try.mjs</code> + <code>package.json</code> 的 <code>day23</code></td><td>新增</td><td>观察脚本(和 day22 一样用 psql;数据库不可用时立即提示)</td></tr>
+    <tr><td><code>README.md</code></td><td>修改</td><td>命令、ER 图链接、成长日志 Day 23</td></tr>
+  </table>
+  <p>(<code>src/</code>、<code>test/</code> 一个文件都没改,所有测试和 <code>day08</code>–<code>day22</code> 照样通过。)</p>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:实体与关系 —— 大流水账为什么会记乱</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    业务里每一种「有自己身份、需要单独记录的东西」(用户、任务、清单项、标签)叫一个<b>实体</b>,通常一个实体一张表。实体之间的联系叫<b>关系</b>,只有三种:<b>一对一(1:1)</b>、<b>一对多(1:N)</b>、<b>多对多(N:M)</b>。把几个实体硬塞进一张表,同一个事实就会被存好几份,于是出现三类<b>异常</b>:改不全、放不进、删多了。
+  </div>
+
+  <h3>② 生活类比:大流水账 vs 分开的账本</h3>
+  <p>会员名册上每位会员一行;订单本上每单一行,只写「会员编号 7」,不再抄会员的名字电话;一道菜可以贴「辣」「招牌」好几个标签,一个「辣」标签也贴在好几道菜上,这种双向都是「多」的关系,既不能写在菜品那一行(要写几个?),也不能写在标签那一行,只能另外做一张<b>对照表</b>,每行写「第 3 道菜 — 辣」。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>day23 里</th></tr>
+    <tr><td>一本单独的名册(会员名册、任务本)</td><td><b>实体(entity)</b> → 一张表</td><td><code>users</code>、<code>tasks</code>、<code>checklist_items</code>、<code>tags</code></td></tr>
+    <tr><td>名册上的栏目</td><td><b>属性(attribute)</b> → 列</td><td><code>email</code>、<code>title</code>、<code>done</code>……</td></tr>
+    <tr><td>订单本上写「会员编号 7」</td><td><b>1:N</b>:「多」的那一方存「一」的那一方的编号,这一列叫<b>外键</b></td><td><code>tasks.owner_id</code> → <code>users.id</code>;<code>checklist_items.task_id</code> → <code>tasks.id</code></td></tr>
+    <tr><td>「哪道菜贴了哪些标签」的对照表</td><td><b>N:M</b> 必须有<b>中间表</b>(junction / join table),主键是两边编号的组合</td><td><code>task_tags (task_id, tag_id)</code></td></tr>
+    <tr><td>会员卡和会员一人一张</td><td><b>1:1</b>:常常直接合并成一张表;要拆通常是因为访问频率或权限不同</td><td>(今天没有;比如以后把 <code>password_hash</code> 拆到单独的 <code>user_credentials</code>)</td></tr>
+    <tr><td>一本什么都记的大流水账</td><td><b>宽表</b> / 未范式化的表</td><td><code>tasks_wide</code></td></tr>
+    <tr><td>账本之间的关系图</td><td><b>ER 图</b>(Entity-Relationship diagram)</td><td><code>docs/er-diagram.md</code></td></tr>
+  </table>
+
+  <p><b>nest-lab 的 ER 图</b>(<code>docs/er-diagram.md</code> 里的 mermaid 源码,在 GitHub 上会直接渲染成图;也可以粘贴到 mermaid.live 看):</p>
+  <pre><code>erDiagram
+    users ||--o{ tasks : "负责(1:N)"
+    tasks ||--o{ checklist_items : "包含(1:N)"
+    tasks ||--o{ task_tags : "贴了"
+    tags  ||--o{ task_tags : "被贴在"
+
+    users {
+        integer id PK
+        text email "唯一(Day 24 加约束)"
+        text display_name
+        text role "user / admin"
+        text password_hash "永不出现在响应里(Day 18)"
+        text internal_note "只有 admin 视图能看到"
+        timestamptz created_at
+    }
+    tasks {
+        integer id PK
+        text title
+        boolean done
+        integer owner_id FK "→ users.id"
+        timestamptz created_at
+    }
+    checklist_items {
+        integer task_id PK, FK "→ tasks.id"
+        integer position PK "在清单里的第几项"
+        text text
+        boolean done
+    }
+    tags {
+        integer id PK
+        text name "唯一(Day 24 加约束)"
+    }
+    task_tags {
+        integer task_id PK, FK "→ tasks.id"
+        integer tag_id PK, FK "→ tags.id"
+    }</code></pre>
+  <p>读法:<code>||--o{</code> 左边「恰好一个」,右边「零个或多个」。<code>users ||--o{ tasks</code> 就是「一个用户有零到多个任务,一个任务恰好属于一个用户」。<b>N:M 在 ER 图里被画成了两条 1:N</b>:<code>tasks</code> 1:N <code>task_tags</code> N:1 <code>tags</code>,这正是中间表的本质。</p>
+  <p>注意两件事:① <code>tasks.owner_id</code> 和标签<b>现在还不在 nest-lab 的 API 里</b>,真正的「负责人」要等 Week 10 有了登录用户,标签是为了演示 N:M 加进来的;② 今天的表只是设计稿,主键怎么选、哪些列不能为空、邮箱要不要唯一,是明天 Day 24 的事。</p>
+
+  <p><b>⑤ 动手验证(先看病):</b>宽表 <code>tasks_wide</code> 有 4 行,Alice 有 3 个任务,Bob 有 1 个。✍️ <b>预测(先写再运行)</b>:Alice 换了邮箱,只改了任务 1 那一行,<code>SELECT DISTINCT owner_name, owner_email</code> 会查出几个 Alice?新用户 Carol 还没有任务,能记进去吗?删掉 Bob 唯一的任务,Bob 还在吗?</p>
+  <pre><code>npm run day23</code></pre>
+  <p>真实运行结果(<code>01</code>、<code>02</code>):</p>
+  <pre><code> task_id |   title    | done |    owner_email    | owner_name |   tag1   |  tag2  | tag3 |      checklist
+---------+------------+------+-------------------+------------+----------+--------+------+----------------------
+       1 | 学 psql    | f    | alice@example.com | Alice      | learning | urgent |      | 装 PG:t,连上 psql:t
+       2 | 建第一张表 | t    | alice@example.com | Alice      | learning |        |      | 写 CREATE TABLE:t
+       3 | 买菜       | f    | alice@example.com | Alice      | home     | urgent |      | 鸡蛋:f,牛奶:f,面包:t
+       4 | 修自行车   | f    | bob@example.com   | Bob        | home     |        |      |
+(4 rows)
+
+-- ① 更新异常:只改了任务 1 那一行的邮箱
+UPDATE 1
+ owner_name |    owner_email
+------------+-------------------
+ Alice      | alice@example.com
+ Alice      | alice@new.example
+(2 rows)
+
+-- ② 插入异常:没有任务的 Carol
+ERROR:  null value in column "task_id" of relation "tasks_wide" violates not-null constraint
+DETAIL:  Failing row contains (null, null, null, carol@example.com, Carol, null, null, null, null).
+-- 只好编一个占位任务……
+INSERT 0 1
+ 任务总数
+----------
+        5
+
+-- ③ 删除异常:删掉 Bob 唯一的任务
+DELETE 1
+ owner_name |    owner_email
+------------+-------------------
+ Alice      | alice@example.com
+(1 row)</code></pre>
+  <p>(<code>--</code> 开头的说明是我加的。)三类异常全部出现:</p>
+  <ul>
+    <li><b>更新异常</b>:同一个人现在有两个邮箱,哪个是对的?数据库不知道。真实系统里这种「漏改」通常不是手滑,而是某段代码只更新了它手上那一行。</li>
+    <li><b>插入异常</b>:一个用户的存在,依附在「他有任务」这件事上。硬塞一个占位任务,任务总数就从 4 变成了 5,所有统计都被污染了。</li>
+    <li><b>删除异常</b>:删一个任务,顺带删掉了「Bob 是我们的用户」这个事实。</li>
+  </ul>
+  <p>还有一个病根在 <code>02</code> 的最后:想查「带 urgent 标签的任务」要写 <code>tag1 = 'urgent' OR tag2 = 'urgent' OR tag3 = 'urgent'</code>,想要第 4 个标签只能改表结构;想知道「牛奶那一项完成了没有」,只能 <code>LIKE '%牛奶%'</code> 再自己切字符串。这是下一张卡里 1NF 要解决的事。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「一本账就是一类东西」——表不等于 API 资源。</b>Day 15 说过「资源不等于数据库表」,Day 18 的响应 DTO 把内部对象和对外字段分开,今天从数据库这头再看一次:<code>TaskResponse</code> 里的 <code>checklist</code> 数组,在数据库里是另一张表 <code>checklist_items</code> 的几行;同一行 <code>users</code>,普通用户和 admin 看到的字段不同;<code>TaskPage</code> 的 <code>nextCursor</code> 根本不是任何表里的列。<b>建模按「数据的事实」拆,API 按「调用方要什么」拼</b>,中间靠仓储和映射函数翻译(Day 27)。</li>
+      <li><b>「写了『见会员名册第 7 号』,账房就会帮你核对」——外键这一列,首先只是一个数字。</b>今天的 <code>REFERENCES</code> 用来写明「这一列指向哪张表」。它确实会拦住一些事(你会在 <code>05</code> 里撞到一次),但它<b>不懂业务</b>:「一个人只能有一个邮箱」「标签名不能重复」「已完成的任务不能改标题」,数据库都不知道,要么靠约束写进去(Day 24),要么靠应用代码。</li>
+      <li><b>「对照表只是一张辅助的小纸条」——中间表是一张正经的表。</b>它有自己的主键,可以有自己的列(比如「什么时候贴的标签、谁贴的」),也会和其他表一样变大、需要索引。ORM 里 <code>task.tags</code> 看起来像一个数组(第 6 节),但底下永远是这张表。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>entity / attribute / relationship</b>;<b>cardinality</b>(1:1、1:N、N:M);<b>foreign key</b>;<b>junction table / join table / associative entity</b>;<b>ER diagram</b>(crow's foot 鸦脚记法:<code>||</code> 恰好一个、<code>o{</code> 零到多个);<b>update / insertion / deletion anomaly</b>;<b>atomic value</b>;<b>repeating group</b>。
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:范式 —— 整理账本的三条规矩</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>范式</b>(normal form)是一组「拆表规矩」,目标是<b>每个事实只存一份</b>。它们都建立在<b>函数依赖</b>上:「知道 A 就能确定 B」,记作 A → B。<b>1NF</b>:一个格子里只放一个值,没有 <code>tag1/tag2/tag3</code> 这种重复列。<b>2NF</b>:如果主键由几列组成,其他列必须依赖<b>整个</b>主键,不能只依赖其中一部分。<b>3NF</b>:其他列必须<b>直接</b>依赖主键,不能「经过另一个非主键列」间接依赖。
+  </div>
+
+  <h3>② 生活类比:整理账本的三条规矩</h3>
+  <ul>
+    <li><b>规矩一(1NF):一格只写一件事。</b>不许在「标签」格里写「辣、招牌、新品」,也不许开「标签一、标签二、标签三」三栏;要几个标签就写几行。</li>
+    <li><b>规矩二(2NF):每一栏都要跟着「整个编号」走。</b>如果一行的编号是「订单号 + 标签」,那「菜名」这一栏只跟订单号有关、跟标签无关,就不该写在这里,否则一道菜贴了三个标签,菜名就抄了三遍。</li>
+    <li><b>规矩三(3NF):不许转抄。</b>订单上写了会员编号,就不要再写会员电话:电话是「通过会员」才确定的,不是通过订单确定的。要电话,拿编号去会员名册查。</li>
+  </ul>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>day23 里的例子</th></tr>
+    <tr><td>「知道 A 就能确定 B」</td><td><b>函数依赖</b> A → B</td><td><code>task_id → title</code>;<code>owner_email → owner_name</code></td></tr>
+    <tr><td>一格一事,没有重复栏</td><td><b>1NF</b>:原子值,没有重复组</td><td><code>tag1/2/3</code> → 一个标签一行;<code>checklist</code> 字符串 → <code>checklist_items</code> 表</td></tr>
+    <tr><td>跟着整个编号走</td><td><b>2NF</b>:没有对主键一部分的依赖(<b>部分依赖</b>)</td><td><code>tasks_1nf</code> 主键是 <code>(task_id, tag)</code>,但 <code>title</code> 只依赖 <code>task_id</code> → 拆出 <code>tasks_2nf</code> + <code>task_tags_2nf</code></td></tr>
+    <tr><td>不许转抄</td><td><b>3NF</b>:没有经过非主键列的依赖(<b>传递依赖</b>)</td><td><code>task_id → owner_email → owner_name</code> → 拆出 <code>users</code>,任务里只留 <code>owner_id</code></td></tr>
+    <tr><td>更严格的版本</td><td><b>BCNF</b>:每一个能「确定别人」的列组合都必须是候选键</td><td>点到为止:绝大多数满足 3NF 的业务表也满足 BCNF</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证:同一份数据,一级一级拆。</b>每一步都用 <code>INSERT … SELECT</code> 从上一步的表搬数据(里面用到的 <code>unnest</code>、<code>string_to_array</code>、<code>split_part</code> 是 PostgreSQL 的数组 / 字符串函数,Day 26 再细讲),然后把宽表的毛病挨个再试一遍。</p>
+
+  <h3>第一步:1NF(<code>03-1nf.sql</code>)</h3>
+  <p>✍️ <b>预测</b>:把标签拆成「一个标签一行」之后,「Alice 的邮箱」会存几份?比宽表多还是少?</p>
+  <pre><code>INSERT 0 6
+INSERT 0 6
+ task_id |   tag    |   title    | done |    owner_email    | owner_name
+---------+----------+------------+------+-------------------+------------
+       1 | learning | 学 psql    | f    | alice@example.com | Alice
+       1 | urgent   | 学 psql    | f    | alice@example.com | Alice
+       2 | learning | 建第一张表 | t    | alice@example.com | Alice
+       3 | home     | 买菜       | f    | alice@example.com | Alice
+       3 | urgent   | 买菜       | f    | alice@example.com | Alice
+       4 | home     | 修自行车   | f    | bob@example.com   | Bob
+(6 rows)
+
+ task_id | position |      text       | done
+---------+----------+-----------------+------
+       1 |        1 | 装 PG           | t
+       1 |        2 | 连上 psql       | t
+       2 |        1 | 写 CREATE TABLE | t
+       3 |        1 | 鸡蛋            | f
+       3 |        2 | 牛奶            | f
+       3 |        3 | 面包            | t
+(6 rows)
+
+-- 带 urgent 的任务:只问一列
+ task_id |  title
+---------+---------
+       1 | 学 psql
+       3 | 买菜
+(2 rows)
+
+-- 牛奶完成了没有:直接查
+ task_id | text | done
+---------+------+------
+       3 | 牛奶 | f
+(1 row)
+
+-- 新问题 ①:标题随标签数重复(按 task_id 分组计数,GROUP BY 是 Day 25 的内容)
+ task_id | 这个标题存了几份
+---------+------------------
+       1 |                2
+       2 |                1
+       3 |                2
+       4 |                1
+(4 rows)
+
+-- 新问题 ②:还没有标签的任务放不进来
+ERROR:  null value in column "tag" of relation "tasks_1nf" violates not-null constraint
+DETAIL:  Failing row contains (5, null, 还没想好标签, null, bob@example.com, Bob).</code></pre>
+  <p>查询变干净了,但 <b>Alice 的邮箱从 3 份变成了 5 份</b>(下面的结算表)。1NF 只管「格子里是不是一个值」,不管重复。<code>tasks_1nf</code> 的主键是 <code>(task_id, tag)</code>,而 <code>title</code>、<code>done</code>、<code>owner_*</code> 只要知道 <code>task_id</code> 就能确定:这就是<b>部分依赖</b>。顺带说一句,清单项那张表没有这个问题:<code>text</code> 和 <code>done</code> 确实要知道「哪个任务的第几项」才能确定,它们依赖整个主键 <code>(task_id, position)</code>。</p>
+
+  <h3>第二步:2NF(<code>04-2nf.sql</code>)</h3>
+  <p>把只依赖 <code>task_id</code> 的列拆到 <code>tasks_2nf</code>(主键 <code>task_id</code>),标签留在 <code>task_tags_2nf (task_id, tag)</code>。✍️ <b>预测</b>:现在改一个任务的标题要改几行?Alice 换邮箱要改几行?删掉 Bob 唯一的任务,Bob 还在吗?</p>
+  <pre><code>-- 改标题 / 加一个没有标签的任务
+BEGIN
+UPDATE 1
+INSERT 0 1
+ROLLBACK
+-- Alice 换邮箱
+BEGIN
+UPDATE 3
+ROLLBACK
+-- 删 Bob 唯一的任务
+BEGIN
+DELETE 1
+ owner_name
+------------
+ Alice
+(1 row)
+
+ROLLBACK</code></pre>
+  <p>1NF 的两个新问题消失了:改标题 <code>UPDATE 1</code>,没有标签的任务也能放进来。但<b>宽表的三类异常还在</b>:Alice 换邮箱仍然是 <code>UPDATE 3</code>,删掉 Bob 的任务 Bob 仍然消失。原因是 <code>task_id → owner_email → owner_name</code>:负责人的名字不是由任务决定的,是由「负责人是谁」决定的,这是<b>传递依赖</b>。</p>
+
+  <h3>第三步:3NF(<code>05-3nf.sql</code>)</h3>
+  <p>负责人拆成 <code>users</code>,任务里只留 <code>owner_id</code>;顺便把标签也当成实体(<code>tags</code>),任务和标签之间用中间表 <code>task_tags</code>。表上写了 <code>REFERENCES</code>(外键),今天只用它表明「这一列指向哪张表」。搬数据时要<b>先搬被指向的表</b>(<code>users</code>、<code>tags</code>),再搬指向它们的表。</p>
+  <pre><code>INSERT 0 2     ← users
+INSERT 0 4     ← tasks
+INSERT 0 6     ← checklist_items
+INSERT 0 3     ← tags
+INSERT 0 6     ← task_tags
+ id |       email       | name
+----+-------------------+-------
+  1 | alice@example.com | Alice
+  2 | bob@example.com   | Bob
+(2 rows)
+
+ id |   title    | done | owner_id
+----+------------+------+----------
+  1 | 学 psql    | f    |        1
+  2 | 建第一张表 | t    |        1
+  3 | 买菜       | f    |        1
+  4 | 修自行车   | f    |        2
+(4 rows)
+
+ id |   name
+----+----------
+  1 | home
+  2 | learning
+  3 | urgent
+(3 rows)
+
+ task_id | tag_id
+---------+--------
+       1 |      2
+       1 |      3
+       2 |      2
+       3 |      1
+       3 |      3
+       4 |      1
+(6 rows)
+
+-- 三类异常再试一次:Alice 换邮箱 / Carol 注册 / 删掉 Bob 唯一的任务
+BEGIN
+UPDATE 1
+INSERT 0 1
+DELETE 1
+DELETE 1
+ id |       email       | name
+----+-------------------+-------
+  1 | alice@new.example | Alice
+  2 | bob@example.com   | Bob
+  3 | carol@example.com | Carol
+(3 rows)
+
+ROLLBACK</code></pre>
+  <p>(<code>←</code> 的说明是我加的。)三类异常全部消失:<b>换邮箱 <code>UPDATE 1</code></b>;<b>Carol 没有任务也能注册</b>;<b>删掉任务 4,Bob 还在</b>。两个 <code>DELETE 1</code> 分别是「先删任务 4 在 <code>task_tags</code> 里的对照行」和「再删任务 4」。为什么必须先删对照行?我单独试了直接删任务 4:</p>
+  <pre><code>ERROR:  update or delete on table "tasks" violates foreign key constraint "task_tags_task_id_fkey" on table "task_tags"
+DETAIL:  Key (id)=(4) is still referenced from table "task_tags".</code></pre>
+  <p>外键不许「对照表里还写着第 4 号,第 4 号却没了」。这种情况能不能改成自动连带删除、该不该那样做,是 Day 24 <code>ON DELETE</code> 的主题。</p>
+
+  <h3>拼回来(<code>06-rebuild-view.sql</code>)</h3>
+  <p>拆开之后,「原来那张宽表的样子」要用 <code>JOIN</code> 拼回来。这里只用最基本的 <code>JOIN … ON</code>(内连接),各种 JOIN 的区别是 Day 25 的内容:</p>
+  <pre><code>SELECT t.id, t.title, t.done, u.email AS owner_email, u.name AS owner_name
+FROM tasks t
+JOIN users u ON u.id = t.owner_id
+ORDER BY t.id;
+ id |   title    | done |    owner_email    | owner_name
+----+------------+------+-------------------+------------
+  1 | 学 psql    | f    | alice@example.com | Alice
+  2 | 建第一张表 | t    | alice@example.com | Alice
+  3 | 买菜       | f    | alice@example.com | Alice
+  4 | 修自行车   | f    | bob@example.com   | Bob
+(4 rows)
+
+-- 多对多要经过中间表;反过来问「带 urgent 的任务」,从 tags 那头进
+  tag   | id |  title
+--------+----+---------
+ urgent |  1 | 学 psql
+ urgent |  3 | 买菜
+(2 rows)
+
+-- 折叠回「一个任务一行」
+ id |   title    | owner |      tags       | 清单项数
+----+------------+-------+-----------------+----------
+  1 | 学 psql    | Alice | learning,urgent |        2
+  2 | 建第一张表 | Alice | learning        |        1
+  3 | 买菜       | Alice | home,urgent     |        3
+  4 | 修自行车   | Bob   | home            |        0
+(4 rows)</code></pre>
+
+  <h3>结算:同一个事实存了几份</h3>
+  <pre><code>步骤                「Alice 的邮箱」存了几份   「任务 1 的标题」存了几份
+宽表 tasks_wide                3                         1
+1NF tasks_1nf                5                         2
+2NF tasks_2nf                3                         1
+3NF users / tasks            1                         1</code></pre>
+  <p>这张表就是今天的主线:<b>只存一份,就不可能改不全</b>。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「规矩越多越整齐,范式越高越好」——范式是减少冗余的方法,不是分数。</b>3NF(加上偶尔 BCNF)是业务系统的常用目标,再往上的 4NF / 5NF 处理的是更少见的多值依赖,实际中很少专门去追。而且第一步 1NF 反而让冗余<b>变多了</b>(3 份变 5 份),说明这些规矩要一起用、按顺序用,只做一半可能更糟。范式也不排斥「故意冗余」,那是下一张卡的事。</li>
+      <li><b>「账拆开了,查起来一样快」——拆开的代价是读的时候要 JOIN。</b>宽表上一条 <code>SELECT</code> 就能拿到的东西,3NF 下要连两三张表。4 行数据感觉不到,数据量大了 JOIN 的成本会显现,Week 5 用 <code>EXPLAIN</code> 会看到数据库具体怎么连、要花多少代价。范式化优化的是<b>写的正确性</b>,不一定是读的速度。</li>
+      <li><b>「拆对了就不会出错」——数据库不会自动知道你的业务规则。</b>3NF 让「不一致」更难发生,但没有让它不可能:现在 <code>users</code> 里完全可以插两行一样的 <code>alice@example.com</code>,<code>tags</code> 里可以有两个 <code>urgent</code>,<code>tasks.title</code> 可以为空。哪些列必须唯一、不能为空、取值有范围,要用约束告诉数据库(Day 24)。范式回答「怎么拆」,约束回答「什么数据不许进来」。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>functional dependency</b>(A → B);<b>candidate key / composite key</b>(组合主键,如 <code>(task_id, tag)</code>);<b>partial dependency</b>(2NF 消除);<b>transitive dependency</b>(3NF 消除);<b>1NF / 2NF / 3NF / BCNF</b>;<b>normalization / decomposition</b>;<b>lossless join</b>(拆开后能用 JOIN 无损地拼回来,<code>06</code> 就是在验证这一点)。
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:反范式,以及「schema 设计是最难改的决定」</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>反范式</b>(denormalization)是<b>故意</b>把某个事实多存一份,用来换读取速度或查询方便,比如在 <code>users</code> 上存一个 <code>tasks_count</code>。代价是:这份副本要有人负责维护,维护漏了就会和真相不一致。另外,<b>表结构一旦上线就很难改</b>:代码可以回滚,数据不能;表里已经有了几亿行,改一列可能要几个小时、要锁表、要双写迁移。所以建模值得多想一会儿。
+  </div>
+
+  <h3>② 生活类比:订单本上顺手抄一份会员名</h3>
+  <p>前台每天要看「今天每位会员点了几单」,每次都去订单本上数太慢,于是在会员名册上加一栏「累计单数」,每来一单就 +1。查起来飞快,代价是:<b>每个记账的人都要记得顺手 +1</b>,退单要记得 −1;只要有一个新来的伙计忘了,名册上的数就不准了,而且没人会立刻发现。另一边,账本的栏目一旦印好、记了十年,哪天要把「电话」一栏拆成「区号」和「号码」,就得把十年的旧账一页页重抄。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实做法</th><th>什么时候值得 / 代价</th></tr>
+    <tr><td>名册上的「累计单数」</td><td><b>计数缓存</b>:<code>users.tasks_count</code>、<code>tasks.checklist_done_count</code></td><td>列表页频繁显示计数、读远多于写;代价:每次增删都要同步更新</td></tr>
+    <tr><td>订单上抄一份会员名</td><td><b>冗余列</b>:在 <code>tasks</code> 上存一份 <code>owner_name</code></td><td>几乎只读、源头很少改的数据;代价:源头一改要全部同步</td></tr>
+    <tr><td>月底汇总表</td><td><b>报表宽表 / 物化结果</b>:定期从规范化的表算出来的一张大表</td><td>分析查询、可以接受数据晚一点;代价:不是实时</td></tr>
+    <tr><td>订单背面随手记的备注</td><td><b>JSONB 列</b>存不需要单独查询、不和别人关联的附属数据</td><td>结构多变、只跟着这一行读写;代价:数据库难以帮你校验和关联(Day 26 细讲)</td></tr>
+    <tr><td>谁负责 +1</td><td>维护方式:<b>应用代码</b>在同一个事务里更新 / <b>触发器</b> / <b>定期校正</b></td><td>今天只演示问题,不实现触发器</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测</b>:先按真实数据算好 <code>tasks_count</code>(Alice 3,Bob 1),然后给 Bob 新加一个任务、<b>但忘了更新计数</b>,缓存和真实的数会差多少?真实结果(<code>07-denormalize.sql</code>):</p>
+  <pre><code>ALTER TABLE
+UPDATE 2
+ id | name  | tasks_count
+----+-------+-------------
+  1 | Alice |           3
+  2 | Bob   |           1
+(2 rows)
+
+INSERT 0 1                      ← Bob 的新任务,没人去 +1
+ id | name  | 缓存的数 | 真实的数
+----+-------+----------+----------
+  1 | Alice |        3 |        3
+  2 | Bob   |        1 |        2
+(2 rows)
+
+UPDATE 1                        ← 定期校正:只修正了对不上的那一行
+ id | name  | tasks_count
+----+-------+-------------
+  1 | Alice |           3
+  2 | Bob   |           2
+(2 rows)</code></pre>
+  <p>失真不会报错,它就静静地待在那里,直到某个用户说「我明明有两个任务,怎么显示一个」。三种维护方式各有代价:<b>应用代码</b>最直观,但所有写入路径(包括别人写的脚本、后台任务)都要记得;<b>触发器</b>让数据库自己维护,但逻辑藏在数据库里,不好看见、不好测试;<b>定期校正</b>简单可靠,但中间有一段时间是错的。很多系统会组合使用:应用里实时维护,再加一个定期任务兜底。不管选哪种,都要<b>把这份冗余登记下来</b>(<code>docs/er-diagram.md</code> 末尾留了「有意的反范式」一节,目前是空的)。</p>
+
+  <h3>为什么说「schema 设计是最难改的决定」</h3>
+  <ul>
+    <li><b>数据比代码活得久。</b>nest-lab 的代码可能三年后整个重写,换成另一种语言;数据库里的表和数据会被一路继承下去。今天随手起的列名、随手塞进字符串的 <code>checklist</code>,会被以后每一个读这张表的程序依赖。</li>
+    <li><b>代码能回滚,数据不能。</b>部署出错可以退回上一个版本;一次把 <code>owner_name</code> 拆出去的数据迁移跑到一半出错,要面对的是「一半的行已经改了」。</li>
+    <li><b>线上改表有真实成本。</b>给几亿行的表加一列、改一列的类型、建一个索引,可能锁表、可能跑几个小时;新旧代码同时在线时,两种结构要同时能用。Week 9 会专门学零停机迁移(expand → migrate → contract)。</li>
+    <li><b>它和 Day 19 的 API 版本化是同一件事的两面。</b>API 字段是对外契约,改名要发新版本;表结构是对所有读写这个库的程序的契约,改起来只会更难,因为没有 <code>/v2</code> 可以并行。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「抄一份是偷懒,是没设计好」——好的反范式是有意的、有记录的取舍。</b>先范式化,确认某个读取真的慢、真的频繁,再有针对性地加冗余,并写清楚谁维护、怎么校正。「一开始就不拆」和「拆好以后有意加一个计数缓存」是两回事。</li>
+      <li><b>「放进 JSONB 就不用建模了」——JSONB 不是逃避建模的出口。</b>它适合「只跟着这一行读写、不需要被单独查询或关联」的数据。如果你发现自己要查「所有清单里有牛奶的任务」、要统计「每个标签被用了几次」,那它就该是一张表。nest-lab 的 <code>checklist</code> 放 JSONB 还是放 <code>checklist_items</code> 表,Day 26 学完 JSONB 再做最终决定(ER 图目前画的是表)。</li>
+      <li><b>「最难改」不等于「不能改」。</b>把表结构当成不可变的会让人不敢动,反而越堆越乱。正确的态度是:设计时多想一会儿,改动时有方法(迁移脚本、分步上线、数据回填、验证),这些是 Day 27(迁移脚本)和 Week 9 的内容。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>denormalization</b>;<b>counter cache</b>(计数缓存,Rails 里就叫这个名字);<b>derived / redundant data</b>;<b>trigger</b>;<b>materialized view</b>(PG 内置的「物化结果」);<b>reconciliation job</b>(定期校正任务);<b>schema migration</b>;<b>expand / contract</b>(Week 9);<b>OLTP vs OLAP</b>(业务库倾向范式化,分析库倾向宽表)。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p>范式本身和语言无关:3NF 在 PostgreSQL、SQL Server、MySQL 里一模一样。不同的是 <b>ORM 怎么把「关系」表达成代码</b>。下表都是同一个模型:用户 1:N 任务,任务 N:M 标签。</p>
+  <table>
+    <tr><th>命题</th><th>Node.js / TS(Prisma)</th><th>C# / EF Core</th><th>Java / JPA(Hibernate)</th><th>Go</th></tr>
+    <tr>
+      <td>1:N</td>
+      <td>schema 里 <code>owner User @relation(fields: [ownerId], references: [id])</code>,另一边 <code>tasks Task[]</code></td>
+      <td>导航属性 <code>User.Tasks</code> / <code>Task.Owner</code>,配置 <code>HasMany(u =&gt; u.Tasks).WithOne(t =&gt; t.Owner).HasForeignKey(t =&gt; t.OwnerId)</code></td>
+      <td><code>@ManyToOne</code> <code>@JoinColumn(name = "owner_id")</code> 在 <code>Task</code> 上,<code>@OneToMany(mappedBy = "owner")</code> 在 <code>User</code> 上</td>
+      <td>结构体字段 <code>OwnerID int</code>,关联数据自己查(GORM 也有 <code>has many</code> / <code>belongs to</code>)</td>
+    </tr>
+    <tr>
+      <td>N:M</td>
+      <td>两边各写 <code>tags Tag[]</code> / <code>tasks Task[]</code>,Prisma 自动建一张隐式中间表(名字形如 <code>_TagToTask</code>);要在中间表上加列就改成显式模型</td>
+      <td>两边各一个集合导航属性,EF Core 5+ 自动建中间表(skip navigation);要加列就显式写中间实体</td>
+      <td><code>@ManyToMany</code> + <code>@JoinTable(name = "task_tags", joinColumns = …, inverseJoinColumns = …)</code></td>
+      <td>手写中间表和查询;GORM 用 <code>gorm:"many2many:task_tags"</code></td>
+    </tr>
+    <tr>
+      <td>代码里看到的样子</td>
+      <td colspan="4"><code>task.tags</code> 看起来是一个数组 / 集合。<b>但底下仍然是 <code>task_tags</code> 中间表</b>:往集合里加一个元素,ORM 会生成一条 <code>INSERT INTO task_tags</code>;读 <code>task.tags</code>,ORM 会生成一次 JOIN 或额外查询(这就是 Week 7 要讲的 N+1 问题的来源)。</td>
+    </tr>
+  </table>
+  <p>📌 roadmap 顶部对照表的「ORM / 数据访问」一行目前只写了 Prisma / EF Core / Hibernate / GORM 的名字。建议你在 Day 28 复盘时在行尾补一句关系的写法(Prisma <code>@relation</code> ↔ EF Core <code>HasMany/WithOne</code> ↔ JPA <code>@OneToMany</code> / <code>@ManyToMany</code> ↔ GORM 标签),内容要自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"What is third normal form? When would you deliberately denormalize?"</b>(或者:「什么是第三范式?什么时候你会故意反范式?」)你可以答:<br>
+    <b>"范式的目标是每个事实只存一份,避免更新、插入、删除三类异常。1NF 要求每个字段是原子值、没有重复的列组;2NF 要求非主键列依赖整个主键,不能只依赖组合主键的一部分;3NF 要求非主键列直接依赖主键,不能通过另一个非主键列传递依赖,比如任务表里存了负责人邮箱又存负责人姓名,姓名其实由邮箱决定,就应该把负责人拆成用户表,任务里只放 owner_id。多对多关系一定要有中间表。业务库我默认做到 3NF,然后在有证据的时候有针对性地反范式:比如列表页频繁显示的计数,用计数缓存;只读的报表用宽表或物化视图;不需要单独查询的附属数据可以放 JSONB。反范式的代价是要自己维护一致性,我会让应用在同一个事务里更新,再加一个定期校正任务兜底,并在设计文档里登记这份冗余。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:跟着拆一遍(动手,约 8 min)</h3>
+    <ol>
+      <li>先把第 3、4、5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day23</code> 批改,特别看「结算」那张表。</li>
+      <li>psql 连进去,<code>SET search_path = day23;</code>。✍️ <b>预测</b>:给任务 2 加一个 <code>urgent</code> 标签,在宽表 <code>tasks_wide</code> 里要怎么写?在 3NF 里要怎么写?各影响几行?各写一遍(放在 <code>BEGIN … ROLLBACK</code> 里)。</li>
+      <li>在 3NF 下,把标签 <code>home</code> 改名为 <code>household</code>,要改几行?在宽表里呢?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:给新需求建模(动笔,约 10 min)</h3>
+    <p>产品提了三个需求,只画表和关系,不写代码:</p>
+    <ol>
+      <li><b>任务评论</b>:每个任务下面可以有很多条评论,每条评论有作者(某个用户)、内容、时间。</li>
+      <li><b>协作者</b>:一个任务除了负责人,还可以邀请多个协作者;一个用户也可以是多个任务的协作者。邀请时要记下「谁邀请的、什么时候邀请的」。</li>
+      <li><b>用户资料</b>:每个用户有一份资料(头像地址、简介、时区),一人一份。</li>
+    </ol>
+    <p>✍️ 每个需求写出:新增哪些表、每张表的主键是什么、和已有的表是 1:1 / 1:N / N:M 中的哪一种、外键放在哪一边。然后把它们加进 <code>docs/er-diagram.md</code> 的 mermaid 图里(在 GitHub 预览或 mermaid.live 上确认能渲染)。第 2 题的中间表和 <code>task_tags</code> 有什么不同?第 3 题为什么可以直接加在 <code>users</code> 上,又为什么有人会拆出去?</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:这个冗余值不值(思考,约 7 min)</h3>
+    <p>任务列表页要显示「清单完成 2/3」。有人提议在 <code>tasks</code> 上加两列 <code>checklist_total</code>、<code>checklist_done_count</code>。</p>
+    <ol>
+      <li>不加这两列时,这个数字怎么算出来?(提示:<code>06-rebuild-view.sql</code> 最后那条查询。)</li>
+      <li>加了之后,nest-lab 里哪些接口会改变这两个数?(把 Day 15 的 POST / PUT / PATCH / DELETE 逐个过一遍,别忘了 PUT 会整体替换 checklist。)每一处漏改,会出现什么样的错误显示?</li>
+      <li>你的结论:现在要不要加?要加的话,谁负责维护、怎么校正?登记在哪里?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/23-data-modeling/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「Redux 文档让我把 state 存成 <code>{ ids, entities }</code>,用 normalizr 把嵌套数据拍平,这和你们后端说的『数据库范式』是一回事吗?」用账本的比喻讲清楚它们相同在哪里、不同在哪里,并说出这个比喻在哪里会骗人。</li>
+      <li>宽表的三类异常分别是什么?1NF、2NF、3NF 各消除了什么问题?用 <code>tasks_wide → tasks_1nf → tasks_2nf → users / tasks</code> 的例子说明。</li>
+      <li>什么时候你会故意反范式?代价是什么?为什么说「schema 设计是最难改的决定」?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里补上你自己做的改动(比如习题 2 加进 ER 图的表);确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>把几个实体塞进一张表,同一个事实就会存好几份</b>,于是有三类异常:改不全(更新异常)、放不进(插入异常)、删多了(删除异常)。</li>
+    <li><b>关系只有三种</b>:1:1(常合并)、1:N(外键放在「多」的一方)、N:M(必须有中间表,ORM 里看起来像数组,底下仍是中间表)。表不等于 API 资源,建模按事实拆,API 按调用方需要拼。</li>
+    <li><b>范式建立在函数依赖上</b>:1NF 一格一值、没有重复列组;2NF 不能只依赖组合主键的一部分;3NF 不能经过非主键列间接依赖。目标是每个事实只存一份;代价是读的时候要 JOIN;它不替你检查业务规则(那是 Day 24 的约束)。</li>
+    <li><b>反范式是有意、有记录的取舍</b>(计数缓存、冗余列、报表宽表、JSONB),代价是要自己维护一致性;<b>schema 是最难改的决定</b>:数据比代码活得久,代码能回滚,数据不能。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>用 <code>tasks_wide</code> 的数据,各举一个更新、插入、删除异常的例子</li>
+    <li>为什么 1NF 之后「Alice 的邮箱」从 3 份变成了 5 份?这说明了什么?</li>
+    <li><code>tasks_1nf</code> 的主键是什么?哪一列是部分依赖?<code>tasks_2nf</code> 里的传递依赖是哪一条?</li>
+    <li>N:M 为什么不能用「在一边加一个外键」表达?中间表的主键是什么?</li>
+    <li>3NF 下为什么要先删 <code>task_tags</code> 的对照行,才能删任务?</li>
+    <li>计数缓存失真时会报错吗?有哪三种维护方式,各自的代价是什么?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 24</b>:主键与约束。今天的表还很「宽容」:邮箱可以重复,标题可以为空,主键直接用了手写的编号或 <code>GENERATED BY DEFAULT AS IDENTITY</code>,外键删除时只会报错。明天比较 identity / <code>serial</code> / UUID 几种发号方式,把 NOT NULL / UNIQUE / CHECK / 外键 <code>ON DELETE</code> 当成「数据库层的最后一道校验」,并看看约束报错的错误码怎么映射成 Day 17 的 409 / 422。</p>
+</section>
+
+<footer>
+  Day 23 · Phase 2 / Week 4 · 产出:<code>docs/23-data-modeling/</code> 本文档 + <code>nest-lab/</code>(<code>sql/day23/</code> 七个实验文件、<code>docs/er-diagram.md</code>、<code>npm run day23</code>)+ <code>src/23-data-modeling/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

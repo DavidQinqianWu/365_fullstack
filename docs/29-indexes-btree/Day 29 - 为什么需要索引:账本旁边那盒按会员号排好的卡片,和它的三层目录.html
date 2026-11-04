@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 29 - 为什么需要索引:账本旁边那盒按会员号排好的卡片,和它的三层目录</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 5</div>
+  <h1>Day 29 - 为什么需要索引:账本旁边那盒按会员号排好的卡片,和它的三层目录</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>百万行上的全表扫描 · 索引是另一份排好序的结构 · heap 与 ctid · B-tree 的根 / 中间 / 叶子页 · 树高 · 页分裂 · EXPLAIN 入门 · 选择性:建了索引为什么不用</b> ·
+    项目:<code>nest-lab/</code> 新增 <code>sql/day29/</code>(schema <code>day29</code>)、<code>npm run day29</code>(应用代码今天不改)·
+    今天没有新依赖;所有输出来自 PostgreSQL 16.15 的真实运行,耗时类数字至少跑 3 次、写区间
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:数据多了以后还快吗</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:索引 —— 账本旁边那盒按会员号排好的卡片</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:B-tree —— 卡片盒的三层目录</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:EXPLAIN 与选择性 —— 账房先生先说打算怎么找,有时候宁可从头翻</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:数据多了以后还快吗</h2>
+  <p>Week 4 结束时,nest-lab 的任务已经能存进 PostgreSQL 了。可是到现在为止,我们所有的表最多只有几十行。Day 22 的 <code>EXPLAIN</code> 里出现过 <code>Index Scan</code> 和 <code>Seq Scan</code> 两个词,当时说「4 行的时候没区别,400 万行的时候差几个数量级」;Day 24 说过「外键不会自动建索引」,Day 25 说过「JOIN 的逻辑结果和实际执行是两回事」。这些都欠着一个解释:<b>数据库到底是怎么「找」的?</b></p>
+  <p>今天先造一张 <b>100 万行</b>的任务表,不建任何索引,看看「按 id 找一行」要多久;再建上索引,看看快了多少、为什么快;最后看一个反直觉的现象:<b>建了索引,数据库也可能不用它</b>。</p>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你在前端一定写过 <code>tasks.find(t =&gt; t.id === 42)</code>:数组有多长,最坏就要比多少次,这叫 O(n)。数组一大,你会改成先建一个 <code>Map</code>:<code>byId.get(42)</code>,一步到位。但你不会给每个字段都建一个 Map:每次数组变了,所有 Map 都要跟着更新,还要占内存。<b>数据库的索引就是这个 Map 的「磁盘版」</b>,今天你会看到它长什么样、为什么它不是哈希表而是一棵树,以及什么时候它帮不上忙。
+  </div>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    中央账房的任务账已经记了一百万条,写满了八千多页。有人来问「第 500000 号任务是什么」,账房先生只能<b>从第一页开始一页页翻</b>。聪明的账房会在账本旁边放一个<b>卡片盒</b>:每张卡片只写「任务号 → 在第几页第几行」,卡片按任务号排好。查的时候先翻卡片盒,再直接翻到那一页。卡片太多,就再做一个<b>目录</b>:「1–3000 号在第一抽屉,3001–6000 号在第二抽屉……」。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+docker compose up -d     # 或本机的 PostgreSQL 已在运行(Day 22)
+npm run day29            # 造 100 万行(本机约 1.5 秒,慢的机器可能几十秒)→ 无索引 → 建索引 → 选择性 → B-tree 形状
+
+psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab
+nest_lab=&gt; SET search_path = day29;</code></pre>
+  <p>今天的表在独立的 schema <code>day29</code> 里。字段贴近 nest-lab 的 <code>tasks</code>(多了设计稿里的 <code>owner_id</code>),数据分布尽量像真的(<code>01-setup.sql</code> 用 <code>setseed</code> 保证每次生成的数据一样):</p>
+  <pre><code>INSERT 0 1000000
+Time: 1547.067 ms (00:01.547)
+  行数   | 表的大小
+---------+----------
+ 1000000 | 65 MB
+
+ 已完成占比
+------------
+       90.0
+
+ owner_id | 任务数
+----------+--------
+        1 | 100053        ← 1 号用户有 10 万个任务(10%)
+        2 |  18833
+        3 |  12697
+
+ 最少 | 中位数 |  最多
+------+--------+--------
+   13 |     43 | 100053   ← 每个用户的任务数:大多数人四十几个</code></pre>
+  <p>(<code>←</code> 是我加的说明。三次造数据分别用了 1.4 / 1.5 / 1.8 秒。)</p>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用</th></tr>
+    <tr><td><code>sql/day29/01-setup.sql</code></td><td>新增</td><td>建 schema <code>day29</code>,造 100 万行、没有任何索引(连主键都没有)的 <code>tasks</code></td></tr>
+    <tr><td><code>sql/day29/02-no-index.sql</code></td><td>新增</td><td>没有索引时三个查询的 <code>EXPLAIN</code></td></tr>
+    <tr><td><code>sql/day29/03-ctid.sql</code></td><td>新增</td><td>行在表里住在哪:<code>ctid</code>、8 KB 的页</td></tr>
+    <tr><td><code>sql/day29/04-create-indexes.sql</code></td><td>新增</td><td>加主键、给 <code>owner_id</code> 和 <code>title</code> 建索引,看耗时和大小</td></tr>
+    <tr><td><code>sql/day29/05-with-index.sql</code></td><td>新增</td><td>有索引以后的计划;范围查询和排序;索引帮不了别的列</td></tr>
+    <tr><td><code>sql/day29/06-selectivity.sql</code></td><td>新增</td><td>选择性:<code>done = true</code> 为什么不走索引;小表;强行走索引的代价</td></tr>
+    <tr><td><code>sql/day29/07-btree-shape.sql</code></td><td>新增</td><td>用 <code>pageinspect</code> 看主键索引的树高、每页条目数(需要超级用户)</td></tr>
+    <tr><td><code>scripts/day29-try.mjs</code> + <code>package.json</code> 的 <code>day29</code></td><td>新增</td><td>观察脚本:每个查询跑 3 次取执行时间;不是超级用户时改用估算</td></tr>
+    <tr><td><code>README.md</code></td><td>修改</td><td>命令、成长日志 Day 29</td></tr>
+  </table>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:索引 —— 账本旁边那盒按会员号排好的卡片</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    表里的行是<b>按写进来的顺序</b>堆放的,没有按任何列排好。没有索引时,要找「id = 500000」只能把所有行都看一遍(<b>全表扫描</b>)。<b>索引是另一份数据</b>:它把某一列的值按顺序排好,每个值旁边记着「这一行在表里的位置」。查的时候先在索引里很快地找到位置,再直接去表里取那一行。
+  </div>
+
+  <h3>② 生活类比:账本和卡片盒</h3>
+  <p>账本(表)是一页页写下来的,谁先来谁记在前面。卡片盒(索引)里每张卡片只写两样东西:<b>任务号</b>和<b>「在第几页第几行」</b>,卡片按任务号排好。找第 500000 号:在卡片盒里很快翻到那张卡片,看到「第 4166 页第 80 行」,直接翻过去。一个卡片盒只按一种东西排:按任务号排的卡片盒,帮不了「找标题叫『任务 777777』的」,那要另做一盒按标题排的卡片。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>今天看到的</th></tr>
+    <tr><td>一页页的账本</td><td><b>表 = heap(堆)</b>:由一个个 8 KB 的页(block)组成,行按写入顺序放进页里</td><td>65 MB,8334 页,每页约 120 行</td></tr>
+    <tr><td>「第几页第几行」</td><td><b>ctid</b>(tuple id):<code>(页号, 页内序号)</code></td><td><code>(0,1)</code>、<code>(1,1)</code>……</td></tr>
+    <tr><td>从第一页翻到最后一页</td><td><b>Seq Scan</b>(顺序扫描 / 全表扫描)</td><td>没有索引时三个查询都是它</td></tr>
+    <tr><td>按任务号排好的卡片盒</td><td><b>索引</b>(PostgreSQL 默认是 B-tree):按某列排好序,每个条目指向一个 ctid</td><td><code>tasks_pkey</code>、<code>tasks_owner_id_idx</code>、<code>tasks_title_idx</code></td></tr>
+    <tr><td>先翻卡片盒,再翻到那一页</td><td><b>Index Scan</b>(找到条目 → 按 ctid 回表取行)</td><td>有索引后 ① ③</td></tr>
+    <tr><td>先把要去的页都记下来,再按页号顺序一次翻完</td><td><b>Bitmap Index Scan + Bitmap Heap Scan</b></td><td>有索引后 ②(Day 30 细讲)</td></tr>
+    <tr><td>开账本时自动附送的卡片盒</td><td>主键和 UNIQUE 约束<b>自动</b>建 B-tree 索引;外键<b>不会</b></td><td>Day 24 的 <code>tasks_pkey</code>、<code>users_email_lower_key</code></td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:行住在哪。</b>✍️ <b>预测</b>:id 120 和 121 在同一页吗?把 id 1 改一下,它的 ctid 会变吗?真实结果(<code>03-ctid.sql</code>):</p>
+  <pre><code> block_size
+------------
+ 8192
+
+ ctid  | id | title
+-------+----+--------
+ (0,1) |  1 | 任务 1
+ (0,2) |  2 | 任务 2
+ (0,3) |  3 | 任务 3
+
+  ctid   | id  |  title
+---------+-----+----------
+ (0,120) | 120 | 任务 120
+ (1,1)   | 121 | 任务 121          ← 第 0 页装满了 120 行,第 121 行去了第 1 页
+ (1,2)   | 122 | 任务 122
+
+-- UPDATE id = 1 之后(在事务里,做完回滚)
+   ctid    | id | title
+-----------+----+--------
+ (8333,41) |  1 | 任务 1            ← 新版本写到了最后一页
+
+ 第0页里的行数
+---------------
+           120
+ 表一共几页
+------------
+       8334</code></pre>
+  <p>表是 8334 页、每页约 120 行。改一行,PostgreSQL 会写一个<b>新版本</b>(放在有空位的地方,这里是最后一页),旧版本标记作废(MVCC,Week 6)。这就是 Day 22「改过的行跑到后面」的原因,也是索引要记 ctid 而不是「第几行」的原因:行会搬家,索引条目要跟着更新。</p>
+
+  <p><b>⑤ 动手验证 B:没有索引 vs 有索引。</b>✍️ <b>预测</b>:100 万行、没有任何索引,按 id 找一行要多少毫秒?建了索引以后呢?三个查询哪个快得最多?真实结果(<code>npm run day29</code>,每个查询跑 3 次,取 <code>EXPLAIN ANALYZE</code> 报告的 Execution Time;整个脚本跑了 3 遍,下面是 3 遍合起来的区间):</p>
+  <table>
+    <tr><th>查询</th><th>没有索引</th><th>有索引</th><th>量级</th></tr>
+    <tr><td>① <code>WHERE id = 500000</code></td><td>25.3 – 30.3 ms</td><td>0.006 – 0.128 ms</td><td>快 200–300 倍以上</td></tr>
+    <tr><td>② <code>WHERE owner_id = 5000</code>(50 行)</td><td>28.8 – 37.9 ms</td><td>0.029 – 0.661 ms</td><td>快 40–55 倍以上</td></tr>
+    <tr><td>③ <code>WHERE title = '任务 777777'</code></td><td>29.7 – 41.6 ms</td><td>0.006 – 0.113 ms</td><td>快 300 倍左右</td></tr>
+  </table>
+  <p>有索引时,每组 3 次里<b>第一次明显更慢</b>(如 0.128 / 0.010 / 0.014),后两次只有几微秒:第一次要把索引页读进内存,后面就命中缓存了(这正是 Day 30 的 <code>BUFFERS</code> 要看的东西)。没有索引时,三个查询都要把 100 万行全看一遍,所以耗时差不多,都在 30 ms 左右;有了索引,只看几个页。<b>表越大,差距越大</b>:全表扫描的耗时和行数成正比,索引查找只和树的层数有关(下一张卡)。建这三个索引分别用了约 0.3–0.6 秒(主键)、0.4–0.7 秒(owner_id)、1.0–1.3 秒(title),大小分别是 21 MB、7 MB、30 MB,而表本身是 65 MB:<b>索引不是免费的</b>。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「卡片盒做一次就好」——每次记账都要同步更新所有卡片盒。</b>插入一行,每个索引都要插入一个条目;改一行(写新版本、ctid 变了),相关索引也要更新。三个索引加起来 58 MB,快赶上表本身了。索引越多,写入越慢、占的空间越大,这叫<b>写放大</b>,Day 32 实测。</li>
+      <li><b>「有卡片盒就什么都快」——卡片盒只对它排序的那一列(那几列)有用。</b>按 <code>owner_id</code> 排的索引,对 <code>WHERE created_at …</code> 毫无帮助(下面 <code>05-with-index.sql</code> 里实测:仍然是全表扫描)。几列一起建的复合索引,也只有按特定顺序用才有效,Day 31 讲。</li>
+      <li><b>「卡片上记着行号,直接就能找到」——ctid 会变。</b>行被更新、表被 <code>VACUUM FULL</code> 重写时,ctid 都会变。所以 ctid 只是数据库内部的「住址」,永远不要在应用里保存或使用它,应用要用主键。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>index</b>;<b>heap / heap table</b>;<b>page / block</b>(8 KB);<b>ctid / TID</b>(tuple identifier);<b>sequential scan</b>(full table scan);<b>index scan</b>;<b>secondary index</b>(PostgreSQL 的所有索引都是指向 heap 的「二级索引」);<b>write amplification</b>(Day 32)。
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:B-tree —— 卡片盒的三层目录</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>B-tree</b> 是一棵又矮又胖的树:每个节点就是一个 8 KB 的页,能装几百个键。最下面一层(<b>叶子页</b>)装着所有的键和对应的 ctid,按顺序排好,并且一页连着一页;上面几层(<b>中间页</b>、<b>根页</b>)只是「目录」,告诉你该往哪一页去找。因为每页能分几百个叉,100 万个键只需要 <b>3 层</b>,查一个键只要读 3 个页。
+  </div>
+
+  <h3>② 生活类比:卡片盒的三层目录</h3>
+  <p>一百万张卡片,放在 2700 多个抽屉里,每个抽屉装 360 多张,按任务号排好,抽屉和抽屉之间用绳子串起来(看完一个抽屉,顺着绳子就到下一个)。墙上有一张<b>分区表</b>,写着「1–10 万号在 A 柜,10–20 万号在 B 柜……」;每个柜子门上又贴着一张<b>柜内目录</b>:「这一柜的第 1 个抽屉从几号开始,第 2 个从几号开始……」。找第 500000 号:看墙上的分区表(根),去对应的柜子看柜门目录(中间层),拉开那个抽屉(叶子),三步。要找「1000 到 1100 号」:找到 1000 号所在的抽屉,然后顺着绳子往后翻就行。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>tasks_pkey 实测(<code>pageinspect</code>)</th></tr>
+    <tr><td>墙上的分区表</td><td><b>根页</b>(root):只有一个</td><td>根页里 10 个条目,位于第 2 层</td></tr>
+    <tr><td>柜门上的柜内目录</td><td><b>中间页</b>(internal / branch)</td><td>第 1 层</td></tr>
+    <tr><td>装卡片的抽屉</td><td><b>叶子页</b>(leaf):键 + ctid,按键排序</td><td>第 0 层,每页 367 个条目</td></tr>
+    <tr><td>抽屉之间的绳子</td><td>叶子页之间的<b>双向链表</b>(左右兄弟指针)</td><td>范围查询、<code>ORDER BY</code>、<code>Index Scan Backward</code></td></tr>
+    <tr><td>一共几层</td><td><b>树高</b> = 根页的层号 + 1</td><td><b>3</b></td></tr>
+    <tr><td>抽屉满了,拆成两个</td><td><b>页分裂</b>(page split)</td><td>回扣 Day 24 的 UUID v4 vs v7</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:树有多高。</b>✍️ <b>预测</b>:100 万个 bigint 键,一页能装几百个,树会有几层?真实结果(<code>07-btree-shape.sql</code>,<code>pageinspect</code> 需要超级用户,本课程环境用 <code>sudo -u postgres psql</code> 执行;Docker 里的 <code>nest_lab</code> 本身就是超级用户,<code>npm run day29</code> 能直接跑出来):</p>
+  <pre><code> root | level | 树高
+------+-------+------
+  290 |     2 |    3
+
+ 根页里的条目数 | 层
+----------------+----
+             10 |  2
+
+ 这一页的条目数 | page_size | free_size | 层
+----------------+-----------+-----------+----
+            367 |      8192 |       808 |  0
+
+-- 叶子页里的前几个条目(第 1 个是这一页的「上限键」high key)
+ itemoffset | ctid  |          data
+------------+-------+-------------------------
+          1 | (3,1) | 6f 01 00 00 00 00 00 00
+          2 | (0,1) | 01 00 00 00 00 00 00 00
+          3 | (0,2) | 02 00 00 00 00 00 00 00
+          4 | (0,3) | 03 00 00 00 00 00 00 00
+
+ 索引一共几页
+--------------
+         2745</code></pre>
+  <ul>
+    <li><b>树高 3</b>:根页(第 2 层)10 个条目 → 10 个中间页(第 1 层)→ 2700 多个叶子页(第 0 层)。查任意一个 id,只读 3 个索引页 + 1 个表页。数据再多 300 倍(3 亿行),也不过 4 层。<b>这就是 B-tree 适合数据库的原因</b>:层数随数据量对数增长,而且每一层正好是一次磁盘读取的单位(一页)。</li>
+    <li><b>每页 367 个条目</b>:每个条目是「条目头 8 字节(里面就是 ctid)+ bigint 键 8 字节」,再加页内的行指针 4 字节,共 20 字节;8192 字节去掉页头页尾约能放 407 个。实际是 367,因为 <code>CREATE INDEX</code> 建叶子页时默认只填 90%(<b>fillfactor</b>),留点空位给以后的插入,还剩 808 字节空闲。</li>
+    <li><b>叶子里装的就是「键 → ctid」</b>:第 2 条 <code>01 00 …</code> 是 id 1(小端序的 8 字节整数),指向 <code>(0,1)</code>;第 3 条是 id 2,指向 <code>(0,2)</code>。第 1 条 <code>6f 01</code> = 367,是这一页的上限键:比它大的键,去右边那一页找。</li>
+    <li>不是超级用户时,观察脚本会改用估算(索引页数 2745、每页最多约 407 个键,估算树高 3),结果一致。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 B:叶子页是连着的。</b>真实结果(<code>05-with-index.sql</code>):</p>
+  <pre><code>EXPLAIN SELECT * FROM tasks WHERE id BETWEEN 1000 AND 1100;
+ Index Scan using tasks_pkey on tasks  (cost=0.42..10.43 rows=100 width=38)
+   Index Cond: ((id &gt;= 1000) AND (id &lt;= 1100))
+
+EXPLAIN SELECT * FROM tasks ORDER BY id DESC LIMIT 10;
+ Limit  (cost=0.42..0.77 rows=10 width=38)
+   -&gt;  Index Scan Backward using tasks_pkey on tasks  (cost=0.42..34317.43 rows=1000000 width=38)
+
+-- 索引按 id 排,帮不了按 created_at 找
+EXPLAIN SELECT * FROM tasks WHERE created_at &gt;= '2025-06-01' AND created_at &lt; '2025-06-02';
+ Gather  (cost=1000.00..15745.40 rows=1614 width=38)
+   Workers Planned: 2
+   -&gt;  Parallel Seq Scan on tasks  (cost=0.00..14584.00 rows=672 width=38)
+         Filter: …</code></pre>
+  <p>范围查询:找到 1000 所在的叶子页,顺着链表往后读,读到 1100 为止。<code>ORDER BY id DESC LIMIT 10</code>:从最右边的叶子页往左读 10 个就停,<b>不用排序整张表</b>(<code>Index Scan Backward</code>,注意 <code>Limit</code> 的总 cost 只有 0.77)。这正是 Day 19 / 27 的 keyset 分页能快的前提:<code>ORDER BY … LIMIT</code> 要有一个和排序方向对得上的索引,Day 31 专门讲。而 <code>created_at</code> 上没有索引,照样是全表扫描(<code>Gather</code> / <code>Parallel Seq Scan</code> 是「多个进程分头扫」,Day 30 讲)。</p>
+
+  <p><b>页分裂:给 Day 24 的数字补上原理。</b>Day 24 实测过:20 万行逐条插入,UUID v4 主键索引 8.4 MB,UUID v7 只有 6.2 MB。现在可以解释了:叶子页满了以后,再往这一页插一个键,B-tree 会把它<b>拆成两页、各装一半</b>。按顺序插入时(自增 id、v7),新键永远落在最右边那一页,PostgreSQL 对这种情况有专门处理:拆分时左边留得很满,新开的右页继续往后写,所以最后几乎每页都是满的。随机插入时(v4),新键落在任意一页,哪一页满了就对半拆,拆出来的半空页之后只会被零星地填上,整体只有六七成满,于是索引更大、要读的页更多。今天的 <code>tasks_pkey</code> 是在数据全部写完后用 <code>ALTER TABLE … ADD PRIMARY KEY</code> 建的:建索引时会先把所有键<b>排好序再一次性写成叶子页</b>,根本不会分裂,所以每页整整齐齐都是 367 个。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「三层目录,所以就读 3 次磁盘」——大多数时候一次磁盘都不读。</b>根页和中间页被访问得最频繁,几乎总在内存里(PostgreSQL 的 <code>shared_buffers</code> 和操作系统的页缓存);上面每组第一次慢、后两次快,就是缓存的效果。B-tree 的价值在于<b>最坏情况</b>也只读这么几页。哪些页是从缓存读的、哪些真的读了磁盘,Day 30 用 <code>EXPLAIN (ANALYZE, BUFFERS)</code> 看。</li>
+      <li><b>「卡片盒就是一个超大的 Map」——B-tree 不是哈希表。</b>哈希只能回答「等于某个值」;B-tree 是有序的,所以还能回答「大于 / 小于 / 在某个范围 / 按顺序取前 10 个 / 以某个前缀开头」。PostgreSQL 也有 hash 索引,但只支持等值查找,很少用。前端的 <code>Map</code> 对应的其实是 hash,所以它帮不了 <code>BETWEEN</code> 和排序。</li>
+      <li><b>「拆开的抽屉以后会自己合并」——页分裂之后,空间不会自动变紧凑。</b>大量删除也会留下空洞。索引膨胀以后要靠 <code>REINDEX</code>(或者 PostgreSQL 13 起的去重、14 起的自底向上删除这类内部优化来缓解);表和索引的清理机制(<code>VACUUM</code>)是 Week 6 的内容。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>B-tree</b>(PostgreSQL 实现的是 Lehman–Yao 风格的 B+tree:数据只在叶子,叶子之间有链表);<b>root / internal (branch) / leaf page</b>;<b>fan-out</b>(每页分几个叉);<b>tree height</b>;<b>high key</b>;<b>sibling link</b>;<b>page split</b>;<b>fillfactor</b>(B-tree 叶子默认 90);<b>index bloat</b>;<b><code>pageinspect</code></b>(<code>bt_metap</code>、<code>bt_page_stats</code>、<code>bt_page_items</code>)。
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:EXPLAIN 与选择性 —— 账房先生先说打算怎么找,有时候宁可从头翻</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b><code>EXPLAIN</code></b> 让数据库说出它<b>打算</b>怎么执行一条 SQL(执行计划),但不真的执行;<b><code>EXPLAIN ANALYZE</code></b> 会真的执行一遍,再报告实际花了多久。数据库(<b>优化器</b>)会估算每种做法的<b>代价</b>,选最便宜的。如果一个查询要返回表里很大一部分行,用索引要来回跳着取行,还不如从头扫一遍,所以<b>建了索引不一定会用</b>。一个条件能把行筛到多少,叫<b>选择性</b>。
+  </div>
+
+  <h3>② 生活类比:账房先生先报方案</h3>
+  <p>你交给账房先生一张单子,他不马上动手,而是先说:「这张单子我打算先翻卡片盒,再去第 4166 页拿,估计要花 8 个工分。」这就是 EXPLAIN。如果你的单子是「把所有已经完成的任务都抄给我」,而 90% 的任务都完成了,他会说:「翻卡片盒再一张张跳着去找,还不如我从第一页翻到最后一页一起抄,反正几乎每页都要看。」他是按经验估算的,通常对,偶尔也会估错。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>怎么读</th></tr>
+    <tr><td>先报方案,不动手</td><td><code>EXPLAIN</code></td><td>输出一棵「计划树」,缩进越深越先执行</td></tr>
+    <tr><td>动手做一遍,再报实际用时</td><td><code>EXPLAIN ANALYZE</code></td><td>多了 <code>actual time=…</code>、<code>Execution Time</code>;⚠️ 它<b>真的会执行</b>,对 UPDATE / DELETE 要放在事务里回滚</td></tr>
+    <tr><td>估计要花几个工分</td><td><code>cost=启动代价..总代价</code></td><td><b>单位不是毫秒</b>,是优化器自己的「代价单位」(以顺序读一页 = 1 为基准);只能用来比较同一条 SQL 的不同计划</td></tr>
+    <tr><td>估计会抄出几行 / 每行多宽</td><td><code>rows=</code> / <code>width=</code></td><td>估算值,来自统计信息(Day 30)</td></tr>
+    <tr><td>从头翻 / 翻卡片盒</td><td><code>Seq Scan</code> / <code>Index Scan</code>(还有 <code>Bitmap …</code>,Day 30)</td><td>节点名就是「怎么找」</td></tr>
+    <tr><td>能筛掉多少人</td><td><b>选择性</b>(selectivity):满足条件的行占多少</td><td>占得越少,索引越划算</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:建索引前后的计划。</b>✍️ <b>预测</b>:没有索引时,<code>WHERE id = 500000</code> 的计划里会出现什么节点?cost 大约多少?建了主键以后呢?真实结果(<code>02-no-index.sql</code> / <code>05-with-index.sql</code>):</p>
+  <pre><code>-- 没有索引
+ Gather  (cost=1000.00..14542.43 rows=1 width=38)
+   Workers Planned: 2
+   -&gt;  Parallel Seq Scan on tasks  (cost=0.00..13542.33 rows=1 width=38)
+         Filter: (id = 500000)
+
+-- EXPLAIN ANALYZE:真的执行一遍
+ Gather  (cost=1000.00..14542.43 rows=1 width=38) (actual time=24.671..29.524 rows=1 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   -&gt;  Parallel Seq Scan on tasks  (cost=0.00..13542.33 rows=1 width=38) (actual time=17.892..21.838 rows=0 loops=3)
+         Filter: (id = 500000)
+         Rows Removed by Filter: 333333
+ Planning Time: 0.022 ms
+ Execution Time: 29.541 ms
+
+-- 有了主键索引
+ Index Scan using tasks_pkey on tasks  (cost=0.42..8.44 rows=1 width=38)
+   Index Cond: (id = 500000)
+-- EXPLAIN ANALYZE
+ Index Scan using tasks_pkey on tasks  (cost=0.42..8.44 rows=1 width=38) (actual time=0.068..0.068 rows=1 loops=1)
+   Index Cond: (id = 500000)
+ Planning Time: 0.018 ms
+ Execution Time: 0.075 ms</code></pre>
+  <p>读法(今天只读这几样,其余 Day 30 细讲):</p>
+  <ul>
+    <li><b>节点名</b>:<code>Parallel Seq Scan</code> 是「3 个进程(主进程 + 2 个 worker)各扫三分之一」,<code>Gather</code> 把它们的结果收起来;<code>Rows Removed by Filter: 333333</code> 说的是每个进程看了 33 万行、全部扔掉(<code>loops=3</code>)。有索引后变成一个 <code>Index Scan</code>,<code>Index Cond</code> 说明条件是在索引里用的,而不是逐行过滤。</li>
+    <li><b>cost</b>:从 14542 降到 8.44。这两个数字只能互相比较,不是毫秒。<code>0.42..8.44</code> 前一个是「开始返回第一行之前的代价」,后一个是「全部做完的代价」。</li>
+    <li><b>rows / width</b>:优化器估计会返回 1 行、每行约 38 字节。估得准不准,决定了它会不会选对计划。</li>
+    <li><b>actual time</b>:29.5 ms → 0.075 ms。<code>EXPLAIN ANALYZE</code> 本身有一点额外开销,所以它的时间只用来<b>对比</b>,不要当成接口的真实耗时。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 B:选择性。</b>给只有两种值的 <code>done</code> 也建一个索引。✍️ <b>预测</b>:<code>done = true</code>(90%)和 <code>done = false</code>(10%)会不会走索引?同一个 <code>owner_id</code> 索引,查普通用户(约 50 行)和 1 号用户(约 10 万行)的计划一样吗?10 行的小表呢?真实结果(<code>06-selectivity.sql</code>):</p>
+  <pre><code>-- 优化器掌握的分布(统计信息)
+ 最常见的值 |         各自占比
+------------+--------------------------
+ {t,f}      | {0.89923334,0.100766666}
+
+-- done = true(90%)
+ Seq Scan on tasks  (cost=0.00..18334.00 rows=899233 width=38)
+   Filter: done
+-- done = false(10%)
+ Bitmap Heap Scan on tasks  (cost=1125.37..10467.04 rows=100767 width=38)
+   Recheck Cond: (NOT done)
+   -&gt;  Bitmap Index Scan on tasks_done_idx  (cost=0.00..1100.18 rows=100767 width=0)
+         Index Cond: (done = false)
+-- owner_id = 5000(约 50 行)
+ Bitmap Heap Scan on tasks  (cost=5.08..316.83 rows=84 width=38)
+-- owner_id = 1(约 10 万行)
+ Bitmap Heap Scan on tasks  (cost=1114.64..10684.48 rows=98867 width=38)
+-- 10 行的小表,有主键也不用
+ Seq Scan on tiny  (cost=0.00..1.12 rows=1 width=7)
+   Filter: (id = 5)
+-- 强行不许全表扫描(enable_seqscan = off),done = true 的代价
+ Bitmap Heap Scan on tasks  (cost=10025.48..27351.81 rows=899233 width=38)</code></pre>
+  <p>同一个 <code>tasks_done_idx</code>:要 10% 的行时用了(先在索引里把这些行所在的页标记出来,再按页号顺序去表里取);要 90% 的行时不用,直接 <code>Seq Scan</code>,因为强行用索引的估算代价是 27351,比全表扫描的 18334 还高。10 行的小表整张只有一页,翻卡片盒反而多一步。</p>
+  <p>实际耗时呢?<code>done = true</code> 各跑 3 次、脚本跑 3 遍:优化器选的 Seq Scan 56–66 ms;强行走索引(bitmap)57–95 ms,大多更慢、偶尔持平;再把 bitmap 也关掉、逼它走普通 Index Scan,64–71 ms。<b>差距没有 cost 显示的那么大</b>,原因是这张 65 MB 的表在本机全在内存里,而 cost 模型默认「随机读一页比顺序读贵 4 倍」(<code>random_page_cost = 4</code>),这是按「数据要从磁盘读」来估的。数据不在内存、在云盘上时,这个差距会变得很真实。这也说明:<b>优化器是按模型估算的,不是按真实耗时决定的</b>,Day 30 看它什么时候会估错。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「账房先生的方案总是最快的」——优化器是在估算,会估错。</b>它靠统计信息(上面的 <code>{0.899, 0.101}</code> 就是)估计每一步会出多少行,再用代价模型算代价。统计信息过期了(大批数据刚导入还没 <code>ANALYZE</code>)、数据分布很怪、代价参数和真实硬件不符时,它就会选错。Day 30 专门制造一次「估错」。</li>
+      <li><b>「cost 越小越快,cost 8 就是 8 毫秒」——cost 没有单位换算。</b>它只用于同一条 SQL 不同计划之间的比较;不同 SQL 之间、不同机器之间比 cost 没有意义。真实耗时只能看 <code>EXPLAIN ANALYZE</code> 或者 Day 34 的 <code>pg_stat_statements</code>。</li>
+      <li><b>「给每一列都建个索引,总有一个会被用上」——不会被用的索引只有代价。</b><code>done</code> 这种只有两个值、而且分布是 90 / 10 的列,只有查少数那一边时才可能用上;更好的做法是只为少数那一边建「部分索引」(<code>WHERE done = false</code>),Day 32 讲。没用的索引可以从 <code>pg_stat_user_indexes</code> 里找出来,也是 Day 32。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>query planner / optimizer</b>(cost-based optimizer);<b>execution plan / plan node</b>;<b><code>EXPLAIN</code> / <code>EXPLAIN ANALYZE</code></b>;<b>startup cost / total cost</b>;<b>row estimate / width</b>;<b>selectivity</b> / <b>cardinality</b>;<b>statistics</b>(<code>pg_stats</code>、<code>ANALYZE</code>,Day 30);<b><code>seq_page_cost</code> = 1 / <code>random_page_cost</code> = 4</b>;<b>parallel sequential scan</b>(<code>Gather</code>);<b>planner settings</b>(<code>enable_seqscan</code> 只用于实验)。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p>索引是数据库层的概念,ORM 只是提供了「在模型上声明索引、由迁移工具生成 <code>CREATE INDEX</code>」的写法:</p>
+  <table>
+    <tr><th>工具</th><th>声明一个普通索引</th></tr>
+    <tr><td>Prisma(Node / TS)</td><td>模型里写 <code>@@index([ownerId])</code>;唯一索引 <code>@@unique</code> / 字段上 <code>@unique</code></td></tr>
+    <tr><td>EF Core(C#)</td><td><code>modelBuilder.Entity&lt;TaskItem&gt;().HasIndex(t =&gt; t.OwnerId)</code>,或在类上贴 <code>[Index(nameof(OwnerId))]</code></td></tr>
+    <tr><td>JPA / Hibernate(Java)</td><td><code>@Table(indexes = @Index(name = "tasks_owner_id_idx", columnList = "owner_id"))</code>(只在让 Hibernate 生成表结构时生效;生产上通常用 Flyway / Liquibase 迁移写 SQL)</td></tr>
+    <tr><td>Go</td><td>在迁移文件(goose / migrate)里手写 <code>CREATE INDEX …</code></td></tr>
+  </table>
+
+  <p><b>面试高频:表本身是怎么存的?</b>这是 PostgreSQL 和 SQL Server、MySQL 差别最大的地方之一:</p>
+  <table>
+    <tr><th></th><th>PostgreSQL</th><th>MySQL(InnoDB)</th><th>SQL Server</th></tr>
+    <tr><td>表本身</td><td><b>堆表</b>:行按写入顺序放,不按任何列排序</td><td><b>聚簇索引</b>:表本身就是一棵按主键排序的 B+tree,行数据存在主键索引的叶子里</td><td>默认主键建成<b>聚簇索引</b>(表按它排序存放);也可以建成没有聚簇索引的堆表</td></tr>
+    <tr><td>其他索引指向哪里</td><td>指向 heap 里的 <b>ctid</b></td><td>二级索引的叶子里存的是<b>主键值</b>;找到主键后再去主键索引里查一遍(常说的「回表」)</td><td>非聚簇索引里存的是<b>聚簇键</b>(堆表时是行定位符 RID)</td></tr>
+    <tr><td>主键选择的影响</td><td>主键只是一个普通的唯一索引</td><td>主键越长,所有二级索引越大;随机主键(UUID v4)会让整张表的数据页频繁分裂</td><td>和 InnoDB 类似,聚簇键会被复制进每个非聚簇索引</td></tr>
+    <tr><td>能不能「按某列排好存」</td><td><code>CLUSTER</code> 命令可以按某个索引重排一次,但之后的写入不会保持这个顺序</td><td>总是按主键排</td><td>总是按聚簇键排</td></tr>
+  </table>
+  <p>这张表解释了一个常见的面试题:「为什么 MySQL 推荐用自增主键?」——因为 InnoDB 的表就是主键索引,随机主键会让<b>数据本身</b>不停地页分裂,而不只是索引。在 PostgreSQL 里,Day 24 的 v4 vs v7 差别只体现在主键索引上,表本身不受影响。</p>
+
+  <p><b>看执行计划</b>:MySQL 用 <code>EXPLAIN</code>(表格形式,看 <code>type</code>、<code>key</code>、<code>rows</code> 列),8.0.16 起有 <code>EXPLAIN FORMAT=TREE</code>,8.0.18 起有真的会执行的 <code>EXPLAIN ANALYZE</code>;SQL Server 在 SSMS 里看「估计的 / 实际的执行计划」(图形),或者用 <code>SET SHOWPLAN_XML ON</code>,看读了多少页用 <code>SET STATISTICS IO ON</code>(相当于 PostgreSQL Day 30 要学的 <code>BUFFERS</code>)。</p>
+  <p>🔎 核实说明:上面两张表里 MySQL InnoDB 和 SQL Server 的存储方式、MySQL 8.0.16 / 8.0.18 的版本号、ORM 的 API 名称,是公认事实,<b>没有在本机实测</b>(本课程环境只有 PostgreSQL)。</p>
+  <p>📌 roadmap 顶部对照表还没有「索引 / 执行计划」这一行。建议你在 Day 35 复盘时补一行(PG 堆表 + 二级索引 ↔ InnoDB 聚簇主键 + 二级索引存主键 ↔ SQL Server 聚簇 / 非聚簇;<code>EXPLAIN ANALYZE</code> ↔ MySQL <code>EXPLAIN ANALYZE</code> ↔ SSMS 执行计划 + <code>STATISTICS IO</code>),内容自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"Why does an index speed up a query? Why do databases use B-trees? And why might the database not use an index you created?"</b>(或者:「索引为什么能加速查询?B-tree 为什么适合数据库?建了索引为什么没用上?」)你可以答:<br>
+    <b>"没有索引时,数据库只能全表扫描,耗时和表的行数成正比。索引是另一份按某列排好序的结构,每个条目指向表里那一行的位置,所以可以直接定位,不用看其他行。数据库用 B-tree,是因为它又矮又胖:每个节点就是一个磁盘页,能放几百个键,一百万行只要三层,查一个键只读三四个页,最坏情况也有保证;而且叶子是有序并且相互链接的,所以除了等值查找,还能做范围查询、排序和取前 N 个,这是哈希做不到的。建了索引不一定会用,因为优化器是基于代价的:如果条件筛出的行占比很大,比如百分之九十,用索引要大量随机回表,还不如顺序扫描;小表也是同样的道理。另外,统计信息过期会让它估错,条件写法和索引列不匹配也会用不上,比如对列做了函数运算,或者复合索引没用到最左边的列。索引也有代价:占空间,而且每次写入都要维护。我会用 EXPLAIN ANALYZE 确认实际计划和耗时。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:跟着跑一遍(动手,约 8 min)</h3>
+    <ol>
+      <li>先把第 3、4、5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day29</code> 批改。你那边的耗时数字会和讲义不同,看量级和倍数就好。</li>
+      <li>psql 连进去,<code>SET search_path = day29;</code>。✍️ <b>预测</b>:<code>EXPLAIN SELECT * FROM tasks WHERE owner_id = 5000 ORDER BY created_at DESC LIMIT 10;</code> 会用哪个索引?排序是在哪一步做的?(只看计划,答不出来没关系,Day 31 讲。)</li>
+      <li>给 <code>created_at</code> 建一个索引,再跑一次 <code>05-with-index.sql</code> 里按 <code>created_at</code> 查一天的那条。计划变了吗?索引多大?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:找到选择性的分界线(动手,约 10 min)</h3>
+    <p>同一个 <code>owner_id</code> 索引,查 50 行的用户和查 10 万行的 1 号用户都用了 bitmap。数据库什么时候会改用 <code>Seq Scan</code>?</p>
+    <ol>
+      <li>✍️ <b>预测</b>:<code>WHERE owner_id &lt;= 1</code>、<code>&lt;= 3</code>、<code>&lt;= 10</code>、<code>&lt;= 50</code>、<code>&lt;= 200</code>,哪一个开始变成 <code>Seq Scan</code>?(先查一下每个条件大概匹配多少行。)</li>
+      <li>逐个 <code>EXPLAIN</code>,记下计划节点和 <code>rows</code> 估算;再对分界线两边的条件各跑 3 次 <code>EXPLAIN ANALYZE</code>,比较实际耗时。优化器的选择和实际耗时一致吗?</li>
+      <li>想一想:如果这张表不在内存里,而是在一块很慢的云盘上,分界线会往哪边移?<code>random_page_cost</code> 这个参数在说什么?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:看一眼 nest-lab 的真实表(思考 + 动手,约 7 min)</h3>
+    <ol>
+      <li>连进 Day 27 的 schema <code>app</code>(或 <code>app_test</code>),<code>\d tasks</code>、<code>\d checklist_items</code>。现在一共有几个索引?各是怎么来的(哪个是你写的 <code>CREATE INDEX</code>)?</li>
+      <li>对照 <code>PgTasksRepository</code> 里的 SQL,列出 nest-lab 实际会跑的查询:按 id 查、列表分页(<code>ORDER BY … LIMIT</code>)、<code>done</code> 过滤、<code>title ILIKE '%…%'</code>、按 <code>task_id</code> 读清单项。✍️ 每一条写下你的猜测:现在的索引帮得上吗?(答案在 Day 31–34 一条条揭晓。)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/29-indexes-btree/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「我知道数组 <code>find</code> 是 O(n),<code>Map.get</code> 是 O(1),所以数组一大我就先建个 Map。数据库的索引就是 Map 吗?那为什么不给每个字段都建一个?」用账本和卡片盒的比喻讲清楚,并说出这个比喻在哪里会骗人。</li>
+      <li>B-tree 的根页、中间页、叶子页各存什么?为什么 100 万行只有 3 层?叶子页之间为什么要连起来?页分裂是什么,它和 Day 24 的 UUID v4 vs v7 有什么关系?</li>
+      <li><code>EXPLAIN</code> 和 <code>EXPLAIN ANALYZE</code> 有什么区别?<code>cost</code> 是什么单位?为什么 <code>done = true</code> 的查询不走 <code>done</code> 上的索引?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里补上你自己做的改动(比如习题 2 找到的分界线);确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>表是按写入顺序堆放的(heap)</b>,行的地址是 <code>ctid</code>(第几页第几个);没有索引时只能全表扫描,100 万行约 25–40 ms,而且和行数成正比。</li>
+    <li><b>索引是另一份按某列排好序的数据</b>,每个条目指向一个 ctid;有索引后同样的查询只要几微秒到零点几毫秒,快了几十到几百倍。代价是空间(三个索引 58 MB,表 65 MB)和每次写入的维护;主键和 UNIQUE 自动建索引,外键不会。</li>
+    <li><b>B-tree 又矮又胖</b>:根 → 中间 → 叶子,每页几百个键(实测 367),100 万行只有 3 层;叶子有序且相互链接,所以范围查询、排序、取前 N 个也快。顺序插入时页分裂几乎不浪费空间,随机插入会留下半空的页(Day 24 的 v4 vs v7)。</li>
+    <li><b>建了索引 ≠ 一定会用</b>:优化器按统计信息和代价模型估算,要返回的行占比太大(<code>done = true</code> 占 90%)或表太小时,它宁可全表扫描。<code>EXPLAIN</code> 看计划不执行,<code>EXPLAIN ANALYZE</code> 真的执行;<code>cost</code> 不是毫秒,只用来比较同一条 SQL 的不同计划。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>id 120 和 121 为什么不在同一页?改了一行以后它的 ctid 为什么会变?</li>
+    <li>为什么没有索引时三个查询的耗时差不多,有了索引以后差了几百倍?</li>
+    <li><code>tasks_pkey</code> 的树高是几?根页里有几个条目?叶子页每页 367 个,这个数是怎么来的?</li>
+    <li><code>ORDER BY id DESC LIMIT 10</code> 为什么不用排序整张表?</li>
+    <li>为什么用 <code>ALTER TABLE … ADD PRIMARY KEY</code> 在已有数据上建的索引不会发生页分裂?</li>
+    <li><code>done = false</code> 走了索引、<code>done = true</code> 没走,为什么?强行让 <code>done = true</code> 走索引,实际耗时为什么没有 cost 显示的差那么多?</li>
+    <li>MySQL InnoDB 的二级索引里存的是什么?为什么 MySQL 特别推荐自增主键?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 30</b>:读执行计划。今天只认识了 <code>Seq Scan</code>、<code>Index Scan</code> 两个节点,还碰到了没解释的 <code>Bitmap Heap Scan</code>、<code>Gather</code>。明天用 <code>EXPLAIN (ANALYZE, BUFFERS)</code> 看估算和实际差多少、哪些页来自缓存(shared hit)哪些真的读了磁盘(read);认识 <code>Index Only Scan</code>、Bitmap 扫描、三种 JOIN 算法(Nested Loop / Hash / Merge,接 Day 25);再故意让统计信息过期,看优化器估错时会选出多差的计划。之后几天依次是复合与覆盖索引(Day 31)、部分 / 表达式 / 外键索引与写放大(Day 32)、GIN 与 BRIN(Day 33)、用 <code>pg_stat_statements</code> 给 nest-lab 找慢查询并优化(Day 34)。</p>
+</section>
+
+<footer>
+  Day 29 · Phase 2 / Week 5 · 产出:<code>docs/29-indexes-btree/</code> 本文档 + <code>nest-lab/</code>(<code>sql/day29/</code> 七个实验文件、<code>npm run day29</code>)+ <code>src/29-indexes-btree/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 22 - 把 PostgreSQL 跑起来:总店的中央账房,每个来窗口办事的人都配一个账房伙计</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 4</div>
+  <h1>Day 22 - 把 PostgreSQL 跑起来:总店的中央账房,每个来窗口办事的人都配一个账房伙计</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>为什么需要数据库 · 客户端-服务器模型 · 每个连接一个后端进程 · 集群 / 数据库 / schema / 表 · psql 基本功 · 第一张表与 CRUD · 忘写 WHERE</b> ·
+    项目:<code>nest-lab/</code> 新增 <code>compose.yaml</code>、<code>sql/day22/</code>、<code>npm run day22</code>(应用代码今天不改)·
+    新工具:<b>PostgreSQL 16</b>(讲义输出来自 16.15 的真实运行);今天没有新的 npm 依赖
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:任务存在内存里,重启就没了</a></li>
+    <li><a href="#sec2">🚀 先跑起来:把 PostgreSQL 起起来、连进去</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:客户端-服务器 —— 中央账房和每人一个账房伙计</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:层级与 psql —— 账房、分账房、柜子、账本,和窗口口令</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:第一张表与 CRUD —— 记账的四个动作,和那次忘了圈范围</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:任务存在内存里,重启就没了</h2>
+  <p>Week 3 结束时,nest-lab 已经是一个契约完整的 REST API,但它的数据还放在 Day 9 写的 <code>InMemoryTasksRepository</code> 里,也就是 Node 进程里的一个数组。Day 21 的遗留清单第 7 条写着:<b>重启丢数据</b>。你可以现在就验证:<code>npm run start:dev</code>,<code>POST</code> 一条任务,改一行代码让它热重启,再 <code>GET</code>,那条任务就没了。</p>
+  <p>问题不只是重启。Day 4 讲 cluster 的时候,我们开了好几个工作进程,<b>每个进程有自己的内存</b>。如果 nest-lab 开 4 个副本,就有 4 个互不相通的数组:用户在副本 1 建的任务,下一个请求被分到副本 2,就找不到了。还有并发(两个请求同时改同一条)、崩溃(写到一半断电)、数据量(5 亿条放不进内存)这些问题。</p>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    前端也有「存起来」的地方:<code>localStorage</code>、IndexedDB。它们解决的是「<b>这一个用户、这一个浏览器</b>」刷新后数据还在。后端的问题完全不同:数据属于<b>所有用户</b>,要被<b>很多个服务进程</b>同时读写,还要在任何一个进程崩溃、重启、扩容时都不丢、不乱。所以后端不把数据放在自己的内存里,而是交给一个专门的、独立运行的程序:数据库服务器。
+  </div>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    连锁餐厅每家分店的服务员,以前都在自己的小本子上记账(内存数组)。本子丢了账就没了,分店之间也对不上账。后来总店建了一个<b>中央账房</b>:所有账都记在这里,账房有防火柜、有流水底稿,停电了也能对回来。各分店不再自己记账,而是<b>到账房的窗口去办事</b>。
+  </div>
+  <p>Week 4 的安排(roadmap 已按天拆好):今天把 PostgreSQL 跑起来、学会在 psql 里办事、建第一张表;Day 23 数据建模与范式;Day 24 主键与约束;Day 25–26 SQL 查询深入;Day 27 接回 nest-lab;Day 28 复盘。<b>今天的实验全部在 psql 里做,nest-lab 的应用代码一行都不改。</b></p>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:把 PostgreSQL 起起来、连进去</h2>
+
+  <h3>方式一:Docker(推荐)</h3>
+  <pre><code>cd nest-lab
+cp .env.example .env          # 第一次;里面新增了 POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB / POSTGRES_PORT
+docker compose up -d          # 读 compose.yaml,后台起一个 postgres:16 容器
+docker compose ps             # 等 STATUS 变成 (healthy)
+docker compose exec postgres psql -U nest_lab -d nest_lab     # 用容器里自带的 psql 连进去
+
+# 本机也装了 psql 的话,直接从外面连(npm run day22 需要本机的 psql)
+psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab</code></pre>
+  <p><code>compose.yaml</code> 里做了这几件事:镜像固定 <code>postgres:16</code>(和本讲义的验证版本同一个大版本,不用 <code>latest</code>);用户名、密码、库名从 <code>.env</code> 读,没设密码会直接报错而不是用一个默认密码;数据放在具名数据卷 <code>pgdata</code> 里,容器删了重建数据还在;端口只绑定 <code>127.0.0.1</code>;健康检查用 <code>pg_isready</code>;另外把 <code>./sql</code> 只读挂到容器的 <code>/sql</code>,容器里的 psql 可以 <code>\i /sql/day22/01-create.sql</code>。</p>
+  <div class="warn">
+    <span class="tag">⚠️ 如实说明</span>
+    <p>本课程的验证环境<b>没有 Docker</b>,所以 <code>compose.yaml</code> 是按 Compose 规范的标准写法编写的,<b>未在课程环境实测</b>。讲义里所有 SQL 和 psql 输出都来自本机安装的 <b>PostgreSQL 16.15</b> 的真实运行。如果你在自己电脑上 <code>docker compose up</code> 遇到问题,先看 <code>docker compose logs postgres</code>。</p>
+    <p>两个常见坑:① <code>POSTGRES_USER</code> / <code>POSTGRES_PASSWORD</code> 只在<b>数据卷第一次初始化</b>时生效,之后改 <code>.env</code> 不会改已有用户的密码(要重来就 <code>docker compose down -v</code>,⚠️ 会删光数据);② 本机已经装了 PostgreSQL 占着 5432,就把 <code>.env</code> 里的 <code>POSTGRES_PORT</code> 改成 5433。</p>
+  </div>
+
+  <h3>方式二:没有 Docker,本机安装</h3>
+  <ul>
+    <li>macOS:<code>brew install postgresql@16</code>,<code>brew services start postgresql@16</code>;Homebrew 版的超级用户是你的 macOS 用户名,用 <code>psql postgres</code> 连进去</li>
+    <li>Ubuntu:<code>sudo apt install postgresql</code>(24.04 的仓库版本就是 16),<code>sudo service postgresql start</code>,用 <code>sudo -u postgres psql</code> 连进去</li>
+    <li>Windows:用 PostgreSQL 官网的安装包(EDB),安装时勾选 Command Line Tools</li>
+  </ul>
+  <p>然后用超级用户建一个专用角色和库。本课程环境就是这样做的,真实输出:</p>
+  <pre><code>$ sudo -u postgres psql -c "CREATE ROLE nest_lab LOGIN PASSWORD 'nest_lab_dev'" -c 'CREATE DATABASE nest_lab OWNER nest_lab'
+CREATE ROLE
+CREATE DATABASE</code></pre>
+  <p><code>nest_lab_dev</code> 只是本机开发用的密码,和 <code>.env.example</code> 里一致。不要在任何对外的环境里用它。</p>
+
+  <h3>验证:<code>npm run day22</code></h3>
+  <pre><code>npm run day22        # 检查服务器在不在 → 看每个连接对应的后端进程 → 依次跑 sql/day22/ 下的 6 个文件</code></pre>
+  <p>今天不引入 <code>pg</code> 驱动(Day 27 才引入),脚本用 <code>node:child_process</code> 调用本机的 <code>psql</code>。数据库没起来时,它不会挂住,而是马上告诉你怎么办(真实输出,端口故意写错):</p>
+  <pre><code>========== 第 0 幕:检查客户端与服务器 ==========
+客户端:psql (PostgreSQL) 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
+
+❌ 服务器没有响应:localhost:5999(localhost:5999 - no response)
+  · 用 Docker:在 nest-lab 目录 `cp .env.example .env`(第一次),再 `docker compose up -d`,
+    等 `docker compose ps` 显示 healthy 后重跑
+  · 本机安装:确认 PostgreSQL 服务已启动(macOS `brew services start postgresql@16`,Ubuntu `sudo service postgresql start`)
+  · 端口不是 5432?在 .env 里改 POSTGRES_PORT</code></pre>
+  <p>(它用了 psql 的 <code>-w</code>,意思是「永远不要停下来问密码」,再加上 3 秒连接超时;密码错时也会直接报错退出,给出检查 <code>.env</code> 的提示。)</p>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用</th></tr>
+    <tr><td><code>compose.yaml</code></td><td>新增</td><td>本地开发用的 <code>postgres:16</code>:环境变量来自 <code>.env</code>、具名数据卷、<code>pg_isready</code> 健康检查、只绑定 127.0.0.1、挂载 <code>./sql</code></td></tr>
+    <tr><td><code>.env.example</code></td><td>修改</td><td>新增 <code>POSTGRES_USER</code> / <code>POSTGRES_PASSWORD</code> / <code>POSTGRES_DB</code> / <code>POSTGRES_PORT</code>(应用代码还不读它们,Day 27 才把数据库连接写进 Day 12 的 env schema)</td></tr>
+    <tr><td><code>sql/day22/01-create.sql</code> … <code>06-no-safety-net.sql</code></td><td>新增</td><td>今天的 6 个实验:建表、CRUD、忘写 WHERE、没有顺序、声明式、没有 BEGIN 时 ROLLBACK 无效</td></tr>
+    <tr><td><code>scripts/day22-try.mjs</code> + <code>package.json</code> 的 <code>day22</code></td><td>新增</td><td>观察脚本(不需要 <code>nest build</code>)</td></tr>
+    <tr><td><code>README.md</code></td><td>修改</td><td>新增「数据库(Week 4 起)」一节和成长日志 Day 22</td></tr>
+  </table>
+  <p>(<code>src/</code> 和 <code>test/</code> 一个文件都没改:<code>npm test</code>、<code>npm run test:e2e</code>、<code>npm run day08</code>–<code>day20</code> 照样能跑,而且<b>不需要</b>数据库。)</p>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:客户端-服务器 —— 中央账房和每人一个账房伙计</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    PostgreSQL 是一个<b>一直在运行的服务器程序</b>,数据由它保管。psql、nest-lab、DBeaver 这类图形工具,全都只是<b>客户端</b>:通过网络(或本机 socket)连上去,发 SQL,收结果。PostgreSQL 给<b>每一个连接</b>单独开一个操作系统进程来服务它。
+  </div>
+
+  <h3>② 生活类比:中央账房的窗口</h3>
+  <p>账都在总店的中央账房里。分店经理、会计、老板,谁要查账改账,都得到窗口来;窗口本身不存账,账在后面的柜子里。账房有一位<b>总管</b>,一直守在门口;每来一个办事的人,总管就<b>专门派一个账房伙计</b>陪着他,直到他办完离开,伙计才下班。所以窗口前站了三个人,后面就有三个伙计在忙。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>今天看到的</th></tr>
+    <tr><td>中央账房</td><td><b>数据库服务器</b>(PostgreSQL server,一个长期运行的程序)</td><td>本机的 PostgreSQL 16.15;你电脑上是 Docker 容器里的 <code>postgres:16</code></td></tr>
+    <tr><td>来窗口办事的人</td><td><b>客户端</b>:psql、nest-lab(Day 27 起)、GUI 工具、另一个服务</td><td><code>day22-A</code> / <code>B</code> / <code>C</code> 三个 psql</td></tr>
+    <tr><td>窗口</td><td>监听的地址和端口(默认 <b>5432</b>)+ 连接参数(用户、密码、库名)</td><td><code>postgresql://nest_lab:***@localhost:5432/nest_lab</code></td></tr>
+    <tr><td>守门的总管</td><td><b>postmaster</b>(主进程):接受新连接,为它 fork 一个子进程</td><td>主进程 27884</td></tr>
+    <tr><td>专门陪你的账房伙计</td><td><b>backend 进程</b>:一个连接一个,连接断开它就退出</td><td><code>pg_backend_pid()</code>、<code>pg_stat_activity</code></td></tr>
+    <tr><td>后院的杂役(不对外)</td><td>后台进程:checkpointer、walwriter、autovacuum……</td><td><code>ps</code> 里能看到</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「伙计随叫随到,来多少人派多少个」——伙计是很贵的。</b>每个后端进程都是一个真正的操作系统进程,有自己的内存;服务器还有连接上限,本机实测 <code>SHOW max_connections</code> 是 <b>100</b>(默认值)。nest-lab 如果每个请求都新开一个连接、用完就断,光「派伙计、遣散伙计」就很慢,高并发时还会把上限打满。解法是<b>连接池</b>:先请好固定几个伙计,请求轮流用。这是 Day 27 接回 nest-lab 时的第一件事,Week 6 还会讲 PgBouncer。(对比 Day 4:Node 的 cluster 是「多进程,每个进程处理很多请求」;PostgreSQL 是「每个连接一个进程」。MySQL 则是每个连接一个<b>线程</b>。)</li>
+      <li><b>「窗口就是账房」——psql 只是一个客户端。</b>关掉 psql,数据一点没少;换 GUI 工具、换 nest-lab 连进去,看到的是同一份数据。反过来,服务器没起来时,psql 什么也做不了(第 0 幕的报错)。很多新手以为「装了 psql 就装了数据库」,其实客户端和服务器可以装在不同的机器上,Docker 方式下服务器就在容器里。</li>
+      <li><b>「账房就是一个更大的柜子」——数据库不是更大的内存数组。</b>它要同时解决:<b>持久化</b>(写进磁盘,重启还在)、<b>并发</b>(100 个连接同时读写不乱)、<b>崩溃恢复</b>(写到一半断电,重启后能恢复到一致状态,靠的是 WAL 预写日志,Week 6 / Week 9 讲)。下面的实验里,我把 PostgreSQL 整个重启了一次,数据还在。内存数组一样都做不到。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>client-server architecture</b>;<b>connection string / URI</b>(<code>postgresql://user:password@host:port/dbname</code>);<b>process-per-connection</b>;<b>postmaster</b> 与 <b>backend process</b>;<b><code>pg_stat_activity</code></b>(当前所有连接的系统视图);<b><code>pg_backend_pid()</code></b>;<b><code>max_connections</code></b>;<b>connection pooling</b>;<b>durability</b>(持久性,ACID 的 D,Week 6)。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:三个 psql 同时连上,每个都 <code>SELECT pg_sleep(3)</code>。服务器那边会看到几个连接?它们的 pid 一样吗?客户端的 pid 和服务器后端的 pid 是同一个数吗?三个客户端退出之后呢?</p>
+  <pre><code>npm run day22</code></pre>
+  <p>真实运行结果(第 1、2 幕):</p>
+  <pre><code>========== 第 1 幕:我在哪?(集群 → 数据库 → schema → 表) ==========
+这个集群里的数据库:nest_lab, postgres
+当前连接:nest_lab | nest_lab | public   (用户 | 数据库 | schema)
+
+========== 第 2 幕:三个客户端同时连进来,服务器那边有几个进程? ==========
+pg_stat_activity(服务器眼里的连接):
+  pid | application_name | state | query
+  28067 | day22-A | active | SELECT pg_sleep(3)
+  28068 | day22-B | active | SELECT pg_sleep(3)
+  28069 | day22-C | active | SELECT pg_sleep(3)
+  28071 | day22-observer | active | SELECT pid, application_name,
+
+数据库就在本机,用 ps 看主进程 27884 的子进程(A / B / C 还连着的时候):
+  PID  PPID CMD
+  27885 27884 postgres: 16/main: checkpointer 
+  27886 27884 postgres: 16/main: background writer 
+  27888 27884 postgres: 16/main: walwriter 
+  27889 27884 postgres: 16/main: autovacuum launcher 
+  27890 27884 postgres: 16/main: logical replication launcher 
+  28067 27884 postgres: 16/main: nest_lab nest_lab 127.0.0.1(55546) SELECT
+  28068 27884 postgres: 16/main: nest_lab nest_lab 127.0.0.1(55544) SELECT
+  28069 27884 postgres: 16/main: nest_lab nest_lab 127.0.0.1(55568) SELECT
+
+对照每个客户端自己问到的 pg_backend_pid():
+  day22-A:客户端进程 pid 28064 → 服务器后端进程 pid 28067
+  day22-B:客户端进程 pid 28065 → 服务器后端进程 pid 28068
+  day22-C:客户端进程 pid 28066 → 服务器后端进程 pid 28069
+三个后端 pid 互不相同:是
+三个客户端退出之后,pg_stat_activity 里还剩它们的连接:0 个
+它们都由同一个主进程(postmaster,启动于 2026-11-04 12:32:20.627878+00)fork 出来;客户端断开,对应的后端进程就退出</code></pre>
+  <p>读结果:</p>
+  <ul>
+    <li><b>两边各有一个进程</b>:客户端 psql 是 28064,替它干活的服务器后端是 28067,两个不同的进程,中间隔着一条 TCP 连接(<code>127.0.0.1(55546)</code> 就是客户端那一端的端口)。</li>
+    <li><b>三个连接,三个后端进程</b>,都是主进程 27884 的子进程,<code>ps</code> 里的进程名直接写着「用户 库名 客户端地址 正在干什么」。这正是 Day 4 讲的 <code>fork</code>:PostgreSQL 用的是多进程模型,只是它按「连接」分,而不是按「CPU 核」分。</li>
+    <li><b>observer 那一行</b>是脚本自己用来查 <code>pg_stat_activity</code> 的连接,它也有自己的后端进程,所以一共 4 个;等 <code>ps</code> 执行时它已经断开,进程已经退出了。</li>
+    <li>脚本里的 <code>application_name</code> 是客户端连上时自报的名字(环境变量 <code>PGAPPNAME</code>)。Day 27 给 nest-lab 也设一个,出事时就能在 <code>pg_stat_activity</code> 里认出「哪些连接是 nest-lab 的」。</li>
+  </ul>
+  <p>再做一个手动实验(需要能重启数据库服务;Docker 下是 <code>docker compose restart postgres</code>)。✍️ <b>预测</b>:重启之后,表里的数据还在吗?真实结果:</p>
+  <pre><code>$ psql … -c "SELECT id, title FROM tasks ORDER BY id"
+ id |       title
+----+-------------------
+  1 | 学 psql(改过)
+  2 | 建第一张表
+  3 | 写 CRUD(整体替换)
+(3 rows)
+
+$ sudo service postgresql restart       # 主进程启动时间从 12:24:00 变成了 12:32:20
+$ psql … -c "SELECT id, title FROM tasks ORDER BY id"
+ id |       title
+----+-------------------
+  1 | 学 psql(改过)
+  2 | 建第一张表
+  3 | 写 CRUD(整体替换)
+(3 rows)</code></pre>
+  <p>整个服务器进程换了一批,数据原封不动。这就是 nest-lab 的内存仓储做不到的事。</p>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:层级与 psql —— 账房、分账房、柜子、账本,和窗口口令</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    一个 PostgreSQL 服务器(<b>集群</b>)里可以有好几个<b>数据库</b>;每个数据库里分成若干 <b>schema</b>(命名空间,默认叫 <code>public</code>);schema 里放<b>表</b>;表由<b>列</b>(栏目,每列有固定类型)和<b>行</b>(一条条记录)组成。psql 里有两种输入:<b>SQL</b>(发给服务器执行,分号结束)和<b>元命令</b>(反斜杠开头,psql 自己处理,比如列出有哪些表)。
+  </div>
+
+  <h3>② 生活类比:账房里的分账房、柜子和账本</h3>
+  <p>中央账房(集群)里隔出几间<b>分账房</b>(数据库):餐厅业务一间,集团人事一间,互不相通。每间分账房里有几个<b>柜子</b>(schema),默认只有一个叫「公共柜」(<code>public</code>)。柜子里一本本<b>分类账</b>(表):任务账、用户账。每本账先印好<b>栏目</b>(列:编号、标题、完成没有、登记时间),然后一行记一条。你在窗口说话有两种:对账房伙计说「请把任务账上编号 2 那条念给我听」(SQL,伙计去柜子里办);或者对窗口说「把这间房里有哪些账本列一下」「换到隔壁分账房」(元命令,窗口自己的功能)。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>psql 里怎么看</th></tr>
+    <tr><td>中央账房</td><td><b>集群</b>(cluster):一个服务器实例和它管的一整份数据目录</td><td><code>\conninfo</code></td></tr>
+    <tr><td>分账房</td><td><b>数据库</b>(database):一个连接只能连一个库</td><td><code>\l</code> 列出,<code>\c 库名</code> 切换</td></tr>
+    <tr><td>柜子</td><td><b>schema</b>:库里的命名空间,默认 <code>public</code></td><td><code>\dn</code></td></tr>
+    <tr><td>分类账</td><td><b>表</b>(table)</td><td><code>\dt</code> 列出,<code>\d 表名</code> 看结构</td></tr>
+    <tr><td>栏目 / 一条记录</td><td><b>列</b>(column,有类型)/ <b>行</b>(row)</td><td><code>SELECT …</code>;行太宽用 <code>\x</code> 竖着看</td></tr>
+    <tr><td>谁能进哪间房</td><td><b>角色</b>(role)与权限</td><td><code>\du</code>;今天只点到,Week 21 细讲</td></tr>
+    <tr><td>对伙计说的事 / 对窗口说的口令</td><td><b>SQL</b>(<code>;</code> 结束,发给服务器)/ <b>psql 元命令</b>(<code>\</code> 开头,客户端自己处理)</td><td><code>\?</code> 看全部元命令,<code>\q</code> 退出</td></tr>
+  </table>
+
+  <p><b>psql 速查</b>(今天用到的):</p>
+  <table>
+    <tr><th>命令</th><th>做什么</th></tr>
+    <tr><td><code>psql postgresql://用户:密码@主机:端口/库</code></td><td>用连接串连进去(也可以拆成 <code>-h -p -U -d</code>)</td></tr>
+    <tr><td><code>\conninfo</code> / <code>\l</code> / <code>\c 库</code> / <code>\dn</code> / <code>\dt</code> / <code>\d 表</code></td><td>我连在哪 / 有哪些库 / 换库 / 有哪些 schema / 有哪些表 / 表结构</td></tr>
+    <tr><td><code>\x</code></td><td>切换竖排显示(一行很宽时好用),再输一次切回来</td></tr>
+    <tr><td><code>\timing</code></td><td>每条语句后显示耗时,再输一次关掉</td></tr>
+    <tr><td><code>\i 文件</code></td><td>执行一个 SQL 文件(路径相对于启动 psql 时的目录;等价于命令行 <code>psql -f 文件</code>)</td></tr>
+    <tr><td><code>\e</code></td><td>用编辑器(<code>$EDITOR</code>)写上一条 / 下一条语句,保存退出后执行;长 SQL 比在提示符里敲舒服</td></tr>
+    <tr><td><code>\?</code> / <code>\h 命令</code> / <code>\q</code></td><td>元命令帮助 / SQL 语法帮助(如 <code>\h UPDATE</code>)/ 退出</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「分账房之间开个门就能互相查」——PostgreSQL 的数据库之间是隔开的。</b>一条 SQL 不能直接查另一个库的表;<code>\c</code> 其实是<b>断开当前连接、重新连一个</b>(下面实测:pid 变了)。要在一个库里分隔不同模块,用 schema,而不是开很多库。这一点和 MySQL 不同:MySQL 里 database 和 schema 是同一个东西,可以 <code>库名.表名</code> 跨库查询。</li>
+      <li><b>「schema 就是表结构」——这个词在中文语境里有两个意思。</b>口语里「改 schema」常指「改表结构」(Day 23 的概念卡「schema 设计是最难改的决定」用的就是这个意思);PostgreSQL 里的 <code>schema</code> 对象则是「柜子」这个命名空间。看上下文分辨。</li>
+      <li><b>「进了账房就什么都能动」——每个人进门的身份(角色)决定了他能做什么。</b>psql 的提示符就在提醒你:普通角色是 <code>nest_lab=&gt;</code>,超级用户是 <code>postgres=#</code>。本课程的 <code>nest_lab</code> 角色<b>不是</b>超级用户(<code>rolsuper = f</code>),它只是 <code>nest_lab</code> 库的所有者。应用永远不该用超级用户连数据库,这是 Week 21 的主题。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>database cluster</b>(和「服务器集群」不是一个意思,PG 文档里指一个实例管理的所有数据库);<b>database</b>;<b>schema</b> 与 <b><code>search_path</code></b>(不写 schema 时按它找表,默认先找 <code>public</code>);<b>table / relation</b>(PG 内部把表叫 relation,所以报错是 <code>relation "tasks" does not exist</code>);<b>column / row / tuple</b>;<b>role</b>;<b>meta-command</b>(psql 的反斜杠命令)。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测</b>:<code>\l</code> 会列出几个库(你只建了一个)?在 <code>nest_lab</code> 库里查 <code>pg_backend_pid()</code>,<code>\c postgres</code> 之后再查一次,两个数字一样吗?在 <code>postgres</code> 库里 <code>SELECT * FROM tasks</code> 会怎样?下面是在 psql 交互模式里的真实记录(为了阅读,去掉了每次连接时打印的 SSL 信息):</p>
+  <pre><code>nest_lab=&gt; \conninfo
+You are connected to database "nest_lab" as user "nest_lab" on host "localhost" (address "127.0.0.1") at port "5432".
+nest_lab=&gt; \l
+                                                   List of databases
+   Name    |  Owner   | Encoding | Locale Provider | Collate |  Ctype  | ICU Locale | ICU Rules |   Access privileges
+-----------+----------+----------+-----------------+---------+---------+------------+-----------+-----------------------
+ nest_lab  | nest_lab | UTF8     | libc            | C.UTF-8 | C.UTF-8 |            |           |
+ postgres  | postgres | UTF8     | libc            | C.UTF-8 | C.UTF-8 |            |           |
+ template0 | postgres | UTF8     | libc            | C.UTF-8 | C.UTF-8 |            |           | =c/postgres          +
+           |          |          |                 |         |         |            |           | postgres=CTc/postgres
+ template1 | postgres | UTF8     | libc            | C.UTF-8 | C.UTF-8 |            |           | =c/postgres          +
+           |          |          |                 |         |         |            |           | postgres=CTc/postgres
+(4 rows)
+
+nest_lab=&gt; \dn
+      List of schemas
+  Name  |       Owner
+--------+-------------------
+ public | pg_database_owner
+(1 row)
+
+nest_lab=&gt; \dt
+         List of relations
+ Schema | Name  | Type  |  Owner
+--------+-------+-------+----------
+ public | tasks | table | nest_lab
+(1 row)
+
+nest_lab=&gt; SELECT pg_backend_pid();
+ pg_backend_pid
+----------------
+          27192
+(1 row)
+
+nest_lab=&gt; \c postgres
+You are now connected to database "postgres" as user "nest_lab".
+postgres=&gt; SELECT pg_backend_pid();
+ pg_backend_pid
+----------------
+          27193
+(1 row)
+
+postgres=&gt; \dt
+Did not find any relations.
+postgres=&gt; SELECT * FROM tasks;
+ERROR:  relation "tasks" does not exist
+LINE 1: SELECT * FROM tasks;
+                      ^</code></pre>
+  <ul>
+    <li><b>4 个库</b>:<code>postgres</code> 是安装时自带的默认库;<code>template0</code> / <code>template1</code> 是建新库时复制的模板。你只建了 <code>nest_lab</code>。</li>
+    <li><b><code>\c</code> 之后 pid 从 27192 变成 27193</b>:换库就是换连接,换了一个新的账房伙计。提示符也从 <code>nest_lab=&gt;</code> 变成了 <code>postgres=&gt;</code>(提示符里显示的是当前库名)。</li>
+    <li>在 <code>postgres</code> 库里找不到 <code>tasks</code>:表属于某个库,不属于整个服务器。</li>
+  </ul>
+  <p><b>提示符会告诉你 psql 在等什么。</b>✍️ <b>预测</b>:一条 SQL 分三行敲、忘了写分号、字符串引号没闭合、括号没闭合时,提示符各是什么样?真实记录:</p>
+  <pre><code>nest_lab=&gt; SELECT id, title
+nest_lab-&gt; FROM tasks
+nest_lab-&gt; WHERE id = 2;
+ id |   title
+----+------------
+  2 | 建第一张表
+(1 row)
+
+nest_lab=&gt; SELECT 1
+nest_lab-&gt; ;
+ ?column?
+----------
+        1
+(1 row)
+
+nest_lab=&gt; SELECT '没写完的字符串
+nest_lab'&gt; ';
+    ?column?
+----------------
+ 没写完的字符串+
+
+(1 row)
+
+nest_lab=&gt; SELECT (1 +
+nest_lab(&gt; 2);
+ ?column?
+----------
+        3
+(1 row)</code></pre>
+  <p><code>=&gt;</code> 表示「等一条新语句」;<code>-&gt;</code> 表示「上一条还没结束(没见到分号)」;<code>'&gt;</code> 表示「你开了一个单引号还没关」;<code>(&gt;</code> 表示「括号还没关」。新手最常见的困惑「我按了回车它怎么没反应」,看一眼提示符就知道:<b>忘了分号</b>。字符串那个例子还说明换行被原样存进了字符串(结果里的 <code>+</code> 是 psql 表示「这里有换行」的记号)。元命令不需要分号,回车就执行。</p>
+  <p><code>\timing</code> 和 <code>\x</code> 的真实效果:</p>
+  <pre><code>nest_lab=&gt; \timing
+Timing is on.
+nest_lab=&gt; SELECT count(*) FROM tasks;
+ count
+-------
+     4
+(1 row)
+
+Time: 1.109 ms
+nest_lab=&gt; \x
+Expanded display is on.
+nest_lab=&gt; SELECT * FROM tasks WHERE id = 2;
+-[ RECORD 1 ]-----------------------------
+id         | 2
+title      | 建第一张表
+done       | t
+created_at | 2026-11-04 12:28:33.936291+00</code></pre>
+  <p>注意 <code>Time: 1.109 ms</code> 是从 psql 发出语句到收到结果的时间,包括网络往返,不是数据库内部的执行时间。怎么看真正的执行时间是 Week 5 <code>EXPLAIN ANALYZE</code> 的内容。</p>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:第一张表与 CRUD —— 记账的四个动作,和那次忘了圈范围</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    先用 <code>CREATE TABLE</code> 定好表有哪些列、每列什么类型,再用四个语句操作数据:<code>INSERT</code>(新增)、<code>SELECT</code>(查)、<code>UPDATE</code>(改)、<code>DELETE</code>(删)。改和删用 <code>WHERE</code> 圈出「哪几行」,<b>不写 WHERE 就是整张表</b>。SQL 只描述「要什么」,数据库自己决定「怎么找」。
+  </div>
+
+  <h3>② 生活类比:记账的四个动作</h3>
+  <p>新开一本账,先印栏目。之后只有四个动作:<b>添一行</b>、<b>翻查</b>、<b>涂改</b>、<b>划掉</b>。涂改和划掉之前,要先用笔把「哪几行」圈出来;如果没圈就直接说「把完成栏都改成『是』」,伙计会<b>老老实实把整本账都改掉</b>。你也不用告诉伙计怎么翻账,只要说「我要编号 2 那条」,他自己知道该翻目录还是从头翻。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>SQL</th><th>对应 Day 15 的 HTTP</th><th>psql 的回执</th></tr>
+    <tr><td>印栏目</td><td><code>CREATE TABLE tasks (…)</code></td><td>(没有对应:这是 schema 变更,Day 27 / Week 9 讲迁移)</td><td><code>CREATE TABLE</code></td></tr>
+    <tr><td>添一行</td><td><code>INSERT INTO tasks (title) VALUES (…)</code></td><td><code>POST /tasks</code></td><td><code>INSERT 0 1</code>(插了 1 行)</td></tr>
+    <tr><td>翻查一整本 / 查一条</td><td><code>SELECT … FROM tasks</code> / <code>… WHERE id = 2</code></td><td><code>GET /tasks</code> / <code>GET /tasks/2</code></td><td><code>(5 rows)</code> / <code>(1 row)</code>;没找到是 <code>(0 rows)</code> → 404</td></tr>
+    <tr><td>整栏重写 / 改一两栏</td><td><code>UPDATE … SET 全部列 WHERE id = 3</code> / <code>UPDATE … SET done = true WHERE id = 3</code></td><td><code>PUT</code> / <code>PATCH /tasks/3</code></td><td><code>UPDATE 1</code>;没改到是 <code>UPDATE 0</code> → 404</td></tr>
+    <tr><td>划掉</td><td><code>DELETE FROM tasks WHERE id = 5</code></td><td><code>DELETE /tasks/5</code></td><td><code>DELETE 1</code>;再删一次 <code>DELETE 0</code></td></tr>
+    <tr><td>用笔圈出哪几行</td><td><code>WHERE</code></td><td>URL 里的 <code>:id</code>、查询参数 <code>?done=false</code></td><td>—</td></tr>
+    <tr><td>写错了先别落笔</td><td><code>BEGIN</code> … <code>ROLLBACK</code>(事务,Week 6 讲原理)</td><td>—</td><td><code>ROLLBACK</code></td></tr>
+  </table>
+
+  <p>今天的表(<code>sql/day22/01-create.sql</code>)只用最基础的类型。<code>id</code> 用 <code>GENERATED ALWAYS AS IDENTITY</code> 让数据库发号,为什么这样选、和 <code>serial</code> / UUID 比如何,Day 24 细讲;<code>text</code> 和 <code>timestamptz</code> 的细节 Day 26 讲:</p>
+  <pre><code>CREATE TABLE tasks (
+  id         integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- 由数据库发号:1, 2, 3…(Day 24 细讲)
+  title      text,                                              -- 文本,长度不限
+  done       boolean DEFAULT false,                             -- 不给就是 false
+  created_at timestamptz DEFAULT now()                          -- 不给就是「现在」(带时区的时间点)
+);</code></pre>
+  <p>✍️ <b>预测</b>:<code>\d tasks</code> 的 Nullable 一栏里,哪几列是 <code>not null</code>?真实结果:</p>
+  <pre><code>                                    Table "public.tasks"
+   Column   |           Type           | Collation | Nullable |           Default
+------------+--------------------------+-----------+----------+------------------------------
+ id         | integer                  |           | not null | generated always as identity
+ title      | text                     |           |          |
+ done       | boolean                  |           |          | false
+ created_at | timestamp with time zone |           |          | now()
+Indexes:
+    "tasks_pkey" PRIMARY KEY, btree (id)</code></pre>
+  <p>只有 <code>id</code>(主键自带 not null)。也就是说,<b>现在的表允许一条没有标题的任务</b>:在事务里试了一下 <code>INSERT INTO tasks DEFAULT VALUES</code>,真的插进去了一行 <code>title</code> 为空的记录(然后 <code>ROLLBACK</code> 掉)。Day 16 的 DTO 校验会挡住这种请求,但如果有人绕过 API 直接改库呢?「数据库层的最后一道校验」就是 Day 24 的约束。顺带一个现象留给 Day 24:回滚之后,这一行用掉的 id 6 并没有还回去,下一条新任务会拿到 7。</p>
+
+  <p><b>CRUD 的真实输出</b>(<code>sql/day22/02-crud.sql</code>,每条语句的注释写着对应的 HTTP 方法):</p>
+  <pre><code>INSERT 0 1
+INSERT 0 1
+INSERT 0 3
+ id |     title      | done
+----+----------------+------
+  1 | 学 psql        | f
+  2 | 建第一张表     | t
+  3 | 写 CRUD        | f
+  4 | 故意忘写 WHERE | f
+  5 | 复盘 Week 3    | f
+(5 rows)
+
+ id |   title    | done
+----+------------+------
+  2 | 建第一张表 | t
+(1 row)
+
+ id | title | done
+----+-------+------
+(0 rows)
+
+UPDATE 1          ← PUT /tasks/3
+UPDATE 1          ← PATCH /tasks/3
+UPDATE 0          ← PATCH /tasks/999:一行都没改到
+DELETE 1          ← DELETE /tasks/5
+DELETE 0          ← 再删一次:幂等,结果一样
+ id |       title       | done
+----+-------------------+------
+  1 | 学 psql           | f
+  2 | 建第一张表        | t
+  3 | 写 CRUD(整体替换) | t
+  4 | 故意忘写 WHERE    | f
+(4 rows)</code></pre>
+  <p>(箭头和说明是我加的,psql 只打印前面的回执。)<code>INSERT 0 1</code> 里的 <code>0</code> 是历史遗留字段,现在总是 0;后面的数字才是行数。<b>这些回执就是 Day 27 写仓储时要翻译的东西</b>:<code>UPDATE 0</code> / <code>DELETE 0</code> 在 nest-lab 里要变成 404 problem+json。还记得 Day 15 说 DELETE 是幂等的吗?在数据库这一层也一样:第二次删除不报错,只是影响 0 行。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「账本是一页页按顺序记的」——表里的行没有顺序。</b>关系模型里表是「行的集合」,集合没有先后。不写 <code>ORDER BY</code> 时,返回顺序只是数据库这一次碰巧怎么读的。下面的实验里,连续两次不带 <code>ORDER BY</code> 的 <code>SELECT</code>,只因为中间改了一行,顺序就变了。nest-lab 的 cursor 分页(Day 19)依赖稳定的顺序,所以 Day 27 的 SQL 里 <code>ORDER BY</code> 必须明确写出来。</li>
+      <li><b>「划掉的行还在纸上,能看出来」——<code>DELETE</code> 是立即、永久生效的,没有回收站。</b>psql 默认<b>自动提交</b>(autocommit):每条语句执行完就落定。只有在 <code>BEGIN</code> 开启的事务里,<code>ROLLBACK</code> 才能撤销。下面两个实验:有 <code>BEGIN</code> 时救回来了;没有 <code>BEGIN</code> 时,<code>ROLLBACK</code> 只换来一句警告。(很多系统用「软删除」,加一列 <code>deleted_at</code> 只做标记,那是应用层的设计,不是数据库自带的;Day 23 讨论建模时会遇到。)</li>
+      <li><b>「只要说要什么,怎么找不用我管」——声明式不等于不用关心性能。</b>同样是「找一条」,按 <code>id</code> 找走了索引(Index Scan),按 <code>title</code> 找只能从头扫(Seq Scan)。4 行的时候没区别,400 万行的时候差几个数量级。你不用写「怎么找」,但要知道数据库<b>能不能</b>找得快,这是 Week 5 的全部内容。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>DDL</b>(Data Definition Language:<code>CREATE</code> / <code>ALTER</code> / <code>DROP</code>)与 <b>DML</b>(Data Manipulation Language:<code>INSERT</code> / <code>SELECT</code> / <code>UPDATE</code> / <code>DELETE</code>);<b>CRUD</b>;<b>command tag</b>(<code>UPDATE 1</code> 这类回执,驱动里叫 <code>rowCount</code>);<b>predicate</b>(<code>WHERE</code> 条件);<b>autocommit</b>;<b>transaction</b>(<code>BEGIN</code> / <code>COMMIT</code> / <code>ROLLBACK</code>);<b>declarative language</b>;<b>query planner</b> 与 <b>execution plan</b>(<code>EXPLAIN</code>);<b>identity column</b>。
+  </div>
+
+  <p><b>⑤ 动手验证 A:忘写 WHERE。</b>✍️ <b>预测</b>:在 <code>BEGIN</code> 之后执行 <code>UPDATE tasks SET done = true;</code>,回执是几?再 <code>DELETE FROM tasks;</code> 呢?<code>ROLLBACK</code> 之后表里还剩几行?真实结果(<code>03-forgot-where.sql</code>):</p>
+  <pre><code>BEGIN
+UPDATE 4
+ id |       title       | done
+----+-------------------+------
+  1 | 学 psql           | t
+  2 | 建第一张表        | t
+  3 | 写 CRUD(整体替换) | t
+  4 | 故意忘写 WHERE    | t
+(4 rows)
+
+DELETE 4
+ 剩下几行
+----------
+        0
+(1 row)
+
+ROLLBACK
+ id |       title       | done
+----+-------------------+------
+  1 | 学 psql           | f
+  2 | 建第一张表        | t
+  3 | 写 CRUD(整体替换) | t
+  4 | 故意忘写 WHERE    | f
+(4 rows)</code></pre>
+  <p><b>回执里的数字是你最后的报警器</b>:你本来想改 1 行,屏幕上写着 <code>UPDATE 4</code>,就该立刻停下。生产环境里,这个数字可能是 <code>UPDATE 3800000</code>。</p>
+  <p><b>动手验证 B:没有 BEGIN 的 ROLLBACK。</b>✍️ <b>预测</b>:直接 <code>DELETE FROM tasks WHERE id = 4;</code>,紧接着 <code>ROLLBACK;</code>,第 4 行回来了吗?真实结果(<code>06-no-safety-net.sql</code>):</p>
+  <pre><code>DELETE 1
+psql:sql/day22/06-no-safety-net.sql:6: WARNING:  there is no transaction in progress
+ROLLBACK
+ id |       title
+----+-------------------
+  1 | 学 psql(改过)
+  2 | 建第一张表
+  3 | 写 CRUD(整体替换)
+(3 rows)</code></pre>
+  <p>「当前没有进行中的事务」:删除在执行完的那一刻已经落定了。<b>养成习惯:在任何有真实数据的库里手动改数据,先敲 <code>BEGIN;</code>,看完回执和结果再决定 <code>COMMIT;</code> 还是 <code>ROLLBACK;</code>。</b>先写 <code>WHERE</code> 再写前半句,或者先把 <code>UPDATE</code> 换成同样条件的 <code>SELECT</code> 看看会圈到哪些行,都是常见的保命习惯。</p>
+
+  <p><b>动手验证 C:没有 ORDER BY 就没有顺序。</b>✍️ <b>预测</b>:<code>02-crud.sql</code> 按 1、2、3、4 的顺序插入,中间改过第 3 行。不写 <code>ORDER BY</code> 时会按什么顺序返回?再改一下第 1 行呢?真实结果(<code>04-no-order.sql</code>):</p>
+  <pre><code> id |       title
+----+-------------------
+  1 | 学 psql
+  2 | 建第一张表
+  4 | 故意忘写 WHERE
+  3 | 写 CRUD(整体替换)
+(4 rows)
+
+UPDATE 1
+ id |       title
+----+-------------------
+  2 | 建第一张表
+  4 | 故意忘写 WHERE
+  3 | 写 CRUD(整体替换)
+  1 | 学 psql(改过)
+(4 rows)</code></pre>
+  <p>第一次就已经不是 1、2、3、4 了:第 3 行被改过,它就「跑到了后面」;改了第 1 行,第 1 行也跑到最后。原因是 PostgreSQL 的 <code>UPDATE</code> 实际上是写一个新版本的行、把旧版本标记为作废(MVCC,Week 6 讲),而不写 <code>ORDER BY</code> 时它按物理存放的位置读。<b>不要记这个规律</b>,它不是承诺,换个数据量、换个执行计划就变。只记一条:<b>要顺序,就写 <code>ORDER BY</code>。</b></p>
+
+  <p><b>动手验证 D:声明式。</b>✍️ <b>预测</b>:两条 <code>SELECT</code> 只是 <code>WHERE</code> 的列不同,数据库的「打算」会一样吗?真实结果(<code>05-declarative.sql</code>):</p>
+  <pre><code>EXPLAIN SELECT * FROM tasks WHERE id = 3;
+                               QUERY PLAN
+-------------------------------------------------------------------------
+ Index Scan using tasks_pkey on tasks  (cost=0.15..8.17 rows=1 width=45)
+   Index Cond: (id = 3)
+
+EXPLAIN SELECT * FROM tasks WHERE title = '写 CRUD';
+                      QUERY PLAN
+-------------------------------------------------------
+ Seq Scan on tasks  (cost=0.00..23.88 rows=6 width=45)
+   Filter: (title = '写 CRUD'::text)</code></pre>
+  <p>同样的写法,一个用了主键自带的索引 <code>tasks_pkey</code>,一个从头到尾扫一遍。<code>cost</code>、<code>rows</code> 这些数字今天先不管(<code>rows=6</code> 只是估算,表里其实只有 4 行),Week 5 会专门学怎么读执行计划。</p>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    SQL 的「声明式」和你熟悉的 CSS 选择器、React 的 JSX 是一个思路:你写「我要 <code>.card &gt; .title</code>」「界面应该长这样」,浏览器 / React 决定怎么找元素、怎么更新 DOM。对比 <code>tasks.filter(t =&gt; t.id === 3)</code>:那是命令式的,你写的就是「从头到尾挨个比」,而且永远只能这样执行。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p><b>连 PostgreSQL 的客户端库</b>:不管哪种语言,应用都只是一个客户端,和 psql 的地位一样。</p>
+  <table>
+    <tr><th>命题</th><th>Node.js / TS(教具)</th><th>C# / .NET</th><th>Java</th><th>Go</th></tr>
+    <tr>
+      <td>PostgreSQL 驱动</td>
+      <td><b><code>pg</code></b>(node-postgres;Day 27 引入)</td>
+      <td><b>Npgsql</b>(EF Core 的 PG 提供程序也建在它上面)</td>
+      <td><b>PostgreSQL JDBC 驱动</b> <code>org.postgresql:postgresql</code>,通过 JDBC 接口使用</td>
+      <td><b><code>pgx</code></b>(<code>github.com/jackc/pgx</code>),也能当 <code>database/sql</code> 的驱动用</td>
+    </tr>
+    <tr>
+      <td>连接串长什么样</td>
+      <td><code>postgresql://user:pass@localhost:5432/nest_lab</code></td>
+      <td><code>Host=localhost;Port=5432;Database=nest_lab;Username=…;Password=…</code></td>
+      <td><code>jdbc:postgresql://localhost:5432/nest_lab</code>(用户密码另传)</td>
+      <td><code>postgres://user:pass@localhost:5432/nest_lab</code></td>
+    </tr>
+    <tr>
+      <td>连接池</td>
+      <td><code>pg.Pool</code></td>
+      <td>Npgsql 内置连接池(连接串参数控制)</td>
+      <td>HikariCP(Spring Boot 默认)</td>
+      <td><code>pgxpool</code></td>
+    </tr>
+  </table>
+
+  <p><b>和 SQL Server / MySQL 的差异</b>(只列今天用到的这些基础操作):</p>
+  <table>
+    <tr><th>事情</th><th>PostgreSQL</th><th>MySQL</th><th>SQL Server</th></tr>
+    <tr><td>命令行客户端</td><td><code>psql</code></td><td><code>mysql</code></td><td><code>sqlcmd</code>(或 SSMS 图形工具)</td></tr>
+    <tr><td>列出库 / 换库 / 列出表 / 看表结构</td><td><code>\l</code> / <code>\c</code> / <code>\dt</code> / <code>\d t</code>(psql 元命令)</td><td><code>SHOW DATABASES;</code> / <code>USE db;</code> / <code>SHOW TABLES;</code> / <code>DESCRIBE t;</code>(都是 SQL 语句)</td><td>查 <code>sys.databases</code> / <code>USE db</code> / 查 <code>INFORMATION_SCHEMA.TABLES</code> / <code>sp_help 't'</code></td></tr>
+    <tr><td>database 和 schema</td><td>库里有多个 schema;一条 SQL 不能跨库</td><td><b>database 就是 schema</b>(同义词);可以 <code>db.table</code> 跨库查</td><td>库里有多个 schema(默认 <code>dbo</code>);同一实例内可以 <code>db.schema.table</code> 跨库查</td></tr>
+    <tr><td>连接与服务端</td><td>每个连接一个<b>进程</b></td><td>每个连接一个<b>线程</b></td><td>线程 / 调度器模型</td></tr>
+    <tr><td>只取前 N 行</td><td><code>LIMIT 10</code></td><td><code>LIMIT 10</code></td><td><code>SELECT TOP 10 …</code>(或 <code>OFFSET … FETCH NEXT 10 ROWS ONLY</code>)</td></tr>
+    <tr><td>引用名字带特殊字符的表 / 列</td><td><code>"双引号"</code></td><td><code>`反引号`</code></td><td><code>[方括号]</code></td></tr>
+    <tr><td>默认自动提交</td><td>是(psql)</td><td>是(InnoDB 的 <code>autocommit=1</code>)</td><td>是</td></tr>
+  </table>
+  <p>📌 roadmap 顶部对照表里已经有「ORM / 数据访问」「DB 迁移」两行,但还没有「数据库驱动 / 连接」这一行。建议你在 Day 28 复盘时补一行(<code>pg</code> ↔ Npgsql ↔ JDBC ↔ pgx,以及「PG 每连接一个进程」这件事),内容等 Day 27 亲手用过驱动再写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"Why don't you just keep the data in memory in your service? And what happens on the database side when your service opens a connection to PostgreSQL?"</b>(或者:「数据为什么不能放在服务的内存里?应用连上 PostgreSQL 时,数据库那边发生了什么?」)你可以答:<br>
+    <b>"放在服务内存里有三个问题:进程重启就丢;服务开多个副本时每个副本各有一份,数据对不上;多个请求并发修改、写到一半崩溃,这些都要自己处理。数据库是一个独立运行的服务器,专门负责持久化、并发控制和崩溃恢复,应用只是它的一个客户端,和 psql 没有区别。PostgreSQL 是每个连接一个后端进程:主进程 postmaster 收到新连接就 fork 一个 backend 专门服务它,连接断开进程就退出。在 pg_stat_activity 里能看到每个连接和它的 pid。所以连接是比较贵的资源,默认上限 max_connections 是 100,应用里要用连接池复用连接,而不是每个请求新开一个;连接很多时还会在前面放 PgBouncer。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:账房伙计点名(动手,约 8 min)</h3>
+    <ol>
+      <li>先把第 3、4、5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day22</code> 批改。</li>
+      <li>开两个终端,各用 psql 连进 <code>nest_lab</code>。在第一个里 <code>SELECT pg_backend_pid();</code>,在第二个里查 <code>pg_stat_activity</code>(提示:只看 <code>datname = 'nest_lab'</code> 的行,选 <code>pid, application_name, state, query</code> 四列)。✍️ <b>预测</b>:你会看到几行?第二个终端自己那一行的 <code>state</code> 是什么?第一个终端那一行的 <code>query</code> 是什么?</li>
+      <li>在第一个终端 <code>\q</code>,再在第二个终端查一次。少了谁?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:把 nest-lab 的接口翻译成 SQL(动笔 + 动手,约 10 min)</h3>
+    <p>只用今天学的语句(<code>INSERT</code> / <code>SELECT</code> / <code>UPDATE</code> / <code>DELETE</code>、<code>WHERE</code>、<code>ORDER BY</code>、<code>LIMIT</code>),把下面的请求写成 SQL,在 psql 里 <code>BEGIN;</code> 之后执行,看完回执再 <code>ROLLBACK;</code>:</p>
+    <ol>
+      <li><code>POST /v2/tasks</code>,<code>{"title":"学 JOIN"}</code></li>
+      <li><code>GET /v2/tasks?done=false&amp;limit=2</code>(按 id 升序)</li>
+      <li><code>PATCH /v2/tasks/2</code>,<code>{"done":false}</code></li>
+      <li><code>PUT /v2/tasks/2</code>,<code>{"title":"建第一张表(重写)","done":true}</code></li>
+      <li><code>DELETE /v2/tasks/999</code></li>
+    </ol>
+    <p>✍️ 每条先写预测的回执(<code>INSERT 0 ?</code> / <code>(? rows)</code> / <code>UPDATE ?</code> / <code>DELETE ?</code>),再写:nest-lab 应该回什么状态码?第 2 题里,<code>?sort=-createdAt</code> 换成 SQL 是什么?为什么 Day 19 要求排序字段走白名单,在 SQL 里这一点更要紧了?(Day 27 会写真实代码,今天只想。)</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:保命习惯演练(动手,约 7 min)</h3>
+    <ol>
+      <li>在 <code>BEGIN;</code> 里,故意执行一条忘了 <code>WHERE</code> 的 <code>UPDATE tasks SET title = '全没了';</code>,看回执,然后 <code>ROLLBACK;</code>。</li>
+      <li>换一种习惯:先写 <code>SELECT id, title FROM tasks WHERE done = true;</code> 看会圈到哪些行,确认无误后,把 <code>SELECT id, title FROM</code> 改成 <code>UPDATE … SET …</code>,条件原样保留。</li>
+      <li>想一想:如果你在 nest-lab 里写仓储时,<code>WHERE id = $1</code> 里的 <code>id</code> 因为 bug 变成了 <code>undefined</code>,会发生什么?Day 16 的哪一层能先拦住?(这题 Day 27 会再回来。)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/22-postgres-intro/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「前端有 <code>localStorage</code> 和 IndexedDB,数据刷新也不丢。后端为什么不直接把数据放在 Node 进程的内存里,非要再起一个数据库?」用中央账房的比喻讲清楚,并说出这个比喻在哪里会骗人。</li>
+      <li>PostgreSQL 里「集群、数据库、schema、表、行、列」是什么关系?psql 的 SQL 和元命令有什么区别?提示符 <code>=&gt;</code>、<code>-&gt;</code>、<code>=#</code> 各在告诉你什么?</li>
+      <li>CRUD 四个语句和 HTTP 方法怎么对应?回执里的数字有什么用?忘了 <code>WHERE</code> 会怎样,有哪两种办法保命?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里补上你自己做的改动;确认 <code>git status</code> 里没有 <code>.env</code>(里面有数据库密码)、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>数据不放在服务的内存里</b>:重启会丢、多副本对不上、并发和崩溃都没人管。数据库是一个独立的服务器,负责持久化、并发和崩溃恢复;psql、nest-lab、GUI 工具都只是它的客户端。</li>
+    <li><b>PostgreSQL 每个连接一个后端进程</b>,由主进程 postmaster fork 出来,连接断开就退出;<code>pg_stat_activity</code> 能看到所有连接。连接是贵的资源(默认上限 100),所以 Day 27 要用连接池。</li>
+    <li><b>层级是集群 → 数据库 → schema(默认 <code>public</code>)→ 表 → 行 / 列</b>;一个连接只连一个库,<code>\c</code> 是换连接。psql 里 SQL 要分号、发给服务器,元命令用反斜杠、psql 自己处理;看提示符就知道它在等什么。</li>
+    <li><b>CRUD = INSERT / SELECT / UPDATE / DELETE</b>,回执里的行数是你的报警器,也是 Day 27 的 404 依据;不写 <code>WHERE</code> 就是整张表,没有 <code>BEGIN</code> 就没有反悔;不写 <code>ORDER BY</code> 就没有顺序;SQL 说「要什么」,数据库决定「怎么找」。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>三个 psql 连着同一个库时,服务器上至少有几个和它们有关的进程?客户端的 pid 和 <code>pg_backend_pid()</code> 为什么不一样?</li>
+    <li>为什么在 <code>postgres</code> 库里查不到 <code>nest_lab</code> 库的 <code>tasks</code>?换成 MySQL 会怎样?</li>
+    <li>按回车 psql 没反应,提示符是 <code>nest_lab-&gt;</code>,发生了什么?</li>
+    <li><code>UPDATE 0</code> 和 <code>(0 rows)</code> 在 nest-lab 里分别应该映射成什么状态码?</li>
+    <li>为什么连续两次不带 <code>ORDER BY</code> 的 <code>SELECT</code> 可能顺序不同?Day 19 的 cursor 分页为什么因此必须写 <code>ORDER BY</code>?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 23</b>:数据建模与范式。今天的 <code>tasks</code> 只是一张孤零零的表,而 nest-lab 里还有用户、清单项(Day 16 的 <code>checklist</code> 现在是任务里的一个数组)、以后还会有标签。它们之间是一对一、一对多还是多对多?<code>checklist</code> 该不该拆成单独的表?用 1NF–3NF 一步步拆,画出 ER 图,并理解为什么「schema 设计是最难改的决定」。</p>
+</section>
+
+<footer>
+  Day 22 · Phase 2 / Week 4 · 产出:<code>docs/22-postgres-intro/</code> 本文档 + <code>nest-lab/</code>(<code>compose.yaml</code>、<code>.env.example</code> 的 <code>POSTGRES_*</code>、<code>sql/day22/</code> 六个实验文件、<code>npm run day22</code>)+ <code>src/22-postgres-intro/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

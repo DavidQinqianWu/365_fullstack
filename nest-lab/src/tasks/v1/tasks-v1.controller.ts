@@ -59,8 +59,8 @@ export class TasksV1Controller {
   @ApiOkResponse({ type: TaskListV1Envelope, headers: V1_HEADERS })
   @DeprecatedApi(V1_DEPRECATION)
   @Get()
-  findAll(): V1Envelope<TaskResponse[]> {
-    return this.wrap(this.tasksService.findAll().map(toTaskResponse));
+  async findAll(): Promise<V1Envelope<TaskResponse[]>> {
+    return this.wrap((await this.tasksService.findAll()).map(toTaskResponse));
   }
 
   @ApiOperation({ summary: '【已弃用】查看一个任务', deprecated: true })
@@ -68,7 +68,7 @@ export class TasksV1Controller {
   @ApiProblemResponses(400, 404)
   @DeprecatedApi(V1_DEPRECATION)
   @Get(':id')
-  findOne(@Param('id', TracedParseIntPipe) id: number): V1Envelope<TaskResponse> {
-    return this.wrap(toTaskResponse(this.tasksService.findOne(id)));
+  async findOne(@Param('id', TracedParseIntPipe) id: number): Promise<V1Envelope<TaskResponse>> {
+    return this.wrap(toTaskResponse(await this.tasksService.findOne(id)));
   }
 }

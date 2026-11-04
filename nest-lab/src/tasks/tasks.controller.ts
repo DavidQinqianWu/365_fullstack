@@ -69,10 +69,10 @@ export class TasksController {
   @ApiProblemResponses(400, 422)
   @Public()
   @Get()
-  findAll(@Query() query: ListTasksQueryDto): TaskPage {
+  async findAll(@Query() query: ListTasksQueryDto): Promise<TaskPage> {
     ctxLog('  ③ Controller 前台接单:GET /tasks');
     // Day 19:分页 + 过滤 + 排序。query 已经被 ValidationPipe 校验、转换过(limit 是数字,done 是布尔)
-    const page = this.tasksService.listPage(query);
+    const page = await this.tasksService.listPage(query);
     return { items: page.items.map(toTaskResponse), nextCursor: page.nextCursor };
   }
 
@@ -82,9 +82,9 @@ export class TasksController {
   @ApiProblemResponses(400, 404)
   @Public()
   @Get(':id')
-  findOne(@Param('id', TracedParseIntPipe) id: number): TaskResponse {
+  async findOne(@Param('id', TracedParseIntPipe) id: number): Promise<TaskResponse> {
     ctxLog(`  ③ Controller 前台接单:GET /tasks/${id}`);
-    return toTaskResponse(this.tasksService.findOne(id));
+    return toTaskResponse(await this.tasksService.findOne(id));
   }
 
   // POST /tasks —— 不安全、不幂等:发两次就建两条。成功 = 201 + Location 告诉客户端新资源在哪
@@ -94,13 +94,13 @@ export class TasksController {
   @ApiCreatedResponse({ type: TaskResponse, headers: { Location: { description: '新任务的地址,如 /tasks/3', schema: { type: 'string' } } } })
   @ApiProblemResponses(400, 403, 415, 422)
   @Post()
-  create(
+  async create(
     @Body() dto: CreateTaskDto,
     @RequestId() requestId: string,
     @Res({ passthrough: true }) res: Response, // passthrough:我只设个响应头,响应体照样交给 Nest
-  ): TaskResponse {
+  ): Promise<TaskResponse> {
     ctxLog(`  ③ Controller 前台接单:POST /tasks(requestId=${requestId})`);
-    const task = this.tasksService.create(dto);
+    const task = await this.tasksService.create(dto);
     res.setHeader('Location', `/tasks/${task.id}`);
     return toTaskResponse(task);
   }
@@ -111,9 +111,9 @@ export class TasksController {
   @ApiOkResponse({ type: TaskResponse })
   @ApiProblemResponses(400, 403, 404, 409, 415, 422)
   @Put(':id')
-  replace(@Param('id', TracedParseIntPipe) id: number, @Body() dto: ReplaceTaskDto): TaskResponse {
+  async replace(@Param('id', TracedParseIntPipe) id: number, @Body() dto: ReplaceTaskDto): Promise<TaskResponse> {
     ctxLog(`  ③ Controller 前台接单:PUT /tasks/${id}`);
-    return toTaskResponse(this.tasksService.replace(id, dto));
+    return toTaskResponse(await this.tasksService.replace(id, dto));
   }
 
   // PATCH /tasks/:id —— 部分更新:只改给了的字段
@@ -122,13 +122,13 @@ export class TasksController {
   @ApiOkResponse({ type: TaskResponse })
   @ApiProblemResponses(400, 403, 404, 409, 415, 422)
   @Patch(':id')
-  update(@Param('id', TracedParseIntPipe) id: number, @Body() dto: UpdateTaskDto): TaskResponse {
+  async update(@Param('id', TracedParseIntPipe) id: number, @Body() dto: UpdateTaskDto): Promise<TaskResponse> {
     ctxLog(`  ③ Controller 前台接单:PATCH /tasks/${id}`);
     // PartialType 让每个字段都可选,所以 {} 能通过 DTO 校验;「至少改一个字段」这条规则自己补
     if (Object.keys(dto).length === 0) {
       throw new ProblemException(ProblemTypes.validation, '至少要给 title、done、checklist 中的一个', { errors: [] });
     }
-    return toTaskResponse(this.tasksService.update(id, dto));
+    return toTaskResponse(await this.tasksService.update(id, dto));
   }
 
   // DELETE /tasks/:id —— 幂等;成功 204 No Content(没有响应体)
@@ -141,9 +141,9 @@ export class TasksController {
   @AdminOnly()
   @HttpCode(204)
   @Delete(':id')
-  remove(@Param('id', TracedParseIntPipe) id: number): void {
+  async remove(@Param('id', TracedParseIntPipe) id: number): Promise<void> {
     ctxLog(`  ③ Controller 前台接单:DELETE /tasks/${id}`);
-    this.tasksService.remove(id);
+    await this.tasksService.remove(id);
   }
 
   // ---------- Day 15:405 + Allow ----------

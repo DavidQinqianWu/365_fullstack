@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 32 - 部分索引、表达式索引与外键索引:只给少数派建卡片,而每多一个卡片盒,每笔账都要多抄一张</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 5</div>
+  <h1>Day 32 - 部分索引、表达式索引与外键索引:只给少数派建卡片,而每多一个卡片盒,每笔账都要多抄一张</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>部分索引(<code>WHERE done = false</code>)与参数化查询 · 部分唯一索引 · 表达式索引(<code>lower(email)</code>)与 IMMUTABLE · 外键列不会自动建索引 · 写放大与 WAL · HOT 更新 · 没用的 / 重复的索引</b> ·
+    项目:<code>nest-lab/</code> 新增 <code>sql/day32/</code>(schema <code>day32</code>)、<code>npm run day32</code>;应用代码和 <code>schema.sql</code> 今天不改 ·
+    今天没有新依赖;所有输出来自 PostgreSQL 16.15 的真实运行,耗时类数字跑 3 遍、每遍 3 次,写区间
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:卡片盒越建越多,账房开始抱怨了</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:部分索引与表达式索引 —— 只给少数派建卡片,卡片上写的是加工过的值</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:外键列的索引 —— 注销一个会员,要翻遍整本订单本</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:索引的代价 —— 每记一笔账,所有卡片盒都要补一张卡</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:卡片盒越建越多,账房开始抱怨了</h2>
+  <p>Day 31 结尾那张「nest-lab 各排序组合需要的索引」表,已经列出了 6 个索引候选,还没算上 <code>?done=</code> 过滤。查询的一方很高兴:每种问法都有一个排好序的卡片盒。可是记账的一方开始抱怨:<b>每记一笔新账,所有卡片盒都要各补一张卡;改一笔账,有关的卡片盒都要跟着改</b>。今天回答三个问题:</p>
+  <ol>
+    <li>能不能让卡片盒<b>小一点</b>?只给真正会被问到的那一部分行建卡片(部分索引),或者卡片上直接写加工好的值(表达式索引)。</li>
+    <li>有没有<b>一定该建、却常常忘了建</b>的索引?有:外键列。Day 24 说过「PostgreSQL 不会给外键列自动建索引」,今天实测忘了它的后果。</li>
+    <li>索引到底<b>有多贵</b>?0、1、3、6 个索引下,同样的写入慢多少、多写多少日志;什么情况下更新可以不碰索引(HOT);怎么找出没人用的索引。</li>
+  </ol>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你一定见过这种代码:为了列表页快,给每种筛选状态都建了一个缓存(<code>useMemo</code>、Redux 里的 selector 缓存、按 key 分的 SWR 缓存)。读的时候很爽;可是数据一改,就要让一堆缓存失效、重算。缓存越多,写越慢,还容易漏掉某一个。数据库的索引就是一种<b>由数据库自己负责同步的缓存</b>:它从不漏,但每一份都要在每次写入时付钱。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+docker compose up -d     # 或本机的 PostgreSQL 已在运行(Day 22)
+npm run day32            # 造 10 万会员 + 100 万任务 → 7 个实验 → 关键对比各跑 3 次(本机约 1 分钟)
+
+psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab
+nest_lab=&gt; SET search_path = day32;</code></pre>
+  <p>今天的数据在独立的 schema <code>day32</code> 里。<code>users</code> 有 10 万个会员,邮箱大小写混着写(<code>User42@Example.com</code>);<code>tasks</code> 和 Day 29–31 一样是 100 万行(10% 未完成),但这次 <code>owner_id</code> 是真正的外键,指向 <code>users</code>,<code>ON DELETE CASCADE</code>。只有 1–10000 号会员有任务,10001 号以后的会员一个任务都没有。一开始只有两个主键和这个外键,<b>外键列 <code>owner_id</code> 上没有索引</b>。</p>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用</th></tr>
+    <tr><td><code>sql/day32/01-setup.sql</code></td><td>新增</td><td>建 schema <code>day32</code>:<code>users</code> 10 万行、<code>tasks</code> 100 万行 + 外键</td></tr>
+    <tr><td><code>sql/day32/02-partial.sql</code></td><td>新增</td><td>部分索引:大小、哪些写法能用上、参数化查询与通用计划、部分唯一索引</td></tr>
+    <tr><td><code>sql/day32/03-expression.sql</code></td><td>新增</td><td>表达式索引:<code>lower(email)</code>、<code>ILIKE</code>、按天的索引与 IMMUTABLE 报错</td></tr>
+    <tr><td><code>sql/day32/04-fk.sql</code></td><td>新增</td><td>外键列有无索引时删除父行;JOIN;「没有索引的外键」查询工具</td></tr>
+    <tr><td><code>sql/day32/05-write-cost.sql</code></td><td>新增</td><td>0 / 1 / 3 / 6 个索引下的 INSERT、UPDATE 耗时与 WAL 量</td></tr>
+    <tr><td><code>sql/day32/06-hot.sql</code></td><td>新增</td><td>HOT 更新:fillfactor、改的列在不在索引里、INCLUDE 列</td></tr>
+    <tr><td><code>sql/day32/07-unused.sql</code></td><td>新增</td><td><code>pg_stat_user_indexes</code>:没用的索引、重复的索引</td></tr>
+    <tr><td><code>scripts/day32-try.mjs</code> + <code>package.json</code> 的 <code>day32</code></td><td>新增</td><td>观察脚本:跑 7 个文件,关键对比各测 3 次;顺便用 nest-lab 的 <code>pg</code> 驱动看参数化查询拿到的计划</td></tr>
+    <tr><td><code>README.md</code></td><td>修改</td><td>命令、成长日志 Day 32</td></tr>
+  </table>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:部分索引与表达式索引 —— 只给少数派建卡片,卡片上写的是加工过的值</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>部分索引</b>:建索引时加一个 <code>WHERE</code>,只给满足条件的行建条目(比如只收未完成的任务)。索引小很多,但只有当查询的条件<b>让数据库看得出</b>「要的行都在这个子集里」时,它才会被用。<b>表达式索引</b>:索引里存的不是列的原值,而是一个表达式的结果(比如 <code>lower(email)</code>)。查询必须写<b>同一个表达式</b>才能用上;而且这个表达式必须是 <b>IMMUTABLE</b> 的,也就是同样的输入永远得到同样的输出,不受时区之类设置的影响。
+  </div>
+
+  <h3>② 生活类比:只给「还没完成」的单子建卡片盒,卡片上写的是小写会员号</h3>
+  <p>账房发现:九成的单子早就完成了,没人再问;天天被问的是「还没完成的单子里最新的是哪些」。于是新建一个小卡片盒,<b>只给没完成的单子建卡片</b>。有人问「没完成的单子」,直接翻小盒子;有人问「完成了的单子」,小盒子里根本没有,只能去翻账本。</p>
+  <p>另一个卡片盒按邮箱排,但会员登记时大小写写得乱七八糟。账房干脆在卡片上<b>统一抄成小写</b>。问的人也得先把邮箱转成小写再来问;要是拿着原样的「User42@Example.com」来问,卡片盒里没有这种写法。还有一条规矩:卡片上抄的东西必须是<b>谁抄都一样</b>的。「这单是哪一天下的」就不行,北京的伙计和伦敦的伙计会抄出不同的日子,除非卡片上写明「按伦敦时间」。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测</th></tr>
+    <tr><td>只给没完成的单子建的小卡片盒</td><td><b>部分索引</b> <code>CREATE INDEX … (created_at) WHERE done = false</code></td><td>2208 kB,完整索引 <code>(done, created_at)</code> 是 30 MB</td></tr>
+    <tr><td>问「没完成的」→ 翻小盒子</td><td>查询条件能推出索引条件(<code>done = false</code>、<code>NOT done</code>)</td><td>Index Scan Backward,读 5 页</td></tr>
+    <tr><td>问的是盒子里没有的,或者说法让人看不出</td><td>推不出(<code>done = true</code>、<code>done IS NOT TRUE</code>、通用计划里的 <code>done = $1</code>)</td><td>全表扫描 + 排序</td></tr>
+    <tr><td>每个会员只能有一张「进行中」的卡片</td><td><b>部分唯一索引</b> <code>UNIQUE … WHERE stopped_at IS NULL</code></td><td>第二个进行中的计时被拒绝</td></tr>
+    <tr><td>卡片上统一抄成小写</td><td><b>表达式索引</b> <code>(lower(email))</code></td><td>—</td></tr>
+    <tr><td>问的人也要先转小写</td><td>查询写同一个表达式 <code>WHERE lower(email) = …</code></td><td>0.003 – 0.083 ms;<code>ILIKE</code> 要 40.6 – 68.0 ms</td></tr>
+    <tr><td>谁抄都一样</td><td>索引表达式只能用 <b>IMMUTABLE</b> 函数</td><td><code>created_at::date</code> 报错</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:部分索引能被哪些写法用上。</b>✍️ <b>预测(先写再运行)</b>:只留部分索引 <code>(created_at) WHERE done = false</code>,下面四种 WHERE 各会不会用它?真实结果(<code>02-partial.sql</code>,只保留关键行):</p>
+  <pre><code>          索引          |  大小   | 只收哪些行(WHERE)
+------------------------+---------+-------------------
+ tasks_done_created_idx | 30 MB   |
+ tasks_open_created_idx | 2208 kB | (done = false)
+
+=== ② WHERE done = false
+ Limit (actual time=0.023..0.030 rows=20 loops=1)
+   Buffers: shared hit=3 read=2
+   -&gt;  Index Scan Backward using tasks_open_created_idx on tasks (…)
+ Execution Time: 0.042 ms
+=== ③ WHERE NOT done
+   -&gt;  Index Scan Backward using tasks_open_created_idx on tasks
+=== ④ WHERE done IS NOT TRUE(列是 NOT NULL,意思其实也一样)
+ Limit
+   -&gt;  Sort
+         Sort Key: created_at DESC
+         -&gt;  Seq Scan on tasks
+               Filter: (done IS NOT TRUE)
+=== ⑤ WHERE done = true
+         -&gt;  Seq Scan on tasks
+               Filter: done</code></pre>
+  <ul>
+    <li><b>大小</b>:部分索引只收 10 万个条目,2208 kB;完整的 <code>(done, created_at)</code> 收全部 100 万个,30 MB,差 14 倍。</li>
+    <li><b>速度</b>:这个查询两种索引都很快。各跑 3 次、脚本跑 3 遍:完整索引 <b>0.009 – 0.100 ms</b>,部分索引 <b>0.007 – 0.130 ms</b>,基本一样。部分索引的好处<b>不在这个查询更快</b>,而在于索引小(更容易整个留在内存里),以及 90% 的写入(插入已完成的任务)根本不用碰它。</li>
+    <li><b>能不能用</b>:数据库在做计划时做一个小小的逻辑证明:「查询的 WHERE 成立 ⇒ 索引的 WHERE 成立」。<code>done = false</code> 和 <code>NOT done</code> 能证明出来;<code>done IS NOT TRUE</code> 证明不出来,虽然因为列是 <code>NOT NULL</code>,它的意思其实一样(这个证明器不会去看列上的约束)。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 B:参数化查询 <code>done = $1</code>。</b>nest-lab 的 SQL 都是参数化的。✍️ <b>预测</b>:<code>WHERE done = $1</code> 时,数据库做计划的那一刻还不知道 <code>$1</code> 是不是 false,它还能用部分索引吗?真实结果:</p>
+  <pre><code>PREPARE open_latest(boolean) AS SELECT … WHERE done = $1 ORDER BY created_at DESC LIMIT 20;
+ plan_cache_mode
+-----------------
+ auto
+EXPLAIN EXECUTE open_latest(false);         -- 第 1 次,和执行 6 次之后都一样
+   -&gt;  Index Scan Backward using tasks_open_created_idx on tasks
+    name     | 用通用计划的次数 | 用定制计划的次数
+-------------+------------------+------------------
+ open_latest |                0 |                8
+SET plan_cache_mode = force_generic_plan;   -- 强制用通用计划
+   -&gt;  Sort
+         -&gt;  Seq Scan on tasks
+               Filter: (done = $1)
+EXPLAIN (GENERIC_PLAN) SELECT … WHERE done = $1 …   -- PostgreSQL 16 新增的写法,结果相同
+         -&gt;  Seq Scan on tasks
+               Filter: (done = $1)
+
+-- 观察脚本:用 nest-lab 的 pg 驱动发 EXPLAIN … WHERE done = $1,参数 [false]
+  Limit
+    -&gt;  Index Scan Backward using b_part on tasks</code></pre>
+  <p>结论要说准确:</p>
+  <ul>
+    <li><b>定制计划</b>(custom plan):代入这一次的实际参数值再做计划,看得出 <code>$1 = false</code>,能用部分索引。<b>通用计划</b>(generic plan):不看参数值、做一份以后反复用的计划,它必须对 <code>$1 = true</code> 也正确,所以<b>永远不能</b>用部分索引。</li>
+    <li>默认的 <code>plan_cache_mode = auto</code>:前 5 次执行用定制计划,之后比较通用计划的估算代价;这里通用计划要全表扫描,代价高得多,所以 8 次都还是定制计划。但这是代价比较的结果,不是保证:换一个部分索引优势不明显的查询,第 6 次以后可能就换成通用计划了。</li>
+    <li>nest-lab 用的 <code>pg</code> 驱动,在你不给查询起 <code>name</code> 时,每次都把 SQL 和参数一起发过去,数据库就带着实际值做计划(上面最后一段的实测)。给查询起了 <code>name</code>(或者用连接池 / ORM 的预编译缓存)时,才会进入「前 5 次定制、之后可能通用」的规则。</li>
+    <li>稳妥的写法:要用部分索引的查询,把条件<b>写成常量</b>(<code>WHERE done = false</code>),而不是 <code>done = $1</code>。Day 34 给 nest-lab 加 <code>done</code> 的索引时要考虑这一点。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 C:部分唯一索引。</b>两个常见用法:「每个会员同时只能有一个正在计时的任务」,以及「软删除之后同一个邮箱可以重新注册」。✍️ <b>预测</b>:下面的第 2 条和第 6 条 INSERT 会怎样?</p>
+  <pre><code>CREATE UNIQUE INDEX timers_one_running_per_user ON timers (user_id) WHERE stopped_at IS NULL;
+INSERT INTO timers (user_id, task_id) VALUES (1, 101);      -- INSERT 0 1
+INSERT INTO timers (user_id, task_id) VALUES (1, 102);
+ERROR:  duplicate key value violates unique constraint "timers_one_running_per_user"
+DETAIL:  Key (user_id)=(1) already exists.
+UPDATE timers SET stopped_at = now() WHERE user_id = 1 AND stopped_at IS NULL;
+INSERT INTO timers (user_id, task_id) VALUES (1, 102);      -- INSERT 0 1:停掉之后就可以了
+
+CREATE UNIQUE INDEX accounts_email_active_key ON accounts (lower(email)) WHERE deleted_at IS NULL;
+INSERT … ('Alice@Example.com');                             -- INSERT 0 1
+INSERT … ('alice@example.com');
+ERROR:  duplicate key value violates unique constraint "accounts_email_active_key"
+DETAIL:  Key (lower(email))=(alice@example.com) already exists.
+UPDATE accounts SET deleted_at = now() WHERE lower(email) = 'alice@example.com';
+INSERT … ('alice@example.com');                             -- INSERT 0 1:软删除之后可以重新注册
+INSERT … ('ALICE@example.com') ON CONFLICT (lower(email)) WHERE deleted_at IS NULL DO NOTHING;   -- INSERT 0 0
+ id |       email       | 已软删除
+----+-------------------+----------
+  1 | Alice@Example.com | t
+  3 | alice@example.com | f</code></pre>
+  <p>规则「只在某个子集里唯一」用普通的 <code>UNIQUE</code> 约束写不出来,用部分唯一索引一行就够了,而且它在数据库里兜底,应用代码的并发问题(两个请求同时检查「有没有正在计时的」)也挡得住。<code>ON CONFLICT</code> 要写出同样的表达式和 <code>WHERE</code>,数据库才找得到这个索引。顺便注意 <code>id</code> 跳过了 2:失败的 INSERT 已经从自增序列里取走了一个号,序列不会回滚(Day 24 讲过)。</p>
+
+  <p><b>⑤ 动手验证 D:表达式索引。</b>回扣 Day 24 的 <code>lower(email)</code> 唯一索引。✍️ <b>预测</b>:建了 <code>(lower(email))</code> 以后,下面三种查法谁能用上?真实结果(<code>03-expression.sql</code>):</p>
+  <pre><code>=== ① WHERE lower(email) = 'user42@example.com'
+ Index Scan using users_email_lower_key on users (actual time=0.031..0.032 rows=1 loops=1)
+   Index Cond: (lower(email) = 'user42@example.com'::text)
+ Execution Time: 0.057 ms
+=== ② WHERE email = 'User42@Example.com'
+ Seq Scan on users (actual time=0.011..4.298 rows=1 loops=1)
+   Rows Removed by Filter: 99999
+ Execution Time: 4.361 ms
+=== ③ WHERE email ILIKE 'user42@example.com'
+ Seq Scan on users (actual time=0.021..41.080 rows=1 loops=1)
+   Filter: (email ~~* 'user42@example.com'::text)
+ Execution Time: 41.094 ms</code></pre>
+  <p>各跑 3 次、脚本跑 3 遍:<code>lower(email) = …</code> <b>0.003 – 0.083 ms</b>,<code>ILIKE</code> <b>40.6 – 68.0 ms</b>。<code>ILIKE</code> 的意思也是「不分大小写」,但它不是 <code>lower(email)</code> 这个表达式,数据库不会替你换写法;而且它每一行都要做一次不分大小写的模式匹配,比 ② 的普通等值比较还慢 10 倍。要让 <code>ILIKE '%关键字%'</code> 这种查询也走索引,需要 <code>pg_trgm</code>(Day 33)。</p>
+
+  <p><b>⑤ 动手验证 E:按天建索引与 IMMUTABLE。</b>想按「哪一天建的」统计任务。✍️ <b>预测</b>:<code>CREATE INDEX … ((created_at::date))</code> 能建成吗?</p>
+  <pre><code>CREATE INDEX tasks_created_date_idx ON tasks ((created_at::date));
+ERROR:  functions in index expression must be marked IMMUTABLE
+CREATE INDEX tasks_created_day_idx ON tasks (date_trunc('day', created_at));
+ERROR:  functions in index expression must be marked IMMUTABLE
+
+-- 为什么?同一个时刻,换个时区就是另一天(Day 26)
+          时刻          | UTC 下是哪天
+ 2025-06-01 20:00:00+00 | 2025-06-01
+          时刻          | 上海 下是哪天
+ 2025-06-02 04:00:00+08 | 2025-06-02
+                      函数                      | 易变性
+ timezone(text,timestamp with time zone)        | i
+ date(timestamp with time zone)                 | s
+ date_trunc(text,timestamp with time zone)      | s
+ date_trunc(text,timestamp with time zone,text) | i
+
+-- 正确写法:把时区写死在表达式里
+CREATE INDEX tasks_created_utc_date_idx ON tasks (((created_at AT TIME ZONE 'UTC')::date));
+CREATE INDEX tasks_created_day_utc_idx ON tasks (date_trunc('day', created_at, 'UTC'));
+--- 查询写同一个表达式:能用
+   -&gt;  Index Scan using tasks_created_utc_date_idx on tasks (… rows=1440 loops=1)
+         Index Cond: (((created_at AT TIME ZONE 'UTC'::text))::date = '2025-06-01'::date)
+ Execution Time: 0.245 ms
+--- 查询写 created_at::date:不是同一个表达式,用不上
+   -&gt;  Seq Scan on tasks (… rows=1440 loops=1)
+         Rows Removed by Filter: 998560
+ Execution Time: 73.645 ms
+=== ⑥ 很多时候根本不需要表达式索引:普通索引 + 范围条件
+   -&gt;  Index Only Scan using tasks_created_idx on tasks (… rows=1440 loops=1)
+         Index Cond: ((created_at &gt;= '2025-06-01 00:00:00+00'::…) AND (created_at &lt; '2025-06-02 00:00:00+00'::…))
+ Execution Time: 0.292 ms</code></pre>
+  <ul>
+    <li><code>timestamptz</code> 存的是一个绝对时刻;「它是哪一天」取决于会话的 <code>timezone</code> 设置。同一个时刻,UTC 下是 6 月 1 日,上海是 6 月 2 日。如果允许按 <code>created_at::date</code> 建索引,改一下时区设置,索引里存的日子就全错了。所以 <code>date(timestamptz)</code>、两个参数的 <code>date_trunc</code> 都只是 <b>STABLE</b>(一条语句之内不变),不是 IMMUTABLE。</li>
+    <li>修法是把时区写进表达式:<code>created_at AT TIME ZONE 'UTC'</code>(<code>timezone(text, timestamptz)</code>,IMMUTABLE),或者 PostgreSQL 12 起的三参数 <code>date_trunc('day', created_at, 'UTC')</code>。查询必须写一模一样的表达式:各跑 3 次、脚本跑 3 遍,同一个表达式 <b>0.099 – 0.331 ms</b>,写成 <code>created_at::date</code> <b>66.0 – 102.3 ms</b>。</li>
+    <li>⑥ 是更常用的做法:不建表达式索引,用普通的 <code>created_at</code> 索引加一个范围条件,把「哪一天」换算成两个时刻(这一步在应用里按用户的时区算好)。一个普通索引能服务任意时区、任意范围的查询。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「小盒子里有的,账房就会去小盒子找」——要让数据库看得出来才行。</b>数据库靠计划阶段的一个简单逻辑证明来判断,不会去理解你的意思:<code>done IS NOT TRUE</code> 和 <code>done = false</code> 在这张表上意思一样,它也用不上;通用计划里的 <code>done = $1</code> 永远用不上。写部分索引时,要同时约定好查询的写法。</li>
+      <li><b>「卡片上抄成小写,问的人自然会转小写」——表达式必须逐字一致。</b><code>lower(email)</code> 的索引帮不了 <code>email ILIKE …</code>、<code>upper(email) = …</code>,也帮不了 <code>lower(trim(email))</code>。ORM 生成的 SQL 更要用 <code>EXPLAIN</code> 确认。</li>
+      <li><b>「小盒子总比大盒子好」——部分索引只服务那一个子集。</b>如果「已完成的任务」也经常要按时间查,你还得另建索引,两个加起来不一定比一个完整索引省。部分索引最适合「少数派、经常被问、条件固定」的子集:未完成的、未删除的、待处理的。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>partial index</b>(索引谓词 <code>indpred</code>);<b>predicate implication</b>(查询条件推出索引条件);<b>custom plan / generic plan</b>、<b><code>plan_cache_mode</code></b>、<b><code>EXPLAIN (GENERIC_PLAN)</code></b>(PostgreSQL 16 起);<b>partial unique index</b>;<b>expression index / functional index</b>;<b>function volatility</b>:<code>IMMUTABLE</code> / <code>STABLE</code> / <code>VOLATILE</code>;<b>sargable</b>(Day 31)。
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:外键列的索引 —— 注销一个会员,要翻遍整本订单本</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    外键约束是双向的:往子表插一行时,要去父表确认「这个会员存在」(父表的主键有索引,很快);<b>删除或修改父表的一行时,要去子表找「还有没有人引用它」</b>(<code>RESTRICT</code> 就拒绝,<code>CASCADE</code> 就跟着删)。PostgreSQL 会给主键、唯一约束自动建索引,但<b>不会给外键列建索引</b>。外键列上没有索引,每删一个父行,子表就要全表扫描一次。
+  </div>
+
+  <h3>② 生活类比:注销会员时翻订单本</h3>
+  <p>会员花名册按会员号排好,查「5000 号会员存在吗」一翻就到。可是注销一个会员时,规矩是「他的订单要一起作废」,订单本却是按下单顺序记的。账房只能<b>从第一页翻到最后一页</b>,找出这个会员的所有订单;哪怕这个会员一单都没下过,也得翻完整本才敢说「没有」。注销 10 个会员,就翻 10 遍。给订单本另做一个「按会员号排的卡片盒」,注销时一翻就知道他有哪些订单。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测</th></tr>
+    <tr><td>会员花名册(按会员号排好)</td><td>父表 <code>users</code> 的主键索引</td><td>插入任务时检查会员存在,很快</td></tr>
+    <tr><td>订单本(按下单顺序记)</td><td>子表 <code>tasks</code>,外键列 <code>owner_id</code></td><td>100 万行、65 MB</td></tr>
+    <tr><td>注销时翻整本订单本</td><td>外键的内部触发器在子表里查 <code>owner_id = $1</code></td><td><code>Trigger for constraint tasks_owner_id_fkey: time=79.390 calls=1</code></td></tr>
+    <tr><td>注销 10 个会员翻 10 遍</td><td>每删一个父行,触发器执行一次</td><td><code>calls=10</code>,约 0.4 秒</td></tr>
+    <tr><td>按会员号排的订单卡片盒</td><td><code>CREATE INDEX … ON tasks (owner_id)</code></td><td>同样的删除不到 1 ms</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:删除父行。</b>✍️ <b>预测</b>:删除一个<b>一个任务都没有</b>的会员(50000 号),要多久?计划里哪一行会告诉你时间花在哪?真实结果(<code>04-fk.sql</code>,都包在 <code>BEGIN … ROLLBACK</code> 里,不真删):</p>
+  <pre><code>=== ② 没有索引:注销 50000 号会员(他一个任务都没有)
+ Delete on users (actual time=0.202..0.202 rows=0 loops=1)
+   -&gt;  Index Scan using users_pkey on users (actual time=0.113..0.114 rows=1 loops=1)
+         Index Cond: (id = 50000)
+ Trigger for constraint tasks_owner_id_fkey: time=79.390 calls=1
+ Execution Time: 79.655 ms
+=== ③ 没有索引:一次注销 10 个没有任务的会员
+ Trigger for constraint tasks_owner_id_fkey: time=438.624 calls=10
+ Execution Time: 438.760 ms
+=== ⑤ 给外键列建索引,再做一遍
+CREATE INDEX tasks_owner_id_idx ON tasks (owner_id);
+ Trigger for constraint tasks_owner_id_fkey: time=0.388 calls=1
+ Execution Time: 0.510 ms
+ Trigger for constraint tasks_owner_id_fkey: time=0.271 calls=10
+ Execution Time: 0.332 ms</code></pre>
+  <p>计划树本身只有「按主键找到这一行、删掉」,0.2 ms 就做完了;时间全花在最后那一行 <code>Trigger for constraint …</code>:这是外键的内部触发器,它在 <code>tasks</code> 里执行「删掉 <code>owner_id = 50000</code> 的行」(CASCADE)。<b>这次查找不会作为节点出现在计划树里</b>,只留下这一行汇总,所以很容易被忽略。各跑 3 次、脚本跑 3 遍:</p>
+  <table>
+    <tr><th>操作</th><th>外键列没有索引</th><th>有索引 <code>(owner_id)</code></th></tr>
+    <tr><td>注销 1 个没有任务的会员</td><td>32.1 – 57.7 ms</td><td>0.058 – 0.663 ms</td></tr>
+    <tr><td>注销 10 个没有任务的会员</td><td>401.3 – 499.6 ms</td><td>0.143 – 3.869 ms</td></tr>
+    <tr><td>注销 5000 号(级联删掉他的 46 个任务)</td><td>37.1 – 55.2 ms</td><td>0.227 – 1.539 ms</td></tr>
+  </table>
+  <p>差两个数量级,而且<b>随子表大小线性变慢</b>:按线性估算,子表 1000 万行时删一个会员要半秒左右,批量清理 1 万个注销用户要一个多小时(这是估算,没有实测)。删除期间父表那一行一直锁着(Week 6 讲锁)。<code>ON DELETE RESTRICT</code> / <code>NO ACTION</code> 也一样,只是找到了就报错、找不到就放行,查找本身同样要全表扫描。更新父表的主键值(很少见)也会触发同样的查找。</p>
+
+  <p><b>⑤ 动手验证 B:JOIN。</b>✍️ <b>预测</b>:「按邮箱找会员,再数他的未完成任务」,外键列有没有索引会让计划换成哪种 JOIN(Day 30)?真实结果(单次):</p>
+  <pre><code>-- 有 tasks (owner_id) 索引
+         -&gt;  Nested Loop (actual time=0.057..0.222 rows=46 loops=1)
+               -&gt;  Index Scan using users_email_lower_key on users u (… rows=1 loops=1)
+               -&gt;  Bitmap Heap Scan on tasks t (… rows=46 loops=1)
+                     -&gt;  Bitmap Index Scan on tasks_owner_id_idx (…)
+                           Index Cond: (owner_id = u.id)
+ Execution Time: 0.297 ms
+-- 没有
+         -&gt;  Hash Join (actual time=4.131..123.802 rows=46 loops=1)
+               -&gt;  Seq Scan on tasks t (actual time=0.006..58.001 rows=1000000 loops=1)
+               -&gt;  Hash (…)
+                     -&gt;  Index Scan using users_email_lower_key on users u (… rows=1 loops=1)
+ Execution Time: 123.936 ms</code></pre>
+  <p>「从父表找到一行,再拿它去子表找关联的行」是最常见的 JOIN。外键列有索引,就是 Nested Loop:外层 1 行,内层按索引取 46 行。没有索引,只能把 100 万行的子表整个扫一遍,和 1 行的哈希表对一对。</p>
+
+  <p><b>⑤ 动手验证 C:找出「没有索引的外键」的工具。</b>把下面这段存起来,接手任何一个库都可以先跑一遍:</p>
+  <pre><code>SELECT c.conrelid::regclass AS 子表, c.conname AS 外键约束,
+       pg_get_constraintdef(c.oid) AS 定义,
+       pg_size_pretty(pg_relation_size(c.conrelid)) AS 子表大小
+FROM pg_constraint c
+WHERE c.contype = 'f'
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_index i
+    WHERE i.indrelid = c.conrelid
+      AND i.indpred IS NULL                                               -- 部分索引不算
+      AND (i.indkey::int2[])[0:cardinality(c.conkey) - 1] @&gt; c.conkey    -- 外键的列 = 某个索引打头的那几列
+      AND (i.indkey::int2[])[0:cardinality(c.conkey) - 1] &lt;@ c.conkey    -- (顺序可以不同)
+  )
+ORDER BY 1, 2;
+ 子表  |      外键约束       |                             定义                              | 子表大小
+-------+---------------------+---------------------------------------------------------------+----------
+ tasks | tasks_owner_id_fkey | FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE | 65 MB</code></pre>
+  <p>「打头」很重要:<code>(owner_id, created_at)</code> 这样的复合索引也能服务外键查找(Day 31 的最左前缀),而 <code>(created_at, owner_id)</code> 不行。nest-lab 自己的库也查了一遍:</p>
+  <pre><code>           子表           |           外键约束           |  打头能用的索引
+--------------------------+------------------------------+-------------------------------
+ app.checklist_items      | checklist_items_task_id_fkey | app.checklist_items_pkey
+ app_test.checklist_items | checklist_items_task_id_fkey | app_test.checklist_items_pkey</code></pre>
+  <p>nest-lab 唯一的外键 <code>checklist_items.task_id</code> 已经被主键 <code>(task_id, position)</code> 打头覆盖,删除任务时级联删清单项走的是主键。这是 Day 24 设计主键时顺带得到的好处,不用另建。Week 10 加 <code>users</code> 表、让 <code>tasks.owner_id</code> 成为外键时,就要记得给它建索引。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「注销会员才需要翻订单本,平时用不着」——这个索引平时也在干活。</b>「某个会员的任务」这种 JOIN 和过滤天天都有,外键列的索引大多数时候本来就该建。反过来说也成立:如果父表的行从来不删、也从来不按父表去查子表(比如只追加的日志表引用一个字典表),这个索引就只是写入成本,可以不建。要看访问模式,不是机械地「外键必建」。</li>
+      <li><b>「翻一遍订单本而已,慢一点没关系」——时间不在计划树里,而且会被乘上去。</b>外键查找只出现在 <code>Trigger for constraint</code> 那一行,在 <code>pg_stat_statements</code>(Day 34)里也只会看到「DELETE FROM users 很慢」,不会看到对 tasks 的扫描。批量删除时它乘以行数,删除期间还一直持有锁。</li>
+      <li><b>「别的数据库也这样」——MySQL InnoDB 会自动给外键列建索引</b>(没有可用的索引时自动创建),PostgreSQL 和 SQL Server 不会。从 MySQL 迁过来的项目最容易漏这一点(见跨语言对照)。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>foreign key / referencing column / referenced column</b>;<b>referential action</b>:<code>NO ACTION</code> / <code>RESTRICT</code> / <code>CASCADE</code> / <code>SET NULL</code>;<b>RI trigger</b>(referential integrity trigger,EXPLAIN ANALYZE 里的 <code>Trigger for constraint … calls=N</code>);<b><code>pg_constraint.conkey</code></b> / <b><code>pg_index.indkey</code></b>;<b>unindexed foreign key</b>。
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:索引的代价 —— 每记一笔账,所有卡片盒都要补一张卡</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    每个索引都是一份要同步维护的副本:<b>每插入一行,每个索引都要插入一个条目</b>;每次 UPDATE 写出新版本时,通常每个索引也都要插入一个新条目。这些改动都要先写进 <b>WAL</b>(预写日志)。表有几个索引,写入就慢几分、日志就多几分,这叫<b>写放大</b>。有一种例外叫 <b>HOT 更新</b>:改的列不在任何索引里,而且新版本能放进同一页,这时索引一个都不用动。最后,数据库会记下每个索引被用了几次,没人用的索引只是白付成本。
+  </div>
+
+  <h3>② 生活类比:记一笔账,补 N 张卡</h3>
+  <p>账房每记一笔新账,伙计们要跑遍每一个卡片盒,各插一张新卡;每个卡片盒的每次改动还要先抄进「流水日记」(万一失火,靠它恢复;分店也靠它同步)。卡片盒从 1 个变成 6 个,记一笔账的工夫就变成好几倍。</p>
+  <p>改账时有一个省事的情况:改的那一栏(比如「完成了没有」)<b>没有任何卡片盒抄过</b>,而且同一页账上还有空位,可以把新写的那一行就写在旁边,并在旧的那一行上标一句「看旁边」。卡片盒上记的页码还对,所以一张卡都不用动。这就是 HOT。账本每页如果都写得满满的,新的那一行只能写到别的页去,卡片盒上的页码就全要改,所以有的账房会故意每页留一点空(fillfactor)。</p>
+  <p>月底盘点:哪个卡片盒一次都没人翻过?它每天照样在吃伙计的工夫。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测</th></tr>
+    <tr><td>每个卡片盒都补一张卡</td><td><b>写放大</b>:每个索引都要维护</td><td>INSERT 20 万行:0 个索引约 0.2 秒,6 个约 2 秒</td></tr>
+    <tr><td>流水日记</td><td><b>WAL</b>(write-ahead log),<code>pg_current_wal_lsn()</code></td><td>18.7 MB → 122.7 MB</td></tr>
+    <tr><td>改的栏目没被抄过、同一页还有空位</td><td><b>HOT 更新</b>(heap-only tuple)</td><td><code>n_tup_hot_upd</code> 10000 / 10000</td></tr>
+    <tr><td>每页故意留空</td><td><b>fillfactor</b>(表的填充率)</td><td>100 → 0 次 HOT;90 → 全部 HOT</td></tr>
+    <tr><td>月底盘点哪个卡片盒没人翻</td><td><b><code>pg_stat_user_indexes.idx_scan</code></b></td><td>30 MB 的 <code>tasks_title_idx</code>:0 次</td></tr>
+    <tr><td>一个盒子被另一个盒子完全包含</td><td><b>重复索引</b>:A 的键列是 B 的前缀</td><td><code>(owner_id)</code> 被 <code>(owner_id, created_at DESC)</code> 覆盖</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:0、1、3、6 个索引。</b>每次用一张全新的表,插入 20 万行,再把这 20 万行都 UPDATE 一次(改的是不在任何索引里的 <code>done</code>)。6 个索引是:<code>(owner_id)</code>、<code>(created_at)</code>、<code>(title)</code>、<code>(owner_id, created_at DESC, id DESC)</code>、<code>(lower(title))</code>、<code>(title, created_at)</code>,表没有主键。✍️ <b>预测</b>:6 个索引的 INSERT 会是 0 个索引的几倍?WAL 呢?真实结果(<code>05-write-cost.sql</code>,单次):</p>
+  <pre><code> 索引数 | INSERT 耗时 ms | INSERT 的 WAL | UPDATE 耗时 ms | UPDATE 的 WAL | 20 万次更新里 HOT 的 | 索引总大小
+--------+----------------+---------------+----------------+---------------+----------------------+------------
+      0 |          267.0 | 19 MB         |          290.0 | 30 MB         |                    0 | 0 bytes
+      1 |          446.0 | 33 MB         |          977.5 | 43 MB         |                    0 | 3528 kB
+      3 |          893.5 | 64 MB         |         1635.5 | 78 MB         |                    0 | 23 MB
+      6 |         2362.4 | 123 MB        |         3038.6 | 121 MB        |                    0 | 61 MB
+ 表本身(6 个索引那次)
+----------------------
+ 26 MB</code></pre>
+  <p>观察脚本各跑 3 次、跑 3 遍(用 <code>EXPLAIN (ANALYZE, WAL)</code> 计时、取 WAL 量):</p>
+  <table>
+    <tr><th>索引数</th><th>INSERT 20 万行</th><th>INSERT 的 WAL</th><th>UPDATE 20 万行</th><th>UPDATE 的 WAL</th></tr>
+    <tr><td>0</td><td>209 – 332 ms</td><td>18.7 MB</td><td>244 – 374 ms</td><td>32.0 – 35.0 MB</td></tr>
+    <tr><td>1</td><td>363 – 495 ms</td><td>32.3 – 33.8 MB</td><td>867 – 1040 ms</td><td>45.4 – 56.4 MB</td></tr>
+    <tr><td>3</td><td>875 – 995 ms</td><td>63.2 MB</td><td>1554 – 1873 ms</td><td>74.1 – 87.5 MB</td></tr>
+    <tr><td>6</td><td>1944 – 2615 ms</td><td>122.7 – 125.7 MB</td><td>2915 – 3343 ms</td><td>121.7 – 140.1 MB</td></tr>
+  </table>
+  <ul>
+    <li>6 个索引时,INSERT 慢了约 <b>9 倍</b>,WAL 多了约 <b>6.5 倍</b>;6 个索引一共 61 MB,是表本身(26 MB)的两倍多。写入的大部分工作量花在了索引上,而不是表上。</li>
+    <li>UPDATE 改的 <code>done</code> 不在任何索引里,可还是每个索引都要动:新表每页都是满的(默认 fillfactor 100),新版本只能写到别的页,位置变了,所以每个索引都要为它插一个新条目(HOT 0 次)。下面的实验 B 专门看这个。</li>
+    <li>WAL 偶尔会多出几 MB(比如 1 个索引的 UPDATE 有一次是 56.4 MB):遇到检查点之后,每一页第一次被修改时要把整页写进 WAL(full page image)。普通用户不能手动触发检查点,所以这部分抖动留在了区间里。</li>
+    <li>WAL 多了,不只是本机磁盘多写:流复制的从库要多收、多重放,备份要多存(Week 7 / 8)。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 B:HOT 更新。</b>五张一样的表(10 万行,主键 + <code>(owner_id)</code> + <code>(created_at)</code>),每张更新 1 万行。✍️ <b>预测</b>:哪几张能 HOT?真实结果(<code>06-hot.sql</code>,<code>pg_stat_user_tables</code> 的计数要重连一次才看得到):</p>
+  <pre><code>EXPLAIN (ANALYZE, WAL) UPDATE hot_a SET done = NOT done WHERE id % 10 = 0;    -- fillfactor 100
+   WAL: records=50309 fpi=391 bytes=6750779
+ Execution Time: 87.903 ms
+EXPLAIN (ANALYZE, WAL) UPDATE hot_b SET done = NOT done WHERE id % 10 = 0;    -- fillfactor 90
+   WAL: records=10000 bytes=710000
+ Execution Time: 13.852 ms
+…
+  表   | 更新行数 | 其中_hot | HOT 占比 %
+-------+----------+----------+------------
+ hot_a |    10000 |        0 |        0.0     -- a 页填满,改 done
+ hot_b |    10000 |    10000 |      100.0     -- b 每页留 10%,改 done
+ hot_c |    10000 |     9260 |       92.6     -- c 留 10%,改 title(title 不在索引里)
+ hot_d |    10000 |        0 |        0.0     -- d 留 10%,改 title,但有索引 (title)
+ hot_e |    10000 |        0 |        0.0     -- e 留 10%,改 title,有 (owner_id) INCLUDE (title)</code></pre>
+  <p>观察脚本各跑 3 次、跑 3 遍:</p>
+  <table>
+    <tr><th>情况</th><th>耗时</th><th>WAL</th><th>HOT</th></tr>
+    <tr><td>a fillfactor 100 · 改 <code>done</code></td><td>64.6 – 110.3 ms</td><td>3.5 MB</td><td>0 / 10000</td></tr>
+    <tr><td>b fillfactor 90 · 改 <code>done</code></td><td>13.2 – 24.8 ms</td><td>0.7 MB</td><td>10000 / 10000</td></tr>
+    <tr><td>c fillfactor 90 · 改 <code>title</code>(没有索引)</td><td>20.4 – 34.7 ms</td><td>1.1 MB(偶尔 5.6 – 7.7 MB)</td><td>9260 / 10000</td></tr>
+    <tr><td>d fillfactor 90 · 改 <code>title</code>(有索引 <code>(title)</code>)</td><td>111.7 – 162.7 ms</td><td>4.9 MB</td><td>0 / 10000</td></tr>
+    <tr><td>e fillfactor 90 · 改 INCLUDE 里的 <code>title</code></td><td>111.5 – 165.4 ms</td><td>5.4 MB</td><td>0 / 10000</td></tr>
+  </table>
+  <ul>
+    <li><b>a 和 b 只差 fillfactor</b>:页填满时一次 HOT 都没有;每页留 10% 的空位,1 万次更新全部 HOT,耗时约为 a 的五分之一,WAL 只有 a 的五分之一。HOT 时每次更新只写一条 WAL 记录(<code>records=10000</code>);不 HOT 时要写表的新版本,再给 3 个索引(含主键)各写一条(<code>records≈50000</code>)。</li>
+    <li><b>c</b>:<code>title</code> 不在索引里,也能 HOT;但标题变长了,有的页剩下的空位放不下,所以只有 92.6%。</li>
+    <li><b>d、e</b>:只要改的列在任何一个索引里,<b>不论是键列还是 INCLUDE 列</b>,就不能 HOT,而且<b>所有</b>索引都要插新条目,不只是包含这一列的那个。这就是 Day 31 说的「INCLUDE 列妨碍 HOT」:为了让某个查询不回表,把 <code>title</code> 抄进索引,结果每次改标题都慢了 5 倍多。部分索引的条件列也算在内(比如 <code>WHERE done = false</code> 的索引会让改 <code>done</code> 的更新不能 HOT)。</li>
+    <li>fillfactor 点到为止:它只影响以后新写的页,留空会让表变大(这里 6704 kB → 7440 kB)。经常被更新的表可以设 90 左右;只插入、不更新的表保持 100。HOT 留下的旧版本,由 VACUUM(甚至普通查询顺手)在页内清理(Week 6)。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 C:找出没用的索引、重复的索引。</b>给 <code>tasks</code> 建 4 个索引,跑几条「业务查询」,重连,再看统计。✍️ <b>预测</b>:哪个索引被用了 0 次?<code>tasks_owner_idx</code> 明明是外键列的索引,删除会员时会被用到吗?真实结果(<code>07-unused.sql</code>):</p>
+  <pre><code> 表本身 | 所有索引加起来 |  合计
+--------+----------------+--------
+ 65 MB  | 91 MB          | 156 MB
+
+  表   |          索引           | 被扫描次数 | 最近用过 |  大小   | 约束
+-------+-------------------------+------------+----------+---------+------
+ tasks | tasks_owner_idx         |          0 | f        | 7000 kB |
+ tasks | tasks_pkey              |          0 | f        | 21 MB   | 主键
+ tasks | tasks_title_idx         |          0 | f        | 30 MB   |
+ tasks | tasks_open_created_idx  |          1 | t        | 2208 kB |
+ tasks | tasks_owner_created_idx |          4 | t        | 30 MB   |
+ users | users_pkey              |         30 | t        | 2208 kB | 主键
+
+=== ④ 「从没被用过、又不是主键 / 唯一约束」的索引
+     表      |      索引       | 白占的空间
+-------------+-----------------+------------
+ day32.tasks | tasks_title_idx | 30 MB
+ day32.tasks | tasks_owner_idx | 7000 kB
+ 本库统计上次重置的时间(空 = 从没重置过)
+-----------------------------------------
+ (空)
+SELECT pg_stat_reset_single_table_counters('tasks'::regclass);
+ERROR:  permission denied for function pg_stat_reset_single_table_counters
+
+=== ⑤ 重复的索引 —— A 的键列正好是 B 键列的前缀
+  表   |    可能多余     |        被它覆盖         | 可省的空间
+-------+-----------------+-------------------------+------------
+ tasks | tasks_owner_idx | tasks_owner_created_idx | 7000 kB</code></pre>
+  <ul>
+    <li>4 个索引(91 MB)已经比表本身(65 MB)还大。</li>
+    <li><code>tasks_title_idx</code>「以后可能按标题查」,一次都没被用过,白占 30 MB,每次写入还要维护它。</li>
+    <li><code>tasks_owner_idx</code> 也是 0 次:有了 <code>(owner_id, created_at DESC)</code> 以后,优化器在「某人的任务」查询和删除会员的外键检查里都选了复合索引(它被用了 4 次,其中就有外键检查那一次)。<code>(owner_id)</code> 成了重复索引,删掉它,外键检查仍然有 <code>(owner_id, …)</code> 打头的索引可用,上一张卡的工具查询也不会报它。</li>
+    <li><code>tasks_pkey</code> 也是 0 次,但它是主键,在保证唯一性,<b>不能因为没被扫描就删</b>。唯一约束同理,所以工具查询排除了它们。<code>users_pkey</code> 的 30 次里包括前面几个文件的删除和外键检查,计数是从这个索引建起来时累计的。</li>
+    <li>统计从上次重置开始算(这里从没重置过);重置统计默认只有超级用户能做。备库上的查询不会记在主库的统计里;一个月跑一次的报表,在只看了一周统计时也会是 0。删索引前要确认<b>统计覆盖了足够长、足够完整的时间</b>。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「卡片盒没人翻,就不费事」——没用的索引照样吃写入成本。</b>它不会因为没人查就不维护:每次 INSERT、每次不 HOT 的 UPDATE 都要更新它,它还会妨碍改到它那几列的 HOT,还要占内存、备份和复制。「建了以防万一」的索引不是免费的。</li>
+      <li><b>「盘点时没人翻的盒子就可以扔」——<code>idx_scan = 0</code> 不一定等于没用。</b>主键和唯一索引靠存在本身保证约束;低频的月报、年报、故障时才跑的运维查询、只在备库上跑的查询,在统计里可能是 0;统计还可能刚被重置过。先查清楚,再在低峰期删(<code>DROP INDEX CONCURRENTLY</code>),必要时保留建索引的语句以便恢复。</li>
+      <li><b>「每页留空就能一直 HOT」——HOT 有前提。</b>改到任何一个索引里的列(包括 INCLUDE 列、部分索引的条件列、表达式索引用到的列)都不能 HOT;同一页的空位用完了也不行。fillfactor 是用空间换 HOT 的机会,不是开关。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>write amplification</b>;<b>WAL</b>(write-ahead log)、<b>LSN</b>、<code>pg_current_wal_lsn()</code> / <code>pg_wal_lsn_diff()</code>、<code>EXPLAIN (ANALYZE, WAL)</code>、<b>full page image</b>(<code>fpi</code>);<b>HOT update</b>(heap-only tuple)、<code>n_tup_upd</code> / <code>n_tup_hot_upd</code>;<b>fillfactor</b>;<b><code>pg_stat_user_indexes</code></b>(<code>idx_scan</code>、PostgreSQL 16 起的 <code>last_idx_scan</code>);<b><code>pg_relation_size</code> / <code>pg_indexes_size</code> / <code>pg_total_relation_size</code></b>;<b>redundant / duplicate index</b>;<b><code>DROP INDEX CONCURRENTLY</code></b>。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <table>
+    <tr><th></th><th>PostgreSQL</th><th>SQL Server</th><th>MySQL(InnoDB)</th></tr>
+    <tr><td>部分索引</td><td><code>CREATE INDEX … WHERE …</code></td><td><b>filtered index</b>:<code>CREATE INDEX … WHERE …</code>(条件只能是简单比较)</td><td><b>不支持</b>;常见替代是把条件放进索引列,或用生成列</td></tr>
+    <tr><td>表达式索引</td><td><code>CREATE INDEX … ((lower(email)))</code></td><td>先建<b>计算列</b>,再给计算列建索引</td><td>8.0.13 起支持<b>函数索引</b>(functional key parts):<code>CREATE INDEX … ((LOWER(email)))</code>;更早的版本用生成列 + 索引</td></tr>
+    <tr><td>外键列自动建索引?</td><td>不会</td><td>不会</td><td><b>会</b>:外键列没有可用的索引时,InnoDB 自动建一个</td></tr>
+    <tr><td>没用的索引</td><td><code>pg_stat_user_indexes</code></td><td><code>sys.dm_db_index_usage_stats</code></td><td><code>sys.schema_unused_indexes</code>(sys schema)</td></tr>
+  </table>
+  <p><b>ORM 里怎么声明:</b></p>
+  <table>
+    <tr><th>工具</th><th>部分索引</th><th>表达式索引</th><th>外键索引</th></tr>
+    <tr><td>EF Core</td><td><code>HasIndex(t =&gt; t.CreatedAt).HasFilter("done = false")</code>:过滤条件是原样写进去的 SQL,PostgreSQL 下写 PostgreSQL 语法</td><td>没有通用 API;在迁移里写 <code>migrationBuilder.Sql(…)</code></td><td>EF Core 的约定会给外键属性建索引</td></tr>
+    <tr><td>Prisma</td><td>据官方 changelog,7.4.0 起有预览功能 <code>partialIndexes</code>(PostgreSQL、SQLite、SQL Server、CockroachDB,MySQL 不支持);更早的版本要在迁移 SQL 里手写</td><td>schema 里没有对应语法,在迁移 SQL 里手写</td><td>不会自动建(PostgreSQL 上要自己写 <code>@@index([ownerId])</code>)</td></tr>
+    <tr><td>JPA / Hibernate</td><td>标准注解没有,写在 Flyway / Liquibase 的 SQL 里</td><td>同左</td><td>Hibernate 生成 DDL 时不保证建,习惯上自己声明 <code>@Index</code></td></tr>
+    <tr><td>Go</td><td colspan="3">迁移文件里手写 SQL(和 nest-lab 的 <code>schema.sql</code> 一样)</td></tr>
+  </table>
+  <p>🔎 核实说明:</p>
+  <ul>
+    <li>联网核对过:MySQL 官方文档写明 8.0.13 起支持 functional key parts;外键列没有索引时 InnoDB 会自动创建;Prisma 7.4.0 的 <code>partialIndexes</code> 预览功能出自 Prisma changelog 的搜索结果,我没能直接打开那个页面,具体语法请以官方文档为准。</li>
+    <li>EF Core 的 <code>HasFilter</code>:官方文档的例子是 SQL Server 语法,在 Npgsql(PostgreSQL)下的用法我没有实测。</li>
+    <li>SQL Server 的 filtered index / 计算列索引、<code>sys.dm_db_index_usage_stats</code>、MySQL 的 <code>sys.schema_unused_indexes</code>、EF Core「按约定给外键建索引」、Hibernate 的行为,以及 Prisma 在 PostgreSQL 上不自动建外键索引,是我的记忆或公认事实,<b>没有在本机实测</b>(本课程环境只有 PostgreSQL)。</li>
+  </ul>
+  <p>📌 Day 35 补「索引 / 执行计划」那一行时,可以把「部分索引:PG <code>WHERE</code> ↔ SQL Server filtered index ↔ MySQL 无;外键索引:PG / SQL Server 要手动建 ↔ InnoDB 自动建」写进去,内容自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"Are more indexes always better? Should foreign key columns be indexed? What is a partial index?"</b>(或者:「索引越多越好吗?外键要不要建索引?什么是部分索引?」)你可以答:<br>
+    <b>"不是。索引让读变快,但每个索引在每次插入、以及大部分更新时都要维护,还会多写 WAL、占空间;我实测过,同样插入 20 万行,6 个索引比没有索引慢约 9 倍,WAL 多 6 倍多。更新时如果改的列不在任何索引里、页里还有空位,PostgreSQL 可以做 HOT 更新,完全不碰索引;一旦改的列在任何一个索引里,包括 INCLUDE 列,就做不了。所以索引要从真实的查询出发来建,并定期用 pg_stat_user_indexes 找出没用的和重复的,删之前要排除主键和唯一约束,确认统计覆盖了足够长的时间。外键列通常要建索引:PostgreSQL 不会自动建,删除或修改父表的行时,外键检查要在子表里查引用,没有索引就是一次全表扫描,在 EXPLAIN ANALYZE 里只体现为 Trigger for constraint 那一行;MySQL 的 InnoDB 会自动建。部分索引是带 WHERE 的索引,只收一部分行,比如只给未完成的任务或者未删除的用户建索引,索引小很多,也可以用来实现「只在子集里唯一」的约束;但只有查询条件能推出索引条件时才会被用,参数化查询的通用计划用不上它。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:跟着跑一遍(动手,约 8 min)</h3>
+    <ol>
+      <li>先把第 3、4、5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day32</code> 批改。你那边的耗时会不同,看量级和谁快谁慢。</li>
+      <li>psql 连进去,<code>SET search_path = day32;</code>,建部分索引 <code>(created_at) WHERE done = false</code>。✍️ <b>预测</b>:<code>WHERE done = false AND owner_id = 2 ORDER BY created_at DESC LIMIT 20</code> 能用上它吗?<code>WHERE NOT done OR owner_id = 2</code> 呢?跑一下,用「查询条件能不能推出索引条件」解释。</li>
+      <li>✍️ <b>预测</b>:<code>CREATE INDEX ON users ((lower(email)))</code> 之后,<code>WHERE lower(email) LIKE 'user42%'</code> 能用上吗?本机数据库的排序规则是 <code>C.UTF-8</code>;官方 Docker 镜像默认是 <code>en_US.utf8</code>,结果可能不同(提示:<code>text_pattern_ops</code>,Day 33 会用到)。</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:为 nest-lab 设计(动笔,约 12 min)</h3>
+    <ol>
+      <li>Day 31 的清单里,<code>?done=false</code> 的那几行,你会用「在索引最前面加 <code>done</code>」还是「<code>WHERE done = false</code> 的部分索引」?考虑:nest-lab 的 SQL 是 <code>done = $1</code> 参数化的(今天的实测说明了什么);已完成的任务会不会也经常被查;改 <code>done</code>(PATCH)能不能 HOT。</li>
+      <li>Week 10 要给 nest-lab 加 <code>users</code> 表,<code>tasks.owner_id</code> 成为外键,邮箱不分大小写唯一,并且支持软删除。写出这两个索引的 <code>CREATE INDEX</code>,说明 <code>tasks.owner_id</code> 的索引是不是可以和 Day 31 清单里的某个复合索引合并。</li>
+      <li>在 <code>day32</code> 里验证:建了 <code>(owner_id, created_at DESC, id DESC)</code> 之后,删除 50000 号会员的 <code>Trigger for constraint</code> 时间是多少?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:算一笔账(思考,约 5 min)</h3>
+    <ol>
+      <li>按今天的实测,一张每秒写入 2000 行的表,从 3 个索引加到 6 个索引,每秒大约多写多少 WAL?一天呢?(只估量级。)</li>
+      <li>Day 31 的覆盖索引 <code>INCLUDE (title, done)</code>:nest-lab 的 PATCH 经常改 <code>done</code>。按今天 d / e 的实测,这个覆盖索引值不值?你会怎么取舍?</li>
+      <li>为什么 <code>idx_scan = 0</code> 的唯一索引不能删?举一个 <code>idx_scan = 0</code> 的普通索引也不该删的例子。</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/32-partial-expression-indexes/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事说:「我给列表页的每种筛选状态都建了一个 memo / 缓存,读得飞快;可是数据一改,就要让一堆缓存失效,写得越来越慢。」用这个经历给他讲清楚「数据库的索引为什么不是越多越好」、什么是 HOT 更新,并说出这个类比在哪里会骗人。</li>
+      <li>部分索引和表达式索引各是什么?各举一个用途。为什么 <code>done = $1</code> 有时用不上部分索引、<code>created_at::date</code> 不能建索引?</li>
+      <li>为什么外键列要建索引?不建时,删除一个父行在 <code>EXPLAIN ANALYZE</code> 里是什么样子?怎么找出库里所有没有索引的外键?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:把习题 2 的结论记进 <code>notes.md</code>(Day 34 给 nest-lab 加索引时要用);在 <code>nest-lab/README.md</code> 的成长日志里记一笔;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>部分索引只收满足 WHERE 的行</b>:<code>WHERE done = false</code> 的索引 2208 kB,完整的 30 MB,查询一样快。查询条件必须让数据库<b>推得出</b>索引条件:<code>done = false</code>、<code>NOT done</code> 可以;<code>done IS NOT TRUE</code>、通用计划里的 <code>done = $1</code> 不行(定制计划和 nest-lab 的不具名查询可以)。部分唯一索引能表达「只在子集里唯一」。</li>
+    <li><b>表达式索引要求查询写同一个表达式</b>:<code>lower(email) = …</code> 0.003–0.083 ms,<code>ILIKE</code> 40.6–68.0 ms。表达式里只能用 IMMUTABLE 函数:<code>created_at::date</code> 依赖时区,会报错;把时区写死(<code>AT TIME ZONE 'UTC'</code>),或者干脆用普通索引加范围条件。</li>
+    <li><b>PostgreSQL 不给外键列自动建索引</b>:删除一个父行时,子表全表扫描,只体现在 <code>Trigger for constraint</code> 那一行(32–58 ms → 0.06–0.66 ms;10 个父行 401–500 ms → 0.14–3.9 ms)。复合索引只要以外键列打头也算数。nest-lab 的 <code>checklist_items.task_id</code> 已被主键覆盖。</li>
+    <li><b>每个索引都在每次写入时收费</b>:20 万行 INSERT,0 → 6 个索引,约 0.2 秒 → 2 秒,WAL 18.7 MB → 122.7 MB。改的列不在任何索引里、页里有空位时才能 HOT(fillfactor 90 时 10000 / 10000,页满或者改到索引列、INCLUDE 列时都是 0)。用 <code>pg_stat_user_indexes</code> 找 <code>idx_scan = 0</code> 和重复的索引,但主键、唯一约束、低频查询要排除。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>部分索引的条件是 <code>done = false</code>,哪些查询写法能用上它、哪些不能?为什么通用计划永远用不上?</li>
+    <li>为什么 <code>lower(email)</code> 的索引帮不了 <code>email ILIKE …</code>?</li>
+    <li>为什么 <code>created_at::date</code> 不能建索引?说出两种正确的做法。</li>
+    <li>删除一个父行时,外键检查做了什么?没有索引时,EXPLAIN ANALYZE 里时间花在哪一行?</li>
+    <li>同样改 1 万行,为什么 fillfactor 100 和 90 的耗时、WAL 差这么多?为什么改 INCLUDE 里的列也不能 HOT?</li>
+    <li>一个 <code>idx_scan = 0</code> 的索引,删之前要确认哪几件事?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 33</b>:B-tree 以外的索引。<code>WHERE title ILIKE '%报告%'</code> 这种「包含」查询 B-tree 帮不上,要用 <code>pg_trgm</code> 加 GIN;JSONB 和数组的「包含」查询也是 GIN;按时间顺序追加的超大日志表,可以用一个只有几十 KB 的 BRIN 索引;最后是 PostgreSQL 的全文搜索,以及中文分词为什么是个难题。</p>
+</section>
+
+<footer>
+  Day 32 · Phase 2 / Week 5 · 产出:<code>docs/32-partial-expression-indexes/</code> 本文档 + <code>nest-lab/</code>(<code>sql/day32/</code> 七个实验文件、<code>npm run day32</code>)+ <code>src/32-partial-expression-indexes/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>
