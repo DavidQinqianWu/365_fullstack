@@ -1,23 +1,44 @@
-import { Body, Controller, Delete, Get, Param, Post, UseInterceptors } from '@nestjs/common';
+import {
+  All,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  MethodNotAllowedException,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Req,
+  Res,
+  UseInterceptors,
+} from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { AdminOnly } from '../common/decorators/admin-only.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { RequestId } from '../common/decorators/request-id.decorator.js';
+import { ctxLog } from '../common/request-context/request-context.js';
 import { TracedParseIntPipe } from '../common/traced-parse-int.pipe.js';
 import { WrapResponseInterceptor } from '../common/wrap-response.interceptor.js';
 import type { Task } from './task.js';
+import { parseCreate, parsePatch, parseReplace } from './task-input.js';
 import { TasksService } from './tasks.service.js';
-import { ctxLog } from '../common/request-context/request-context.js';
+
+// Day 15:每个 URI 支持哪些方法(405 时放进 Allow 头,OPTIONS 时也回这个)
+const COLLECTION_ALLOW = 'GET, HEAD, POST, OPTIONS';
+const ITEM_ALLOW = 'GET, HEAD, PUT, PATCH, DELETE, OPTIONS';
 
 // Controller = 前台接待:只管「哪张单子交给谁」(路由 + 取参数 + 交回结果),不自己做菜。
 // Day 10:Controller 级别的切面 —— 这个类的所有方法返回值都被包成 { data, timestamp }
 // Day 11:全局保安(APP_GUARD)默认要钥匙;读接口贴 @Public() 免检,写接口不贴 = 要钥匙
+// Day 15:按 REST 规范整理 —— 资源是 /tasks(集合)和 /tasks/:id(单个),动作用 HTTP 方法表达
 @UseInterceptors(WrapResponseInterceptor)
 @Controller('tasks')
 export class TasksController {
-  // 构造函数里只「声明我需要后厨」,不自己 new —— Nest 启动时会自动塞进来(Day 9 讲原理)。
   constructor(private readonly tasksService: TasksService) {}
 
-  // GET /tasks
+  // GET /tasks —— 安全、幂等
   @Public()
   @Get()
   findAll(): Task[] {
@@ -25,7 +46,7 @@ export class TasksController {
     return this.tasksService.findAll();
   }
 
-  // GET /tasks/:id —— Day 10:Pipe 先把 '2' 转成 2;'abc' 直接 400
+  // GET /tasks/:id —— 安全、幂等
   @Public()
   @Get(':id')
   findOne(@Param('id', TracedParseIntPipe) id: number): Task {
@@ -33,21 +54,65 @@ export class TasksController {
     return this.tasksService.findOne(id);
   }
 
-  // POST /tasks —— 没贴 @Public(),要过全局保安(请求头 x-demo-key: let-me-in)
-  // Day 11:@RequestId() 参数装饰器,每个请求执行一次,把请求 ID 交到参数里
-  // 注意:今天仍然没有 body 校验,Week 3 用 DTO + ValidationPipe 补上。
+  // POST /tasks —— 不安全、不幂等:发两次就建两条。成功 = 201 + Location 告诉客户端新资源在哪
+  // body 先当 unknown,parseCreate 检查后才收窄(Day 16 换成 DTO + ValidationPipe)
   @Post()
-  create(@Body() body: { title: string }, @RequestId() requestId: string): Task {
+  create(
+    @Body() body: unknown,
+    @RequestId() requestId: string,
+    @Res({ passthrough: true }) res: Response, // passthrough:我只设个响应头,响应体照样交给 Nest
+  ): Task {
     ctxLog(`  ③ Controller 前台接单:POST /tasks(requestId=${requestId})`);
-    return this.tasksService.create(body.title);
+    const task = this.tasksService.create(parseCreate(body).title);
+    res.setHeader('Location', `/tasks/${task.id}`);
+    return task;
   }
 
-  // DELETE /tasks/:id —— Day 11:组合装饰器 @AdminOnly() = @Roles(['admin']) + @UseGuards(RolesGuard)
-  // 要同时过两道保安:全局的钥匙检查 + 这里的角色检查(请求头 x-demo-role: admin)
+  // PUT /tasks/:id —— 整体替换,幂等:同一个请求发 N 次,结果和发 1 次一样
+  @Put(':id')
+  replace(@Param('id', TracedParseIntPipe) id: number, @Body() body: unknown): Task {
+    ctxLog(`  ③ Controller 前台接单:PUT /tasks/${id}`);
+    return this.tasksService.replace(id, parseReplace(body));
+  }
+
+  // PATCH /tasks/:id —— 部分更新:只改给了的字段
+  @Patch(':id')
+  update(@Param('id', TracedParseIntPipe) id: number, @Body() body: unknown): Task {
+    ctxLog(`  ③ Controller 前台接单:PATCH /tasks/${id}`);
+    return this.tasksService.update(id, parsePatch(body));
+  }
+
+  // DELETE /tasks/:id —— 幂等;成功 204 No Content(没有响应体)
+  // Day 11:组合装饰器 @AdminOnly() = @Roles(['admin']) + @UseGuards(RolesGuard)
   @AdminOnly()
+  @HttpCode(204)
   @Delete(':id')
-  remove(@Param('id', TracedParseIntPipe) id: number): Task {
+  remove(@Param('id', TracedParseIntPipe) id: number): void {
     ctxLog(`  ③ Controller 前台接单:DELETE /tasks/${id}`);
-    return this.tasksService.remove(id);
+    this.tasksService.remove(id);
+  }
+
+  // ---------- Day 15:405 + Allow ----------
+  // Express / Nest 对「路径存在、但方法不支持」默认回 404 Cannot PATCH /tasks。
+  // 这里用「兜底路由」补成 405:它们必须写在最后(Day 8:路由按声明顺序匹配),
+  // 前面的具体方法都没匹配上,才轮到它们。贴 @Public():告诉别人「这条路不支持这个方法」不需要钥匙。
+  @Public()
+  @HttpCode(204)
+  @All()
+  collectionFallback(@Req() req: Request, @Res({ passthrough: true }) res: Response): void {
+    this.methodNotAllowed(req, res, COLLECTION_ALLOW);
+  }
+
+  @Public()
+  @HttpCode(204)
+  @All(':id')
+  itemFallback(@Req() req: Request, @Res({ passthrough: true }) res: Response): void {
+    this.methodNotAllowed(req, res, ITEM_ALLOW);
+  }
+
+  private methodNotAllowed(req: Request, res: Response, allow: string): void {
+    res.setHeader('Allow', allow);
+    if (req.method === 'OPTIONS') return; // OPTIONS:204 + Allow,告诉客户端这里支持哪些方法
+    throw new MethodNotAllowedException(`${req.path} 不支持 ${req.method},支持:${allow}`);
   }
 }

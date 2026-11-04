@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 15 - HTTP 语义与 REST 资源设计:菜单编号、点单动作和回执单上的章</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 3</div>
+  <h1>Day 15 - HTTP 语义与 REST 资源设计:菜单编号、点单动作和回执单上的章</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>资源与 URI 设计 · 方法语义(安全 / 幂等、PUT vs PATCH)· 状态码选择 · 内容协商(406 / 415)</b> ·
+    项目:<code>nest-lab/</code> 的任务接口改成规范 REST(PUT / PATCH、201 + Location、204、409、405 + Allow)·
+    今天没有新依赖 · 这些规矩<b>和语言无关</b>,换成 .NET / Java / Go 一字不差
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🧾 接上回:Day 6 和 Day 8 留下的几笔账</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:资源与 URI —— 菜单编号体系</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:方法语义 —— 「再来一份」和「换成这份」不是一回事</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:状态码与内容协商 —— 回执单上的章</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🧾 接上回:Day 6 和 Day 8 留下的几笔账</h2>
+  <p>Day 6 你裸写 HTTP 服务器时,讲过报文格式、状态码五个家族、401 和 403、幂等;当时手写的 API 对不支持的方法回 405,新建成功回 201 还带了 <code>Location</code>。到了 Day 8 换成 Nest,你发现框架的默认值<b>没那么讲究</b>。今天上课前,我在改动之前用 curl 把当时的 nest-lab 打了一遍,真实结果是这样的:</p>
+  <table>
+    <tr><th>请求</th><th>改之前(Day 14 的 nest-lab)</th><th>规范的说法</th></tr>
+    <tr><td><code>PATCH /tasks</code>(路径存在,方法不支持)</td><td><code>404</code> <code>Cannot PATCH /tasks</code></td><td>405 Method Not Allowed + <code>Allow</code> 头</td></tr>
+    <tr><td><code>PUT /tasks/1</code></td><td><code>404</code> <code>Cannot PUT /tasks/1</code>(根本没实现)</td><td>应该支持整体替换</td></tr>
+    <tr><td><code>POST /tasks</code> 成功</td><td><code>201</code>,<b>没有</b> <code>Location</code></td><td>201 + <code>Location: /tasks/3</code></td></tr>
+    <tr><td><code>DELETE /tasks/2</code> 成功</td><td><code>200</code> + 156 字节的响应体</td><td>常见做法 204 No Content</td></tr>
+    <tr><td><code>GET /tasks/1</code> + <code>Accept: application/xml</code></td><td><code>200</code>,照样回 <code>application/json</code></td><td>406 Not Acceptable</td></tr>
+    <tr><td><code>POST /tasks</code> + <code>Content-Type: text/plain</code></td><td><b><code>500</code> Internal server error</b>(body 不是对象,<code>body.title</code> 直接崩)</td><td>415 Unsupported Media Type</td></tr>
+  </table>
+  <p>最后一行最扎眼:客户端发错了格式,服务器却说「是我的错」(5xx)。监控会报警、客户端可能会重试,而真正该改的是请求方。</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    连锁店开多了,每家店点单的说法都不一样:有的说「来个 3 号」,有的说「我要那个红烧的」,有的服务员收了单不给回执。总部于是定了一套<b>点单规矩</b>:菜单上每道菜有固定编号(URI),点单只有几种标准动作(HTTP 方法),每张回执单盖不同的章(状态码),而且说清楚「本店只用中文菜单」(内容协商)。今天把这套规矩系统地过一遍,然后让 nest-lab 照着改。
+  </div>
+  <p>今天<b>只做 HTTP 语义和资源设计</b>。请求体的正式校验(DTO)是明天 Day 16,统一错误格式 problem+json 是 Day 17,分页和版本化是 Day 19。</p>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+npm test             # 单元测试:手写的最小输入检查
+npm run test:e2e     # e2e:新增 test/rest.e2e-spec.ts(11 个用例)
+npm run day15        # 观察脚本:每个方法的状态码与响应头、PUT vs PATCH、POST 重复提交、405/406/415
+
+# 手动试:看 201 的 Location、405 的 Allow
+curl -i -X POST localhost:3000/tasks -H 'x-demo-key: let-me-in' -H 'content-type: application/json' -d '{"title":"学 REST"}'
+curl -i -X PATCH localhost:3000/tasks</code></pre>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用(餐厅版)</th></tr>
+    <tr><td><code>src/tasks/tasks.controller.ts</code></td><td>修改</td><td>新增 <code>PUT</code> / <code>PATCH</code>;<code>POST</code> 用 <code>@Res({ passthrough: true })</code> 设 <code>Location</code>;<code>DELETE</code> 加 <code>@HttpCode(204)</code>;末尾两个 <code>@All()</code> 兜底路由实现 405 + <code>Allow</code> 和 <code>OPTIONS</code></td></tr>
+    <tr><td><code>src/tasks/tasks.service.ts</code></td><td>修改</td><td>新增 <code>replace()</code>(PUT)、<code>update()</code>(PATCH);409 规则:已完成的任务不能改标题</td></tr>
+    <tr><td><code>src/tasks/tasks.repository.ts</code>、<code>in-memory-tasks.repository.ts</code></td><td>修改</td><td>仓储加 <code>update(id, changes)</code></td></tr>
+    <tr><td><code>src/tasks/task-input.ts</code></td><td>新增</td><td>手写的最小输入检查 <code>parseCreate</code> / <code>parseReplace</code> / <code>parsePatch</code>(body 先当 <code>unknown</code>,接 Day 12);<b>Day 16 换成 DTO 后删除</b></td></tr>
+    <tr><td><code>src/common/content-negotiation.middleware.ts</code></td><td>新增</td><td>内容协商:<code>Accept</code> 不接受 JSON → 406;写请求带了非 JSON 的请求体 → 415</td></tr>
+    <tr><td><code>src/app.module.ts</code></td><td>修改</td><td><code>configure()</code> 里注册内容协商 middleware(排在发牌、登记员之后)</td></tr>
+    <tr><td><code>src/tasks/task-input.spec.ts</code>、<code>test/rest.e2e-spec.ts</code></td><td>新增</td><td>输入检查、各方法语义、405 / 406 / 415 / 409 的测试</td></tr>
+    <tr><td><code>test/tasks.e2e-spec.ts</code>、<code>src/tasks/tasks.service.spec.ts</code></td><td>修改</td><td>DELETE 断言改成 204;假仓储补 <code>update</code></td></tr>
+    <tr><td><code>scripts/day15-try.mjs</code> + <code>package.json</code> 的 <code>day15</code>、<code>README.md</code></td><td>新增 / 修改</td><td>观察脚本、成长日志</td></tr>
+  </table>
+  <p>(<code>npm run day08</code>–<code>day13</code> 都照样能跑。变化:启动日志里多了 <code>PUT</code> / <code>PATCH</code> / <code>ALL</code> 几条路由;<code>day11</code> 里管理员删除那一步现在是 <code>204</code>,没有响应体。)</p>
+
+  <p>今天 Controller 的样子(省略了日志):</p>
+  <pre><code>@Public() @Get()          findAll()
+@Public() @Get(':id')     findOne(@Param('id', TracedParseIntPipe) id)
+          @Post()         create(@Body() body: unknown, @Res({ passthrough: true }) res)   // 201 + Location
+          @Put(':id')     replace(id, @Body() body: unknown)                              // 整体替换
+          @Patch(':id')   update(id, @Body() body: unknown)                               // 部分更新
+@AdminOnly() @HttpCode(204) @Delete(':id')  remove(id)                                    // 204
+@Public() @HttpCode(204) @All()     collectionFallback()   // 必须写在最后:405 + Allow / OPTIONS 204
+@Public() @HttpCode(204) @All(':id') itemFallback()</code></pre>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:资源与 URI —— 菜单编号体系</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    URI 用来<b>指认一样东西</b>(名词),「对它做什么」交给 HTTP 方法(动词)去说;同一类东西放在一个集合下,单个东西用编号定位。
+  </div>
+
+  <h3>② 生活类比:菜单编号体系</h3>
+  <p>菜单上不会写「点红烧肉」「退红烧肉」「加辣红烧肉」三个条目,而是只有一个编号 <b>「热菜 · 12 号:红烧肉」</b>,点、退、改都对着这个编号说。热菜是一个<b>分类</b>(集合),12 号是分类里的<b>一道菜</b>(单个),「12 号的配菜」是挂在这道菜下面的<b>子项</b>。</p>
+  <table>
+    <tr><th>比喻</th><th>真实设计</th><th>例子</th></tr>
+    <tr><td>菜单分类</td><td><b>集合资源</b>,用复数名词</td><td><code>/tasks</code></td></tr>
+    <tr><td>分类里的一道菜</td><td><b>单个资源</b>,集合 + 标识</td><td><code>/tasks/1</code></td></tr>
+    <tr><td>这道菜的配菜</td><td><b>子资源</b>:只在父资源下面有意义的东西</td><td><code>/tasks/1/comments</code>、<code>/tasks/1/comments/7</code></td></tr>
+    <tr><td>点、退、改</td><td>HTTP 方法(下一张卡)</td><td><code>POST /tasks</code>、<code>DELETE /tasks/1</code>、<code>PATCH /tasks/1</code></td></tr>
+    <tr><td>「只看辣的」</td><td>查询参数:过滤、排序、分页(Day 19)</td><td><code>/tasks?done=false</code></td></tr>
+  </table>
+  <pre><code>❌ 动词塞进 URI                     ✅ 名词 + 方法
+POST /createTask                   POST   /tasks
+GET  /getTask?id=1                 GET    /tasks/1
+POST /tasks/1/complete             PATCH  /tasks/1        {"done": true}
+POST /deleteTask/1                 DELETE /tasks/1</code></pre>
+
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你在 Next.js App Router 里写过 <code>app/api/tasks/route.ts</code>(导出 <code>GET</code> / <code>POST</code>)和 <code>app/api/tasks/[id]/route.ts</code>(导出 <code>GET</code> / <code>PUT</code> / <code>PATCH</code> / <code>DELETE</code>):文件路径就是资源,导出的函数名就是方法。这本身就是 REST 的思路。
+  </div>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「菜单编得漂亮,点单就一定顺」——REST 不是标准,而是一种风格。</b>没有哪个工具会因为你写了 <code>/getTask</code> 而报错。它是一组<b>约束</b>(Roy Fielding 2000 年的博士论文):客户端-服务器、<b>无状态</b>(每个请求自带全部信息,服务器不靠「上一个请求」记住你)、可缓存、分层、<b>统一接口</b>。其中最高一级的 <b>HATEOAS</b>(响应里带上「下一步能去哪」的链接)现实中很少有人完整实现;大多数「REST API」其实是「资源 + 方法 + 状态码都用对了的 HTTP API」,这就够用了。</li>
+      <li><b>「一切都能说成『改某个字段』」——真正的命令硬塞进 PATCH 会藏住语义。</b>「把任务标记为完成」确实就是改 <code>done</code>,用 <code>PATCH</code> 很自然;但「归档并通知所有关注者」「重新发送邀请邮件」「退款」是<b>有副作用的动作</b>,硬写成 <code>PATCH {"archived": true}</code> 反而让人看不出会发邮件。常见的两种做法:Google API 风格的 <code>POST /tasks/1:archive</code>,或者把动作建模成资源 <code>POST /tasks/1/archive-requests</code>。取舍:前者直白,后者能记录每一次动作(谁、什么时候、结果如何)。</li>
+      <li><b>「一个编号对应后厨一个冰柜」——资源不等于数据库表。</b>资源是你<b>对外承诺</b>的模型:一个资源可以由几张表拼出来,一张表也可以拆成几个资源。URI 一旦发布就很难改(客户端都写死了),所以要按「调用方怎么理解」设计,而不是按表结构。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>resource</b>(资源)、<b>collection / item</b>(集合 / 单个)、<b>sub-resource</b>(子资源)、<b>URI</b>(统一资源标识符);<b>REST 约束</b>:client-server、<b>stateless</b>、cacheable、layered system、<b>uniform interface</b>、HATEOAS;常用的成熟度说法是 <b>Richardson 成熟度模型</b>(0 级:一个 URI 全靠 POST;1 级:资源;2 级:资源 + 方法 + 状态码;3 级:HATEOAS)—— 今天的 nest-lab 在 2 级。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:今天的 nest-lab 有几个 URI?每个 URI 支持哪些方法?先写在 <code>notes.md</code>,再看启动日志里的 <code>Mapped {...}</code>(<code>npm run day08</code> 第 1 幕,真实输出):</p>
+  <pre><code>[Nest] LOG [RouterExplorer] Mapped {/tasks, GET} route
+[Nest] LOG [RouterExplorer] Mapped {/tasks/:id, GET} route
+[Nest] LOG [RouterExplorer] Mapped {/tasks, POST} route
+[Nest] LOG [RouterExplorer] Mapped {/tasks/:id, PUT} route
+[Nest] LOG [RouterExplorer] Mapped {/tasks/:id, PATCH} route
+[Nest] LOG [RouterExplorer] Mapped {/tasks/:id, DELETE} route
+[Nest] LOG [RouterExplorer] Mapped {/tasks, ALL} route
+[Nest] LOG [RouterExplorer] Mapped {/tasks/:id, ALL} route</code></pre>
+  <p>(已去掉 PID、时间、每行末尾的耗时和颜色。)两个 URI,一个集合、一个单个;最后两条 <code>ALL</code> 是 405 的兜底路由(卡 #3)。</p>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:方法语义 —— 「再来一份」和「换成这份」不是一回事</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    每个 HTTP 方法都带着一份<b>承诺</b>:会不会改东西(安全)、重复发几次结果是否和发一次一样(幂等)。客户端、浏览器、代理、重试逻辑都靠这份承诺做决定,所以服务器必须兑现它。
+  </div>
+
+  <h3>② 生活类比:五种点单动作</h3>
+  <table>
+    <tr><th>点单动作</th><th>方法</th><th>安全(不改东西)</th><th>幂等(说 N 次 = 说 1 次)</th><th>nest-lab 里</th></tr>
+    <tr><td>「看看菜单 / 看看我那道菜做到哪了」</td><td><b>GET</b>(以及 HEAD、OPTIONS)</td><td>✅</td><td>✅</td><td>200</td></tr>
+    <tr><td>「<b>再来一份</b>」</td><td><b>POST</b></td><td>❌</td><td>❌ 说两次就上两份</td><td>201 + Location</td></tr>
+    <tr><td>「把 12 号<b>换成这份</b>:红烧肉,不要辣,大份」</td><td><b>PUT</b>(整体替换)</td><td>❌</td><td>✅ 说两次还是这一份</td><td>200</td></tr>
+    <tr><td>「12 号<b>不要香菜</b>」(其他照旧)</td><td><b>PATCH</b>(部分更新)</td><td>❌</td><td>⚠️ 看你怎么写(下面讲)</td><td>200</td></tr>
+    <tr><td>「<b>撤掉</b> 12 号」</td><td><b>DELETE</b></td><td>❌</td><td>✅ 撤两次,桌上还是没有这道菜</td><td>204</td></tr>
+  </table>
+  <p><b>PUT vs PATCH</b> 的关键在于:PUT 发过去的是这个资源<b>完整的新样子</b>,服务器照着替换;PATCH 发过去的是<b>一张修改单</b>,只动提到的字段。所以 PUT 漏了字段,要么被当成「这个字段不要了 / 恢复默认」,要么(nest-lab 的做法)直接拒绝:</p>
+  <pre><code>// src/tasks/task-input.ts(Day 16 换成 DTO)
+export function parseReplace(body: unknown): ReplaceTaskInput {   // PUT:客户端能改的字段一个都不能少
+  const obj = asObject(body);
+  return { title: checkTitle(obj.title), done: checkDone(obj.done) };
+}
+export function parsePatch(body: unknown): PatchTaskInput {       // PATCH:给了哪个改哪个
+  const obj = asObject(body);
+  const patch: PatchTaskInput = {};
+  if ('title' in obj) patch.title = checkTitle(obj.title);
+  if ('done' in obj) patch.done = checkDone(obj.done);
+  if (Object.keys(patch).length === 0) throw new BadRequestException('至少要给 title 或 done 中的一个');
+  return patch;
+}</code></pre>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th></tr>
+    <tr><td>只是看看,不动后厨</td><td><b>safe</b>(安全方法):GET / HEAD / OPTIONS,不应该改变服务器状态;浏览器预取、爬虫、缓存都假设它安全</td></tr>
+    <tr><td>说几遍都是那一份</td><td><b>idempotent</b>(幂等):请求执行 1 次和 N 次,<b>服务器状态</b>相同;GET / PUT / DELETE 都是</td></tr>
+    <tr><td>「再来一份」说两遍上两份</td><td>POST 不幂等 → 网络超时后客户端<b>不敢自动重试</b>,用户双击按钮会建出两条</td></tr>
+    <tr><td>服务员记下「这张单我已经处理过」</td><td><b>Idempotency-Key</b> 请求头:客户端给每次「下单」一个唯一键,服务器记住处理过的键,重复的直接返回上次的结果(支付接口的标配;本课程后面实现)</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「方法写成 PUT,它就自动幂等了」——语义是约定,服务器不会替你强制。</b>你完全可以写一个 <code>GET /tasks/1/delete</code> 去删数据,或者让 <code>PUT</code> 每次都往数组里追加一条,框架一个字都不会说。后果是:爬虫顺着链接把数据删光、网关自动重试 PUT 时建出重复数据。幂等是<b>你的实现</b>兑现出来的。</li>
+      <li><b>「幂等 = 每次的响应都一样」——不对,说的是服务器状态。</b>观察脚本里 <code>DELETE /tasks/3</code> 第一次 204、第二次 404:响应不同,但「任务 3 不存在」这个状态是一样的,所以 DELETE 仍然幂等。同理,PUT 两次响应里的 <code>timestamp</code> 不同,也不影响幂等。</li>
+      <li><b>「PATCH 天生不幂等」/「PATCH 天生幂等」——都不对,取决于修改单怎么写。</b>nest-lab 的 PATCH 是「把 done 设成 true」这种<b>设置值</b>的写法(JSON Merge Patch 风格),发多少次结果都一样,是幂等的;但如果修改单写的是「<code>{"op": "increment", "field": "views"}</code>」这种<b>相对操作</b>,每发一次就加一次,就不幂等。规范只保证 GET / PUT / DELETE 幂等,PATCH 不作保证,所以客户端不会自动重试它。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>RFC 9110</b>(HTTP Semantics,2022 年取代旧的 RFC 7231)定义了方法的 <b>safe / idempotent / cacheable</b> 属性;<b>PATCH</b> 在 RFC 5789;PATCH 的两种常见格式:<b>JSON Merge Patch</b>(RFC 7396,<code>application/merge-patch+json</code>,今天的写法)和 <b>JSON Patch</b>(RFC 6902,<code>[{"op":"replace","path":"/title","value":"x"}]</code>);<b>Idempotency-Key</b>(IETF 草案,Stripe 等支付 API 广泛使用)。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:任务 1 当前是 <code>done: true</code>。依次发 ① <code>PATCH {title}</code> ② <code>PATCH {title, done:false}</code> ③ <code>PATCH {done:true}</code> ④ <code>PUT {title}</code>(缺 done)⑤ <code>PUT {title, done:false}</code> ⑥ 同一个 PUT 再发一次,各得到什么状态码?最后标题是什么?同一个 <code>POST</code> 发两次,任务数会变成多少?</p>
+  <pre><code>cd nest-lab
+npm run day15</code></pre>
+  <p>真实运行结果(第 2、3 幕,每个请求只摘录「状态码」那一行和必要的响应体;时间戳、requestId 每次不同):</p>
+  <pre><code>========== 第 2 幕:PUT vs PATCH 对同一个资源(先把任务 1 准备成 done=true) ==========
+GET    /tasks/1(改之前)                         → 200 OK
+    {"data":{"id":1,"title":"跑通 nest new","done":true,"createdAt":"2026-11-04T10:45:47.591Z"},...}
+PATCH  /tasks/1 {title} 只给标题                 → 409 Conflict
+    {"statusCode":409,"error":"CONFLICT","message":"任务 1 已完成,不能改标题;请先把 done 改为 false",...}
+PATCH  /tasks/1 {title, done:false}          → 200 OK
+    {"data":{"id":1,"title":"PATCH 后的标题","done":false,...},...}
+PATCH  /tasks/1 {done:true} 只改状态             → 200 OK
+    {"data":{"id":1,"title":"PATCH 后的标题","done":true,...},...}
+PUT    /tasks/1 {title} 缺 done               → 400 Bad Request
+    {"statusCode":400,"error":"BAD_REQUEST","message":"done 必须是 true 或 false",...}
+PUT    /tasks/1 {title, done:false}          → 200 OK
+    {"data":{"id":1,"title":"PUT 的标题","done":false,...},...}
+PUT    /tasks/1 同一请求再发一次                     → 200 OK
+    {"data":{"id":1,"title":"PUT 的标题","done":false,...},...}
+PUT    /tasks/999(不存在)                       → 404 Not Found
+
+========== 第 3 幕:POST 不幂等 —— 同一个请求发两次 ==========
+POST   /tasks {title:"买牛奶"} 第 1 次            → 201 Created  [location: /tasks/4 | content-type: application/json; charset=utf-8]
+POST   /tasks {title:"买牛奶"} 第 2 次            → 201 Created  [location: /tasks/5 | content-type: application/json; charset=utf-8]
+任务数:2 → 4;两次拿到的 id:4 和 5(用户手一抖点了两下,就多了一条)</code></pre>
+  <p>三个看点:<b>只改状态的 PATCH 没动标题</b>(第 3 步标题还是「PATCH 后的标题」);<b>PUT 必须给完整表示</b>,少给 <code>done</code> 就 400,给齐以后重复发两次结果完全一样;<b>PUT 不负责创建</b>,<code>PUT /tasks/999</code> 是 404(规范允许用 PUT 创建「客户端指定 ID」的资源,但 nest-lab 的 ID 由服务器分配,所以不支持)。至于第 3 幕「买牛奶」的两条记录,今天先接受它;Idempotency-Key 后面再实现。</p>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:状态码与内容协商 —— 回执单上的章</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    状态码是给<b>程序</b>看的结论:成功还是失败、是谁的错、该不该重试、新东西在哪。内容协商是双方先说好「你给我什么格式、我回你什么格式」,说不拢就用 406 / 415 明确拒绝。
+  </div>
+
+  <h3>② 生活类比:回执单上的章</h3>
+  <p>每张回执单盖一个章:「已上菜」「已下单,桌号在这」「已撤,无需取餐」「单子写得看不懂」「没有这道菜」「这里不能这么点(只能堂食)」「和你桌上现在的状态冲突(菜已经上了,不能再改口味)」。顾客不用读回执上的小字,看章就知道下一步怎么做。另外,本店只有中文菜单:你说「我只看英文菜单」(<code>Accept</code>),店员回一个「抱歉,没有」的章(406);你递过来一张英文单子(<code>Content-Type</code>),店员也回一个「看不懂这种单子」的章(415)。</p>
+
+  <h3>比喻 ↔ 真实 对照:nest-lab 里用到的章</h3>
+  <table>
+    <tr><th>章</th><th>状态码</th><th>什么时候用</th><th>nest-lab 里</th></tr>
+    <tr><td>已上菜</td><td><b>200</b> OK</td><td>成功,并且有内容返回</td><td>GET、PUT、PATCH</td></tr>
+    <tr><td>已下单,桌号在这</td><td><b>201</b> Created + <code>Location</code></td><td>新建了资源;<code>Location</code> 告诉客户端去哪找它</td><td><code>POST /tasks</code> → <code>Location: /tasks/3</code></td></tr>
+    <tr><td>已撤,无需取餐</td><td><b>204</b> No Content</td><td>成功,但没有内容要返回(响应<b>不能</b>有体)</td><td><code>DELETE</code>、<code>OPTIONS</code></td></tr>
+    <tr><td>单子写得看不懂</td><td><b>400</b> Bad Request / <b>422</b> Unprocessable Content</td><td>请求本身有问题(见下方说明)</td><td>缺字段、类型错、空标题 → 400</td></tr>
+    <tr><td>没有这道菜</td><td><b>404</b> Not Found</td><td>这个 URI 指不到任何东西</td><td><code>/tasks/999</code>、<code>/nope</code></td></tr>
+    <tr><td>这里不能这么点</td><td><b>405</b> Method Not Allowed + <code>Allow</code></td><td>URI 存在,但不支持这个方法;<b>必须</b>带 <code>Allow</code> 头列出支持的方法</td><td><code>PATCH /tasks</code></td></tr>
+    <tr><td>和桌上现状冲突</td><td><b>409</b> Conflict</td><td>请求本身没问题,但和资源<b>当前状态</b>冲突</td><td>已完成的任务改标题</td></tr>
+    <tr><td>你看的是旧菜单</td><td><b>412</b> Precondition Failed</td><td>带 <code>If-Match: "旧版本号"</code> 来改,但资源已经被别人改过(ETag 并发控制)</td><td>预告,后面讲</td></tr>
+    <tr><td>没有你要的那种菜单</td><td><b>406</b> Not Acceptable</td><td><code>Accept</code> 里没有一种是服务器能给的</td><td><code>Accept: application/xml</code></td></tr>
+    <tr><td>看不懂你递的单子</td><td><b>415</b> Unsupported Media Type</td><td>请求体的 <code>Content-Type</code> 服务器不支持</td><td><code>Content-Type: text/plain</code></td></tr>
+  </table>
+  <p><b>400 还是 422?</b>两派都有。RFC 9110 的意思是:400 = 请求坏了(语法错、缺必填、类型不对);422 = 格式和语法都对,但内容没法处理(语义错误)。Rails、Laravel、FastAPI 校验失败默认回 422;Nest(明天的 <code>ValidationPipe</code>)、Spring、ASP.NET Core 默认回 400。<b>选一种,在整个 API 里保持一致</b>比选哪种更重要。nest-lab 跟随 Nest 生态用 400(<code>ValidationPipe</code> 的 <code>errorHttpStatusCode</code> 可以改成 422,明天会看到)。</p>
+  <p><b>405 是怎么补上的</b>:Express / Nest 只认「路径 + 方法」的组合,组合找不到就一律 404。nest-lab 的做法是在 Controller <b>最后</b>写两个 <code>@All()</code> 兜底路由(Day 8 讲过:路由按声明顺序匹配,前面的具体方法都没匹配上才轮到它们),设置 <code>Allow</code> 头再抛 <code>MethodNotAllowedException</code>;<code>OPTIONS</code> 请求则直接回 204 + <code>Allow</code>。取舍:改动小、看得懂,但每个 Controller 都要手写一份 <code>Allow</code> 列表,新增方法时要记得同步(Spring、ASP.NET Core 和 Go 1.22 的路由器会自动做这件事)。</p>
+
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你一定见过这种接口:<b>永远回 200</b>,失败时 body 里写 <code>{"code": 500, "msg": "系统错误"}</code>。前端每个请求都要 <code>if (res.data.code !== 0)</code>。它的问题是:<code>fetch</code> 的 <code>res.ok</code>、axios 对非 2xx 的自动 reject、浏览器和 CDN 的缓存、网关的重试与熔断、监控面板上的错误率,<b>全都只看状态码</b>,这些工具因此全部失效。状态码说清「结论」,body 里再放给人看的细节(Day 17 的 problem+json 会规范 body 的格式)。
+  </div>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「章盖错了,店员会发现」——状态码选错不会报错。</b>改动之前,<code>text/plain</code> 的请求得到的是 500,程序照样跑,只是监控会说「服务器坏了」,客户端可能还会重试。状态码错了没人提醒你,只能靠规范、code review 和测试(今天的 <code>rest.e2e-spec.ts</code> 把每个码都钉住了)。</li>
+      <li><b>「章盖得越细越好」——不要发明新码,有时还要故意模糊。</b>用标准里已有的码,别自造 <code>499</code>、别拿 <code>418 I'm a teapot</code> 开玩笑。另一方面,出于安全,有时会故意<b>不说实话</b>:对「无权查看的资源」回 404 而不是 403,避免告诉攻击者「这个 ID 存在」(GitHub 对私有仓库就是这么做的)。</li>
+      <li><b>「顾客说只看英文菜单,就一定只能给英文」——<code>Accept</code> 是偏好,不是命令。</b><code>Accept</code> 可以带权重(<code>application/xml, */*;q=0.1</code> 意思是「最想要 XML,实在不行什么都行」),这时服务器回 JSON 完全合规(观察脚本第 4 幕有这一条)。只有当客户端列出的<b>所有</b>类型都给不了时,才回 406。很多 API 甚至选择忽略 <code>Accept</code>、永远回 JSON,这也常见,只是不够严谨。<code>Content-Type</code> 则不一样:它描述的是请求体<b>本身</b>是什么,服务器读不懂就该 415。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    状态码五个家族(Day 6):1xx 信息、2xx 成功、3xx 重定向、4xx 客户端错误、5xx 服务器错误;<b>content negotiation</b>(内容协商):<b>proactive</b>(服务器根据 <code>Accept</code>、<code>Accept-Language</code>、<code>Accept-Encoding</code> 挑选表示)、<b>quality value</b>(<code>q=0.1</code>);<code>Content-Type</code>(请求体 / 响应体的媒体类型)vs <code>Accept</code>(客户端想要的响应类型);<b>ETag</b> + <code>If-Match</code> / <code>If-None-Match</code>(条件请求:412 和 304,后面讲)。Express 里现成的两个工具:<code>req.accepts(type)</code>、<code>req.is(type)</code>。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:先把下面每一行的状态码和关键响应头填进 <code>notes.md</code>,再跑 <code>npm run day15</code> 对答案。</p>
+  <p>真实运行结果(第 1 幕和第 4 幕的状态码行;响应体省略):</p>
+  <pre><code>========== 第 1 幕:每个方法一遍(资源 /tasks 与 /tasks/:id) ==========
+GET    /tasks                                → 200 OK  [content-type: application/json; charset=utf-8]
+GET    /tasks/2                              → 200 OK  [content-type: application/json; charset=utf-8]
+POST   /tasks {title}                        → 201 Created  [location: /tasks/3 | content-type: application/json; charset=utf-8]
+PUT    /tasks/2 {title, done}                → 200 OK  [content-type: application/json; charset=utf-8]
+PATCH  /tasks/3 {done:true}                  → 200 OK  [content-type: application/json; charset=utf-8]
+DELETE /tasks/3(admin)                       → 204 No Content
+DELETE /tasks/3 再删一次(admin)                  → 404 Not Found  [content-type: application/json; charset=utf-8]
+HEAD   /tasks/1                              → 200 OK  [content-type: application/json; charset=utf-8]
+OPTIONS /tasks/1                             → 204 No Content  [allow: GET, HEAD, PUT, PATCH, DELETE, OPTIONS]
+
+========== 第 4 幕:405 / 406 / 415 / 400 ==========
+PATCH  /tasks(集合不支持 PATCH)                   → 405 Method Not Allowed  [allow: GET, HEAD, POST, OPTIONS | content-type: application/json; charset=utf-8]
+DELETE /tasks(集合不支持 DELETE)                  → 405 Method Not Allowed  [allow: GET, HEAD, POST, OPTIONS | content-type: application/json; charset=utf-8]
+GET    /tasks/1  Accept: application/xml     → 406 Not Acceptable  [content-type: application/json; charset=utf-8]
+GET    /tasks/1  Accept: application/xml, */*;q=0.1 → 200 OK  [content-type: application/json; charset=utf-8]
+POST   /tasks  Content-Type: text/plain      → 415 Unsupported Media Type  [content-type: application/json; charset=utf-8]
+POST   /tasks  没有请求体                         → 400 Bad Request  [content-type: application/json; charset=utf-8]
+POST   /tasks  {title: ""}                   → 400 Bad Request  [content-type: application/json; charset=utf-8]
+PATCH  /tasks/2  {}                          → 400 Bad Request  [content-type: application/json; charset=utf-8]</code></pre>
+  <p>和第 1 节「改之前」那张表对照着看:404 变成了 405 + <code>Allow</code>;500 变成了 415;201 有了 <code>Location</code>;DELETE 变成 204 且没有 <code>content-type</code>(因为没有响应体)。还有一个细节:406 的响应体<b>仍然是 JSON</b>,因为我们只会说 JSON,规范允许服务器用它能给的格式解释拒绝原因。</p>
+  <p>内容协商的核心只有几行(<code>src/common/content-negotiation.middleware.ts</code>):</p>
+  <pre><code>if (!req.accepts('application/json')) throw new NotAcceptableException(...);              // 406
+const hasBody = Number(req.headers['content-length'] ?? 0) &gt; 0 || req.headers['transfer-encoding'] !== undefined;
+if (METHODS_WITH_BODY.has(req.method) &amp;&amp; hasBody &amp;&amp; !req.is('application/json'))
+  throw new UnsupportedMediaTypeException(...);                                            // 415</code></pre>
+  <p>(写 <code>hasBody</code> 是一次真实的踩坑:最初直接用 <code>req.is() === false</code> 判断,结果 <code>fetch</code> 发来的「没有请求体的 POST」带着 <code>Content-Length: 0</code>,被 Express 当成「有请求体但类型不对」,误判成了 415。现在没有请求体的写请求交给 handler,回 400「请求体必须是一个 JSON 对象」。)</p>
+  <p>测试的真实结果:<code>npm test</code> 27 个通过,<code>npm run test:e2e</code> 34 个通过,其中新增的 <code>test/rest.e2e-spec.ts</code> 11 个用例覆盖了 201 + Location、POST 重复、PUT 幂等、PATCH 部分更新、409、405 + Allow、OPTIONS、404、406、415、400。</p>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p>HTTP 语义是协议层的规矩,和框架无关;区别只在于各家框架<b>默认替你做了多少</b>:</p>
+  <table>
+    <tr><th>命题</th><th>NestJS(教具)</th><th>C# / ASP.NET Core</th><th>Java / Spring Boot</th><th>Go</th></tr>
+    <tr>
+      <td>201 + Location</td>
+      <td>手动:<code>@Res({ passthrough: true })</code> + <code>res.setHeader('Location', ...)</code></td>
+      <td><b><code>CreatedAtAction(nameof(Get), new { id }, dto)</code></b>,自动根据路由生成 Location</td>
+      <td><b><code>ResponseEntity.created(uri).body(dto)</code></b>,常配 <code>ServletUriComponentsBuilder</code></td>
+      <td>手写 <code>w.Header().Set("Location", ...)</code> + <code>w.WriteHeader(201)</code></td>
+    </tr>
+    <tr>
+      <td>PATCH</td>
+      <td><code>@Patch()</code>,body 自己解释(今天是 Merge Patch 风格)</td>
+      <td><code>[HttpPatch]</code> + <code>JsonPatchDocument&lt;T&gt;</code>(RFC 6902)</td>
+      <td><code>@PatchMapping</code>;JSON Patch 需要第三方库</td>
+      <td><code>mux.HandleFunc("PATCH /tasks/{id}", ...)</code></td>
+    </tr>
+    <tr>
+      <td>204</td>
+      <td><code>@HttpCode(204)</code></td>
+      <td><code>return NoContent();</code></td>
+      <td><code>ResponseEntity.noContent().build()</code> / <code>@ResponseStatus(NO_CONTENT)</code></td>
+      <td><code>w.WriteHeader(204)</code></td>
+    </tr>
+    <tr>
+      <td>405 + Allow</td>
+      <td><b>默认 404</b>;今天用 <code>@All()</code> 兜底手动补</td>
+      <td>endpoint routing <b>自动 405</b></td>
+      <td><b>自动 405</b>(<code>HttpRequestMethodNotSupportedException</code>,带 <code>Allow</code>)</td>
+      <td>Go 1.22+ 的 <code>ServeMux</code> 方法路由<b>自动 405 + Allow</b>;Gin 默认 404,要开 <code>HandleMethodNotAllowed</code></td>
+    </tr>
+    <tr>
+      <td>406(Accept)</td>
+      <td><b>默认不管</b>;今天用 middleware 补</td>
+      <td><code>[Produces]</code>;要设 <code>ReturnHttpNotAcceptable = true</code> 才回 406,<b>默认也是照样回 JSON</b></td>
+      <td><code>produces = "application/json"</code>,不匹配<b>自动 406</b></td>
+      <td>手写检查 <code>r.Header.Get("Accept")</code></td>
+    </tr>
+    <tr>
+      <td>415(Content-Type)</td>
+      <td><b>默认不管</b>(非 JSON 被当成没有 body);今天用 middleware 补</td>
+      <td><code>[Consumes("application/json")]</code>,<code>[ApiController]</code> 下<b>自动 415</b></td>
+      <td><code>consumes = "application/json"</code>,不匹配<b>自动 415</b></td>
+      <td>手写检查 <code>r.Header.Get("Content-Type")</code></td>
+    </tr>
+  </table>
+  <p>📌 一个有意思的观察:<b>越「重」的框架,默认越守规矩</b>(Spring 405 / 406 / 415 全自动);Express 系(包括跑在它上面的 Nest)走的是「小而灵活」路线,规矩要你自己补。这也是今天要把这些码一个个过一遍的原因:换到任何框架,你都知道该检查它有没有替你做。</p>
+  <p>📌 roadmap 顶部对照表建议你在 Day 21 复盘时补一行<b>「HTTP 语义 / REST」</b>(201 + Location、405 / 406 / 415 的默认行为:Nest 手动 ↔ ASP.NET Core <code>CreatedAtAction</code> / <code>[Consumes]</code> ↔ Spring <code>ResponseEntity.created</code> / <code>produces</code>、<code>consumes</code> ↔ Go 1.22 <code>ServeMux</code>)。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"What's the difference between PUT and PATCH? Why isn't POST idempotent, and how would you deal with duplicate submissions?"</b>(或者中文:「PUT 和 PATCH 的区别?POST 为什么不幂等?」)你可以答:<br>
+    <b>"PUT 是整体替换:请求体是资源完整的新表示,服务器照着替换,所以缺字段要么被视为删除或重置,要么直接拒绝;它是幂等的,同样的 PUT 发多次,服务器状态和发一次一样,客户端可以放心重试。PATCH 是部分更新,只带要改的字段;它是否幂等取决于修改单的写法,设置值的写法是幂等的,像自增这种相对操作就不是。POST 的语义是让服务器在集合下创建一个新资源,ID 由服务器分配,所以发两次就会建两条,网络超时后不能盲目重试。处理重复提交,常见做法是让客户端带一个 Idempotency-Key 请求头,服务器记录已经处理过的键,重复的请求直接返回第一次的结果;前端也会在提交时禁用按钮。另外创建成功应该返回 201 并在 Location 头里给出新资源的地址,删除成功常用 204。"</b><br>
+    自己练一遍:合上文档 45 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+  <p>预测都写进 <code>src/15-http-rest/notes.md</code> 的预测区,先写,再运行,再批改。</p>
+
+  <div class="task">
+    <h3>习题 1:给「评论」和「归档」设计接口(动笔,约 8 min)</h3>
+    <p>不写代码。给 nest-lab 设计下面六个操作的<b>方法 + URI + 成功状态码(+ 关键响应头)</b>,以及每个操作至少一个失败状态码:</p>
+    <ol>
+      <li>列出任务 1 的所有评论</li>
+      <li>给任务 1 加一条评论</li>
+      <li>修改评论 7 的内容(只改内容,不动作者)</li>
+      <li>删除评论 7</li>
+      <li>把任务 1 归档,并通知所有关注者(有副作用的命令)</li>
+      <li>把已经删除的任务 1 再删一次</li>
+    </ol>
+    <p>写完回到第 3、4、5 节自查:有没有把动词塞进 URI?第 5 条你用的是 <code>PATCH</code>、<code>POST /tasks/1:archive</code> 还是动作子资源?写出你的取舍。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:每个方法的状态码与响应头(动手,约 8 min)</h3>
+    <p>✍️ <b>预测(先写再运行)</b>:第 4 节和第 5 节「⑤」里的所有请求,先写状态码和关键响应头(<code>Location</code> / <code>Allow</code> / 有没有 <code>Content-Type</code>)。然后:</p>
+    <pre><code>cd nest-lab
+npm run day15</code></pre>
+    <p>逐行批改。再用 curl 自己试一个脚本里没有的:<code>curl -i -X PUT localhost:3000/tasks/2 -H 'x-demo-key: let-me-in' -H 'content-type: application/json' -d '[1,2,3]'</code>(请求体是数组),先预测状态码。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:拆掉一块规矩看看(动手 + 思考,约 9 min)</h3>
+    <p>(a)把 <code>tasks.controller.ts</code> 末尾 <code>collectionFallback</code> 上的 <code>@Public()</code> 删掉。✍️ <b>预测</b>:不带钥匙发 <code>PATCH /tasks</code>,现在是 403 还是 405?为什么?(提示:Day 11 的全局保安在哪一站。)跑 <code>npm run test:e2e</code> 看有没有测试变红,然后改回来。</p>
+    <p>(b)把 <code>collectionFallback</code> 和 <code>itemFallback</code> 两个方法挪到 Controller 的<b>最前面</b>。✍️ <b>预测</b>:<code>GET /tasks</code> 会得到什么?跑 <code>npm run day15</code> 验证,然后改回来。这和 Day 8 习题 3 的 <code>/tasks/count</code> 是同一个坑。</p>
+    <p>(c)思考题(不用写代码):要让「同一个 POST 发两次只建一条」,<code>Idempotency-Key</code> 的方案需要服务器记住什么?记多久?两个带同一个键的请求<b>同时</b>到达怎么办?(Day 13 的并发、Week 7 的事务会用到。)</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/15-http-rest/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事说:「我们的接口全都回 200,失败时 body 里写 <code>{"code": 500}</code>,前端判断 <code>code</code> 就行,有什么问题?」用餐厅比喻讲清楚为什么状态码要用对,并说出这个比喻在哪里会骗人。</li>
+      <li>安全和幂等分别是什么意思?GET / POST / PUT / PATCH / DELETE 各属于哪种?为什么 DELETE 第二次回 404 也不影响它幂等?</li>
+      <li>PUT 和 PATCH 的区别是什么?PUT 缺字段会怎样?405、406、415、409 分别在什么情况下用?nest-lab 是怎么补上 405 的,代价是什么?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里补上你自己做的改动;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>URI 是名词,方法是动词</b>:集合用复数(<code>/tasks</code>),单个用编号(<code>/tasks/1</code>),从属关系用子资源;真正有副作用的命令可以用 <code>POST /tasks/1:archive</code> 或动作子资源,别硬塞进 PATCH。REST 是风格不是标准。</li>
+    <li><b>方法带着承诺</b>:GET 安全且幂等;PUT、DELETE 幂等(说的是服务器状态,不是响应);POST 不幂等,重复提交要靠 Idempotency-Key;PATCH 是否幂等看修改单写法。承诺要靠你的实现兑现。</li>
+    <li><b>PUT 整体替换,PATCH 部分更新</b>:PUT 要完整表示,缺字段 nest-lab 直接 400;PATCH 只改给了的字段。</li>
+    <li><b>状态码是给程序看的结论</b>:201 + Location、204、400 / 422(选一种保持一致)、404、405 + Allow、409、406、415。Nest / Express 默认不管 405 / 406 / 415,今天手动补上;选错状态码不会报错,要靠测试钉住。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>把「完成任务」「归档任务并通知关注者」「给任务加评论」分别设计成方法 + URI,并说明为什么</li>
+    <li>为什么 POST 不能被网关或客户端自动重试,而 PUT 可以?</li>
+    <li>任务 1 是 <code>done: true</code>,<code>PATCH {title}</code> 和 <code>PATCH {title, done:false}</code> 各得到什么?为什么前者是 409 而不是 400?</li>
+    <li>改动之前,<code>Content-Type: text/plain</code> 的 POST 为什么会得到 500?为什么 500 比 415 更糟?</li>
+    <li>Spring 和 ASP.NET Core 在 405 / 406 / 415 上默认各做了什么?哪一个和 Nest 一样「406 默认不管」?</li>
+  </ul>
+  <p>🔮 Week 3 接下来:<b>Day 16</b> DTO 与输入校验(<code>class-validator</code> + <code>ValidationPipe</code>,对比 Day 12 的 zod,今天的 <code>task-input.ts</code> 会被替换掉);<b>Day 17</b> 统一错误格式 problem+json(今天 405 / 406 / 415 / 409 的错误体都会换成标准格式);<b>Day 18</b> 响应 DTO 与序列化;<b>Day 19</b> 分页、过滤、排序与版本化;<b>Day 20</b> OpenAPI 与实战收口;<b>Day 21</b> 复盘。</p>
+</section>
+
+<footer>
+  Day 15 · Phase 1 / Week 3 · 产出:<code>docs/15-http-rest/</code> 本文档 + <code>nest-lab/</code>(PUT / PATCH、201 + Location、204、409、405 + Allow、OPTIONS、406 / 415 内容协商、<code>npm run day15</code>)+ <code>src/15-http-rest/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

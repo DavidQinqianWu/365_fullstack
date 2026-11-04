@@ -7,6 +7,7 @@ export interface TasksRepository {
   findById(id: number): Task | undefined;
   insert(data: Omit<Task, 'id'>): Task;
   remove(id: number): Task | undefined; // Day 11 新增:删掉并返回被删的那条
+  update(id: number, changes: Partial<Pick<Task, 'title' | 'done'>>): Task | undefined; // Day 15 新增
 }
 
 // 接口不能当 token(运行时不存在),所以配一个 Symbol token。

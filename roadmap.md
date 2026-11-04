@@ -34,6 +34,7 @@
 | Web 框架 | **NestJS(本课程模板)**,底层默认跑在 Express 上(可换 Fastify) | ASP.NET Core | Spring Boot | Gin / Echo |
 | 请求管线 / 中间件 | NestJS middleware → guard → interceptor → pipe → exception filter | Middleware pipeline + Filter | Filter / Interceptor (AOP) | middleware(handler 链) |
 | 声明式路由 / 注解 + 元数据 | TS 装饰器 + `reflect-metadata`(`@Controller`、`@Get`) | Attribute(`[ApiController]`、`[HttpGet]`) | Annotation(`@RestController`、`@GetMapping`) | 无注解,手动注册路由(`r.GET(...)`) |
+| HTTP 语义 / REST 默认行为 | Nest:201 无 Location(需手设)、未实现方法回 404(需兜底路由才有 405)、不管 Accept(需自己回 406) | `CreatedAtAction` 自动 Location;405 自动;406 需 `ReturnHttpNotAcceptable`;`[Consumes]` 自动 415 | `ResponseEntity.created(uri)`;405 + Allow 自动;`produces` / `consumes` 自动 406 / 415 | Go 1.22 `ServeMux` 自动 405 + Allow,其余手写 |
 | 依赖注入(DI) | NestJS IoC 容器 | 内置 DI(Microsoft.Extensions.DI) | Spring IoC | 手动注入 / wire |
 | Provider 作用域 / 生命周期 | Nest `DEFAULT`(单例)/ `REQUEST` / `TRANSIENT`,request 作用域会向上「传染」 | `AddSingleton` / `AddScoped` / `AddTransient`(单例依赖 scoped 时直接报错) | `singleton` / `request` / `prototype`(注入代理对象) | 无容器,手动构造;或 wire / fx |
 | 声明式鉴权(默认上锁 + 白名单) | `APP_GUARD` 全局 guard + `@Public()`、`@Roles()` + RolesGuard | `FallbackPolicy` + `[AllowAnonymous]`、`[Authorize(Roles = "...")]` | Spring Security `anyRequest().authenticated()` + `permitAll()`、`@PreAuthorize` | 路由分组 + middleware |

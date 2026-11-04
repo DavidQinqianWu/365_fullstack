@@ -22,6 +22,7 @@ npm run day10          # Day 10 观察脚本:一个请求在 AOP 管线里走过
 npm run day11          # Day 11 观察脚本:标签什么时候贴、Reflector 怎么读、拼错 key 静默失效
 npm run day12          # Day 12 观察脚本:env 写错时拒绝启动、写对时类型正确、钥匙来自配置
 npm run day13          # Day 13 观察脚本:并发请求的日志按 requestId 归组 + 单例字段串号反例
+npm run day15          # Day 15 观察脚本:每个 HTTP 方法的状态码与响应头、PUT vs PATCH、POST 重复提交、405/406/415
 ```
 
 ## 成长日志
@@ -34,3 +35,4 @@ npm run day13          # Day 13 观察脚本:并发请求的日志按 requestId 
 | Day 11 | `src/common/decorators/`(`@Public()` = SetMetadata、`@Roles()` = `Reflector.createDecorator`、`@RequestId()` = createParamDecorator、`@AdminOnly()` = applyDecorators);`DemoKeyGuard` 升级为全局默认要钥匙(`APP_GUARD`,读 `@Public()`);新增 `RolesGuard`(角色暂读 `x-demo-role`);`DELETE /tasks/:id`(`@AdminOnly()`);GET 接口、首页、scope-demo 贴 `@Public()`;`src/decorator-demo/`(覆盖 / 合并 / 拼错 key 演示);测试补齐;`scripts/day11-try.mjs` | `docs/11-custom-decorators/` |
 | Day 12 | 依赖 `@nestjs/config` + `zod`;`src/config/env.schema.ts`(zod 开店检查单:`z.coerce.number` / `z.stringbool` / 生产环境禁用默认钥匙,`z.infer` 推导 `Env`);`ConfigModule.forRoot({ validate })`;`DemoKeyGuard` 从 `ConfigService<Env, true>` 读 `DEMO_KEY`;`main.ts` 读 `PORT`;`LOG_REQUESTS` 开关进出门日志;`src/common/typed-token.ts`(带类型的 token + `valueProvider` / `classProvider`);`.env.example`;vitest 配置里固定测试用 env;`scripts/day12-try.mjs` | `docs/12-typescript-server/` |
 | Day 13 | `src/common/request-context/`(AsyncLocalStorage + `RequestContextService` + `RequestContextMiddleware` 读取 / 生成 / 回写 `x-request-id` + `ctxLog` 带桌号日志);全部站点日志改用 `ctxLog`;`@RequestId()` 改读 ALS;全局 interceptor / filter 改为 `APP_INTERCEPTOR` / `APP_FILTER`(注入 `RequestContextService`,错误体带 `requestId`);middleware 改在 `AppModule.configure()` 注册,`configureApp` 变为空壳;`src/request-context-demo/`(并发厨房 + 单例字段反例);测试补齐;`scripts/day13-try.mjs` | `docs/13-request-context/` |
+| Day 15 | 任务接口按 REST 整理:`PUT /tasks/:id`(整体替换)、`PATCH /tasks/:id`(部分更新)、`POST` 回 201 + `Location`、`DELETE` 回 204;409 规则(已完成的任务不能改标题);兜底路由实现 405 + `Allow` 与 `OPTIONS`;`src/common/content-negotiation.middleware.ts`(406 / 415);`src/tasks/task-input.ts` 手写最小输入检查(Day 16 换 DTO);仓储加 `update()`;`test/rest.e2e-spec.ts`;`scripts/day15-try.mjs` | `docs/15-http-rest/` |

@@ -4,6 +4,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AllExceptionsFilter } from './common/all-exceptions.filter.js';
+import { contentNegotiation } from './common/content-negotiation.middleware.js';
 import { DemoKeyGuard } from './common/demo-key.guard.js';
 import { RequestContextMiddleware } from './common/request-context/request-context.middleware.js';
 import { RequestContextModule } from './common/request-context/request-context.module.js';
@@ -41,5 +42,7 @@ export class AppModule implements NestModule {
     if (this.config.get('LOG_REQUESTS', { infer: true })) {
       consumer.apply(requestLogger).forRoutes('*');
     }
+    // Day 15:内容协商(406 / 415)。放在登记员之后,被拒的请求也有进出门日志
+    consumer.apply(contentNegotiation).forRoutes('*');
   }
 }

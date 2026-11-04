@@ -119,12 +119,12 @@ describe('Tasks (e2e)', () => {
     return request(app.getHttpServer()).delete('/tasks/1').set({ 'x-demo-role': 'admin' }).expect(403);
   });
 
-  it('DELETE /tasks/1 钥匙 + admin → 200 + 被删的任务,之后 GET 是 404', async () => {
+  it('DELETE /tasks/1 钥匙 + admin → 204 没有响应体(Day 15),之后 GET 是 404', async () => {
     const res = await request(app.getHttpServer())
       .delete('/tasks/1')
       .set({ ...KEY, 'x-demo-role': 'admin' })
-      .expect(200);
-    expect(res.body.data).toEqual({ id: 1, title: '跑通 nest new', done: true, createdAt: FIXED });
+      .expect(204);
+    expect(res.text).toBe('');
     await request(app.getHttpServer()).get('/tasks/1').expect(404);
   });
 });

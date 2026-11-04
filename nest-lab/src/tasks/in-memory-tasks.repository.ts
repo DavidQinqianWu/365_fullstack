@@ -34,4 +34,11 @@ export class InMemoryTasksRepository implements TasksRepository {
     const [removed] = this.rows.splice(index, 1);
     return removed;
   }
+
+  update(id: number, changes: Partial<Pick<Task, 'title' | 'done'>>): Task | undefined {
+    const task = this.findById(id);
+    if (!task) return undefined;
+    Object.assign(task, changes); // id、createdAt 由服务器管理,不在 changes 的类型里
+    return task;
+  }
 }
