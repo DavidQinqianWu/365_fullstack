@@ -29,8 +29,8 @@ import { TasksService } from './tasks.service.js';
       useFactory: (clock: Clock): Task[] => {
         const openedAt = clock.now().toISOString(); // 开业时间
         return [
-          { id: 1, title: '跑通 nest new', done: true, createdAt: openedAt },
-          { id: 2, title: '看懂 Module / Controller / Provider', done: false, createdAt: openedAt },
+          { id: 1, title: '跑通 nest new', done: true, checklist: [], createdAt: openedAt },
+          { id: 2, title: '看懂 Module / Controller / Provider', done: false, checklist: [], createdAt: openedAt },
         ];
       },
       inject: [CLOCK],

@@ -12,6 +12,7 @@ import {
   Put,
   Req,
   Res,
+  UnprocessableEntityException,
   UseInterceptors,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
@@ -22,7 +23,11 @@ import { ctxLog } from '../common/request-context/request-context.js';
 import { TracedParseIntPipe } from '../common/traced-parse-int.pipe.js';
 import { WrapResponseInterceptor } from '../common/wrap-response.interceptor.js';
 import type { Task } from './task.js';
-import { parseCreate, parsePatch, parseReplace } from './task-input.js';
+// ⚠️ DTO 必须用普通 import,不能用 import type:
+// ValidationPipe 靠 design:paramtypes 知道参数是哪个类,import type 会让它变成 Object,校验被整个跳过
+import { CreateTaskDto } from './dto/create-task.dto.js';
+import { ReplaceTaskDto } from './dto/replace-task.dto.js';
+import { UpdateTaskDto } from './dto/update-task.dto.js';
 import { TasksService } from './tasks.service.js';
 
 // Day 15:每个 URI 支持哪些方法(405 时放进 Allow 头,OPTIONS 时也回这个)
@@ -55,31 +60,35 @@ export class TasksController {
   }
 
   // POST /tasks —— 不安全、不幂等:发两次就建两条。成功 = 201 + Location 告诉客户端新资源在哪
-  // body 先当 unknown,parseCreate 检查后才收窄(Day 16 换成 DTO + ValidationPipe)
+  // Day 16:参数类型写成 DTO 类,全局 ValidationPipe(APP_PIPE)按类上的装饰器检查,不合格 422
   @Post()
   create(
-    @Body() body: unknown,
+    @Body() dto: CreateTaskDto,
     @RequestId() requestId: string,
     @Res({ passthrough: true }) res: Response, // passthrough:我只设个响应头,响应体照样交给 Nest
   ): Task {
     ctxLog(`  ③ Controller 前台接单:POST /tasks(requestId=${requestId})`);
-    const task = this.tasksService.create(parseCreate(body).title);
+    const task = this.tasksService.create(dto);
     res.setHeader('Location', `/tasks/${task.id}`);
     return task;
   }
 
   // PUT /tasks/:id —— 整体替换,幂等:同一个请求发 N 次,结果和发 1 次一样
   @Put(':id')
-  replace(@Param('id', TracedParseIntPipe) id: number, @Body() body: unknown): Task {
+  replace(@Param('id', TracedParseIntPipe) id: number, @Body() dto: ReplaceTaskDto): Task {
     ctxLog(`  ③ Controller 前台接单:PUT /tasks/${id}`);
-    return this.tasksService.replace(id, parseReplace(body));
+    return this.tasksService.replace(id, dto);
   }
 
   // PATCH /tasks/:id —— 部分更新:只改给了的字段
   @Patch(':id')
-  update(@Param('id', TracedParseIntPipe) id: number, @Body() body: unknown): Task {
+  update(@Param('id', TracedParseIntPipe) id: number, @Body() dto: UpdateTaskDto): Task {
     ctxLog(`  ③ Controller 前台接单:PATCH /tasks/${id}`);
-    return this.tasksService.update(id, parsePatch(body));
+    // PartialType 让每个字段都可选,所以 {} 能通过 DTO 校验;「至少改一个字段」这条规则自己补
+    if (Object.keys(dto).length === 0) {
+      throw new UnprocessableEntityException(['至少要给 title、done、checklist 中的一个']);
+    }
+    return this.tasksService.update(id, dto);
   }
 
   // DELETE /tasks/:id —— 幂等;成功 204 No Content(没有响应体)

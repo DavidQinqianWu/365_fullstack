@@ -42,19 +42,25 @@ describe('REST 语义 (e2e)', () => {
     expect((await request(server).get('/tasks')).body.data).toHaveLength(4);
   });
 
-  it('PUT 是整体替换:缺字段 400;完整表示 200;同一请求重复发结果不变(幂等)', async () => {
+  it('PUT 是整体替换:缺字段 422(Day 16 起);完整表示 200;同一请求重复发结果不变(幂等)', async () => {
     const server = app.getHttpServer();
-    await request(server).put('/tasks/2').set(KEY).send({ title: '只给标题' }).expect(400);
+    await request(server).put('/tasks/2').set(KEY).send({ title: '只给标题' }).expect(422);
     const body = { title: '整体替换', done: true };
     const first = await request(server).put('/tasks/2').set(KEY).send(body).expect(200);
     const second = await request(server).put('/tasks/2').set(KEY).send(body).expect(200);
     expect(second.body.data).toEqual(first.body.data);
-    expect(first.body.data).toEqual({ id: 2, title: '整体替换', done: true, createdAt: FIXED });
+    expect(first.body.data).toEqual({ id: 2, title: '整体替换', done: true, checklist: [], createdAt: FIXED });
   });
 
   it('PATCH 是部分更新:只给 done,标题不变', async () => {
     const res = await request(app.getHttpServer()).patch('/tasks/2').set(KEY).send({ done: true }).expect(200);
-    expect(res.body.data).toEqual({ id: 2, title: '看懂 Module / Controller / Provider', done: true, createdAt: FIXED });
+    expect(res.body.data).toEqual({
+      id: 2,
+      title: '看懂 Module / Controller / Provider',
+      done: true,
+      checklist: [],
+      createdAt: FIXED,
+    });
   });
 
   it('409:已完成的任务不能改标题;同时把 done 改回 false 就可以', async () => {
@@ -90,8 +96,13 @@ describe('REST 语义 (e2e)', () => {
       .expect(415);
   });
 
-  it('400:请求体是 JSON 但内容不对(Day 16 换成 DTO 校验)', async () => {
-    await request(app.getHttpServer()).post('/tasks').set(KEY).send({ title: '' }).expect(400);
-    await request(app.getHttpServer()).patch('/tasks/2').set(KEY).send({}).expect(400);
+  it('422:请求体是 JSON 但内容不对(Day 16:DTO + ValidationPipe);400:JSON 语法坏了', async () => {
+    await request(app.getHttpServer()).post('/tasks').set(KEY).send({ title: '' }).expect(422);
+    await request(app.getHttpServer()).patch('/tasks/2').set(KEY).send({}).expect(422);
+    await request(app.getHttpServer())
+      .post('/tasks')
+      .set({ ...KEY, 'content-type': 'application/json' })
+      .send('{bad json')
+      .expect(400);
   });
 });

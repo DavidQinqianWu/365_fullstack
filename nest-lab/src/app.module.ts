@@ -1,6 +1,6 @@
-import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
+import { type MiddlewareConsumer, Module, type NestModule, ValidationPipe } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AllExceptionsFilter } from './common/all-exceptions.filter.js';
@@ -10,6 +10,7 @@ import { RequestContextMiddleware } from './common/request-context/request-conte
 import { RequestContextModule } from './common/request-context/request-context.module.js';
 import { requestLogger } from './common/request-logger.middleware.js';
 import { TimingInterceptor } from './common/timing.interceptor.js';
+import { validationPipeOptions } from './common/validation/validation.options.js';
 import { type Env, validateEnv } from './config/env.schema.js';
 import { TasksModule } from './tasks/tasks.module.js';
 
@@ -30,6 +31,8 @@ import { TasksModule } from './tasks/tasks.module.js';
     // Day 13:全局 interceptor / filter 也改成 DI 版(Day 10 是 app.useGlobalXxx(new X()),在容器外)
     { provide: APP_INTERCEPTOR, useClass: TimingInterceptor },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    // Day 16:全局 ValidationPipe(DI 版)。所有 @Body() / @Query() / @Param() 都先经过它
+    { provide: APP_PIPE, useFactory: () => new ValidationPipe(validationPipeOptions) },
   ],
 })
 export class AppModule implements NestModule {

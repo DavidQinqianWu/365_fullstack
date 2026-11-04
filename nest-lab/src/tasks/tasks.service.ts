@@ -1,8 +1,10 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CLOCK, type Clock } from '../common/clock.js';
 import { ctxLog } from '../common/request-context/request-context.js';
-import type { Task } from './task.js';
-import type { PatchTaskInput, ReplaceTaskInput } from './task-input.js';
+import type { Task, TaskWritable } from './task.js';
+import type { CreateTaskDto } from './dto/create-task.dto.js';
+import type { ReplaceTaskDto } from './dto/replace-task.dto.js';
+import type { UpdateTaskDto } from './dto/update-task.dto.js';
 import { TASKS_REPOSITORY, type TasksRepository } from './tasks.repository.js';
 
 // Provider / Service = 后厨:只管「把菜做出来」(业务逻辑),不关心 HTTP。
@@ -30,27 +32,35 @@ export class TasksService {
     return task;
   }
 
-  create(title: string): Task {
-    ctxLog(`   ④ Service    后厨做菜:create("${title}")`);
+  // Day 16:参数从 title 字符串换成 DTO。Service 拿到的已经是「校验过、转换过」的数据
+  create(input: CreateTaskDto): Task {
+    ctxLog(`   ④ Service    后厨做菜:create("${input.title}")`);
     return this.repo.insert({
-      title,
-      done: false,
+      title: input.title,
+      done: false, // 新任务一律未完成:这个字段不在 CreateTaskDto 里,客户端改不了
+      checklist: input.checklist ?? [],
       createdAt: this.clock.now().toISOString(), // 不写 new Date():时间也是注入的
     });
   }
 
   // Day 15:PUT —— 用请求里的完整表示替换掉客户端能改的全部字段
-  replace(id: number, input: ReplaceTaskInput): Task {
+  // PUT 是整体替换:没给 checklist = 清空成 [](不是「保留原样」—— 要保留请用 PATCH)
+  replace(id: number, input: ReplaceTaskDto): Task {
     ctxLog(`   ④ Service    后厨做菜:replace(${id})`);
     this.assertCanChange(this.findOne(id), input);
-    return this.repo.update(id, input)!;
+    return this.repo.update(id, { title: input.title, done: input.done, checklist: input.checklist ?? [] })!;
   }
 
   // Day 15:PATCH —— 只改给了的字段
-  update(id: number, patch: PatchTaskInput): Task {
+  update(id: number, patch: UpdateTaskDto): Task {
     ctxLog(`   ④ Service    后厨做菜:update(${id}, ${JSON.stringify(patch)})`);
     this.assertCanChange(this.findOne(id), patch);
-    return this.repo.update(id, patch)!;
+    // Day 16:只把自己明确列出的字段写进台账,不把 DTO 整包合并(DTO 之外的第二道保险,防批量赋值)
+    const changes: Partial<TaskWritable> = {};
+    if (patch.title !== undefined) changes.title = patch.title;
+    if (patch.done !== undefined) changes.done = patch.done;
+    if (patch.checklist !== undefined) changes.checklist = patch.checklist;
+    return this.repo.update(id, changes)!;
   }
 
   remove(id: number): void {
@@ -60,7 +70,8 @@ export class TasksService {
 
   // 409 Conflict:请求本身没毛病,但和资源「当前的状态」冲突。
   // 规则:已完成的任务不能改标题;要改,请在同一个请求里把 done 改回 false(先重新打开)
-  private assertCanChange(current: Task, changes: PatchTaskInput): void {
+  // 这是业务规则,不是格式规则 —— 所以留在 Service,DTO 管不了它(Day 16 讲义卡 #1 边界)
+  private assertCanChange(current: Task, changes: UpdateTaskDto): void {
     const renaming = changes.title !== undefined && changes.title !== current.title;
     const staysDone = (changes.done ?? current.done) === true;
     if (current.done && renaming && staysDone) {

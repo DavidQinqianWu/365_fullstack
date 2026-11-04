@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { Task } from './task.js';
+import type { Task, TaskWritable } from './task.js';
 import { TASKS_SEED, type TasksRepository } from './tasks.repository.js';
 
 // 仓储的第一个实现:内存数组(就是 Day 8 写在 TasksService 里的那个数组,今天搬到这里)。
@@ -35,7 +35,7 @@ export class InMemoryTasksRepository implements TasksRepository {
     return removed;
   }
 
-  update(id: number, changes: Partial<Pick<Task, 'title' | 'done'>>): Task | undefined {
+  update(id: number, changes: Partial<TaskWritable>): Task | undefined {
     const task = this.findById(id);
     if (!task) return undefined;
     Object.assign(task, changes); // id、createdAt 由服务器管理,不在 changes 的类型里

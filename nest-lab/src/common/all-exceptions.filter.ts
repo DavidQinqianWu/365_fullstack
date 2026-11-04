@@ -11,7 +11,7 @@ import { RequestContextService } from './request-context/request-context.service
 export interface ErrorBody {
   statusCode: number;
   error: string;
-  message: string;
+  message: string | string[]; // Day 16:校验错误是一组字段信息(Day 17 换成 problem+json 的字段明细)
   path: string;
   requestId: string | null;
 }
@@ -29,7 +29,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const isHttp = exception instanceof HttpException;
     const statusCode = isHttp ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
     // 不是 HttpException 的错误(代码 bug)不把内部信息暴露给客户端
-    const message = isHttp ? exception.message : 'Internal server error';
+    const message = isHttp ? messageOf(exception) : 'Internal server error';
     const body: ErrorBody = {
       statusCode,
       error: HttpStatus[statusCode] ?? 'Error',
@@ -40,4 +40,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
     ctxLog(`  ⑤-2 Filter 投诉处理台:${exception instanceof Error ? exception.constructor.name : typeof exception} → ${statusCode}`);
     res.status(statusCode).json(body);
   }
+}
+
+// Day 16:ValidationPipe 抛出的异常,真正的字段错误列表在 getResponse().message 里(exception.message 只是一句概括)
+function messageOf(exception: HttpException): string | string[] {
+  const response = exception.getResponse();
+  if (typeof response === 'object' && response !== null && 'message' in response) {
+    const m = (response as { message: unknown }).message;
+    if (typeof m === 'string' || (Array.isArray(m) && m.every((x) => typeof x === 'string'))) return m;
+  }
+  return exception.message;
 }

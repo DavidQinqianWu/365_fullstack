@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 16 - DTO 与输入校验:每个请求都要过一道海关</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 3</div>
+  <h1>Day 16 - DTO 与输入校验:每个请求都要过一道海关</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>DTO 是什么 · <code>class-validator</code> + <code>class-transformer</code> + 全局 <code>ValidationPipe</code> · <code>PickType</code> / <code>PartialType</code> · 400 还是 422 · zod 方案对比</b> ·
+    项目:<code>nest-lab/</code> 删掉 Day 15 手写的检查,换成 DTO;任务新增 <code>checklist</code> 嵌套清单 ·
+    新依赖:<code>class-validator@0.15.1</code>、<code>class-transformer@0.5.1</code>、<code>@nestjs/mapped-types@12.0.1</code>
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🛃 接上回:Day 15 手写的 51 行检查,和 Day 8 的老坑</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:DTO —— 接口的进出口报关单</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:ValidationPipe —— 海关的三道工序</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:400 还是 422,class-validator 还是 zod —— 两个要拍板的决定</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🛃 接上回:Day 15 手写的 51 行检查,和 Day 8 的老坑</h2>
+  <p>Day 15 为了「至少别 500」,手写了 <code>src/tasks/task-input.ts</code>:<code>asObject</code>、<code>checkTitle</code>、<code>checkDone</code>、<code>parseCreate</code> / <code>parseReplace</code> / <code>parsePatch</code>,一共 51 行,只管 <code>title</code> 和 <code>done</code> 两个字段。它能用,但问题很明显:</p>
+  <ul>
+    <li><b>规则散在 if 里</b>:想知道「title 最长多少」得去读函数体,文档工具(Day 20 的 swagger)也读不懂它。</li>
+    <li><b>多余字段悄悄被忽略</b>:客户端传 <code>{"title":"x","id":99,"done":true}</code>,手写检查不会提醒任何人。</li>
+    <li><b>每加一个字段都要再写一遍</b>:今天要给任务加一个嵌套的 <code>checklist: {text, done}[]</code>,手写的话光数组里每一项的检查就要十几行。</li>
+  </ul>
+  <p>还有 Day 8 留下的老坑:<b><code>POST {}</code> 也能 201</b>(当时连 title 都没有就建了一条任务,响应里干脆没有 <code>title</code> 字段)。Day 15 用手写检查暂时堵上了,今天用正规做法彻底补上。</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    货物进出国境要填<b>报关单</b>:每一栏有固定格式(数量必须是数字、日期必须是年月日),单子上<b>没有的栏目,你多写了也会被划掉,甚至直接退回</b>;报关员还会把手写的「叁拾」誊成标准的「30」。连锁店总部进货也是这样。今天给 nest-lab 的每个写接口都配一张报关单(DTO),门口站一位海关(ValidationPipe)。
+  </div>
+  <p>今天<b>只管「进口」</b>:请求进来时的格式校验。错误响应今天还沿用 Day 10 / 13 的 <code>AllExceptionsFilter</code> 格式(只小改了一处,让字段错误列表透出来),<b>Day 17</b> 会把它升级成带字段明细的 problem+json;「出口」(响应里哪些字段不能返回,比如密码哈希)是 <b>Day 18</b> 的响应 DTO。</p>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+npm install          # 新依赖:class-validator、class-transformer、@nestjs/mapped-types
+npm test             # 单元测试:class-validator 版和 zod 版对同一批输入的结论一致
+npm run test:e2e     # e2e:新增 test/validation.e2e-spec.ts
+npm run day16        # 观察脚本:报关现场 + transform + whitelist + 两种写法对照 + 粗测性能</code></pre>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改 / 删除了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改 / 删除</th><th>干什么用(海关版)</th></tr>
+    <tr><td><code>src/tasks/dto/replace-task.dto.ts</code></td><td>新增</td><td>PUT 的完整报关单:<code>title</code>(去首尾空格、非空白、≤100)、<code>done</code>、可选的 <code>checklist</code>(嵌套数组,≤20 项)</td></tr>
+    <tr><td><code>src/tasks/dto/checklist-item.dto.ts</code></td><td>新增</td><td>报关单里的子表格:清单的每一项 <code>{text, done}</code></td></tr>
+    <tr><td><code>src/tasks/dto/create-task.dto.ts</code></td><td>新增</td><td>POST:<code>PickType(ReplaceTaskDto, ['title', 'checklist'])</code>,不能填 <code>done</code></td></tr>
+    <tr><td><code>src/tasks/dto/update-task.dto.ts</code></td><td>新增</td><td>PATCH:<code>PartialType(ReplaceTaskDto)</code>,每一栏都可选</td></tr>
+    <tr><td><code>src/tasks/dto/task.zod.ts</code></td><td>新增</td><td>同一份报关单的 zod 写法(对照用)</td></tr>
+    <tr><td><code>src/common/validation/is-not-blank.validator.ts</code></td><td>新增</td><td>自定义校验器 <code>@IsNotBlank()</code>:全是空白也不行</td></tr>
+    <tr><td><code>src/common/validation/validation.options.ts</code></td><td>新增</td><td>全局 ValidationPipe 的选项(<code>whitelist</code> / <code>forbidNonWhitelisted</code> / <code>transform</code> / <b>422</b>)</td></tr>
+    <tr><td><code>src/common/validation/zod-validation.pipe.ts</code></td><td>新增</td><td>zod 版 ValidationPipe 的最小实现(19 行)</td></tr>
+    <tr><td><code>src/app.module.ts</code></td><td>修改</td><td><code>{ provide: APP_PIPE, useFactory: () =&gt; new ValidationPipe(validationPipeOptions) }</code>(Day 13 的 DI 版写法)</td></tr>
+    <tr><td><code>src/tasks/tasks.controller.ts</code></td><td>修改</td><td><code>@Body() body: unknown</code> 换成 <code>@Body() dto: CreateTaskDto</code> / <code>ReplaceTaskDto</code> / <code>UpdateTaskDto</code>;<code>PATCH {}</code> 的「至少改一个字段」自己补</td></tr>
+    <tr><td><code>src/tasks/tasks.service.ts</code></td><td>修改</td><td>参数改为 DTO;PUT 不给 <code>checklist</code> = 清空</td></tr>
+    <tr><td><code>src/tasks/task.ts</code>、仓储、<code>tasks.module.ts</code></td><td>修改</td><td>内部模型 <code>Task</code> 新增 <code>checklist</code>,加 <code>TaskWritable</code> 类型;样品数据补 <code>checklist: []</code></td></tr>
+    <tr><td><code>src/common/all-exceptions.filter.ts</code></td><td>修改(小)</td><td><code>message</code> 改为从 <code>getResponse().message</code> 取,让字段错误列表透出来(否则只有一句 <code>"Unprocessable Entity Exception"</code>)</td></tr>
+    <tr><td><code>src/tasks/task-input.ts</code>、<code>task-input.spec.ts</code></td><td><b>删除</b></td><td>Day 15 的手写检查,完成历史使命</td></tr>
+    <tr><td><code>src/tasks/dto/task-dto.spec.ts</code>、<code>test/validation.e2e-spec.ts</code></td><td>新增</td><td>两种写法结论一致的单测、报关规则的 e2e</td></tr>
+    <tr><td><code>test/rest.e2e-spec.ts</code>、<code>test/tasks.e2e-spec.ts</code>、<code>src/tasks/tasks.service.spec.ts</code></td><td>修改</td><td>校验失败从 400 改为 422;断言补 <code>checklist: []</code></td></tr>
+    <tr><td><code>scripts/day16-try.mjs</code> + <code>package.json</code> 的 <code>day16</code>、<code>README.md</code></td><td>新增 / 修改</td><td>观察脚本、成长日志</td></tr>
+  </table>
+  <p><b>删掉了多少手写代码?</b>老实说,行数差不多:<code>task-input.ts</code> 去掉注释和空行是 37 行,四个 DTO 文件去掉注释和空行是 35 行。但这 37 行只管 2 个字段;这 35 行管了 3 个字段 + 嵌套数组的每一项 + 长度上限 + 首尾空格 + 多余字段,而且是<b>声明式</b>的:规则就写在字段旁边,Day 20 的 swagger 能直接读出来生成文档。</p>
+  <p>(<code>npm run day08</code>–<code>day15</code> 都照样能跑。变化:Day 15 里那几个「内容不对」的 400 现在是 <b>422</b>;Day 10 观察脚本 <code>GET /tasks/abc</code> 的 Pipe 日志现在显示 <code>'NaN' 不是整数</code> —— 原因见卡 #2 的边界。)</p>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:DTO —— 接口的进出口报关单</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    DTO(Data Transfer Object)是一个<b>只描述「这个接口收什么 / 发什么」</b>的类,每个字段旁边写着规则;它和店里内部用的数据模型(<code>Task</code>)是两样东西。
+  </div>
+
+  <h3>② 生活类比:报关单 vs 仓库台账</h3>
+  <p>仓库内部有一本台账(<code>Task</code>):货号(<code>id</code>)、入库时间(<code>createdAt</code>)都是仓库自己填的。报关单(<code>CreateTaskDto</code>)只让外面的人填<b>他们该填的栏目</b>:品名、清单。如果有人在报关单上自己写了个货号,海关不会照抄进台账,而是把单子退回去。而且不同业务用不同的单子:新货入境(POST)、整批换货(PUT)、补一张更正单(PATCH),栏目要求都不一样,但很多栏的格式规则是共用的。</p>
+  <pre><code>// src/tasks/dto/replace-task.dto.ts —— PUT 的完整报关单
+export class ReplaceTaskDto {
+  @Transform(({ value }) =&gt; (typeof value === 'string' ? value.trim() : value))
+  @IsString() @IsNotBlank() @MaxLength(100)
+  title!: string;
+
+  @IsBoolean()
+  done!: boolean;
+
+  @IsOptional() @IsArray() @ArrayMaxSize(20)
+  @ValidateNested({ each: true }) @Type(() =&gt; ChecklistItemDto)
+  checklist?: ChecklistItemDto[];
+}
+
+// POST:从完整报关单里「挑」两栏(连同规则一起挑过来)
+export class CreateTaskDto extends PickType(ReplaceTaskDto, ['title', 'checklist'] as const) {}
+// PATCH:同一套规则,每栏都变成可选(呼应 Day 15:PUT 整体替换,PATCH 部分更新)
+export class UpdateTaskDto extends PartialType(ReplaceTaskDto) {}</code></pre>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>nest-lab 里</th></tr>
+    <tr><td>仓库台账</td><td>内部模型 / Entity(Week 4 起是数据库表)</td><td><code>Task</code>(有 <code>id</code>、<code>createdAt</code>)</td></tr>
+    <tr><td>报关单</td><td><b>DTO</b>:接口的输入格式</td><td><code>CreateTaskDto</code> / <code>ReplaceTaskDto</code> / <code>UpdateTaskDto</code></td></tr>
+    <tr><td>每一栏的格式要求</td><td>class-validator 装饰器</td><td><code>@IsString</code> <code>@IsBoolean</code> <code>@MaxLength</code> <code>@IsOptional</code> <code>@IsNotBlank</code>(自定义)</td></tr>
+    <tr><td>报关单里的子表格</td><td>嵌套 DTO + <code>@ValidateNested</code> + <code>@Type</code></td><td><code>ChecklistItemDto</code></td></tr>
+    <tr><td>从一张单子挑几栏 / 全部改成选填</td><td><code>PickType</code> / <code>OmitType</code> / <code>PartialType</code>(<code>@nestjs/mapped-types</code>)</td><td>Create / Update 从 Replace 派生</td></tr>
+    <tr><td>自己写货号的单子被退回</td><td>防<b>批量赋值</b>(mass assignment)</td><td><code>{id, done}</code> → 422 <code>property id should not exist</code></td></tr>
+  </table>
+  <p><b>为什么 DTO 和 <code>Task</code> 要分开?</b>① <b>字段不同</b>:<code>id</code>、<code>createdAt</code> 由服务器管理,客户端不能写;② <b>演化速度不同</b>:数据库加一列内部字段,不应该自动出现在接口里;接口要兼容老客户端,也不能跟着表结构随便改;③ <b>安全</b>:如果直接把请求体「合并」进内部对象,客户端多传一个 <code>isAdmin: true</code> 就可能把自己升成管理员 —— 这就是批量赋值漏洞(2012 年 GitHub 就因为 Rails 的这个问题被人往 Rails 官方仓库推了代码)。</p>
+  <p>(Day 20 接 swagger 时,<code>PickType</code> / <code>PartialType</code> 要改成从 <code>@nestjs/swagger</code> 导入同名工具,这样文档也能跟着继承;用法完全一样。)</p>
+
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你在前端用 <code>react-hook-form</code> + <code>zodResolver</code> 校验过表单,常有人问:「前端已经校验了,后端为什么还要校验?」因为<b>前端校验是体验,后端校验是安全</b>:任何人都可以绕过你的页面,直接 <code>curl</code> 你的接口(今天的观察脚本就是这么干的)。前端校验让用户少等一次网络往返,后端校验保证进入系统的数据一定合格。两边规则最好同源 —— 如果后端用 zod,前后端甚至可以共享同一个 schema(卡 #3)。
+  </div>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「过了海关,这批货就一定能卖」——报关单只管格式,不管业务。</b>「标题非空、≤100 字」是格式;「已完成的任务不能改标题」(Day 15 的 409)是业务规则,要看资源<b>当前的状态</b>,DTO 根本不知道。观察脚本 J:<code>PATCH /tasks/1 {title}</code> 格式完全合法,照样被 Service 以 409 拒绝。同理,「标题不能重复」这种规则也属于 Service(甚至数据库唯一约束,Week 4)。</li>
+      <li><b>「报关单上没印的栏目,海关一律退回」——只有<u>贴了装饰器</u>的字段才算「印在单子上」。</b><code>whitelist</code> 认的是「有没有校验装饰器」,不是「类里有没有声明这个属性」。你在 DTO 里写了 <code>note?: string</code> 却忘了贴 <code>@IsOptional() @IsString()</code>,开了 <code>whitelist</code> 时它会被<b>悄悄丢掉</b>,前端发了也白发,还没有任何报错(第 3 幕亲眼看)。</li>
+      <li><b>「有了报关单,台账就安全了」——还要看 Service 往台账里写什么。</b>DTO 挡住了客户端传的 <code>done</code>,但真正决定「新任务一律 <code>done: false</code>」的是 Service 里那一行 <code>done: false</code>。如果 Service 写成 <code>this.repo.insert({ ...dto, ...其他 })</code> 这种「整包合并」,哪天 DTO 加了个字段,它就会直接流进台账。<b>Service 只写自己明确列出的字段</b>,是 DTO 之外的第二道保险。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>DTO</b>(Data Transfer Object):跨边界传数据的对象,只有数据和规则,没有业务行为;<b>Entity</b> / domain model(领域模型):系统内部的数据与规则;<b>mass assignment / over-posting</b>(批量赋值,OWASP API Security Top 10 里的 <i>Broken Object Property Level Authorization</i>);<b>mapped types</b>:<code>PickType</code> / <code>OmitType</code> / <code>PartialType</code> / <code>IntersectionType</code>(TypeScript 的 <code>Pick</code> / <code>Omit</code> / <code>Partial</code>,但连运行时的校验装饰器一起继承)。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:A <code>POST {}</code>(Day 8 的老坑)、D <code>POST {title, id:99, done:true}</code>、F 合法带 checklist、J <code>PATCH /tasks/1 {title}</code>,各返回什么状态码?</p>
+  <pre><code>cd nest-lab
+npm run day16</code></pre>
+  <p>真实运行结果(第 1 幕节选,时间每次不同):</p>
+  <pre><code>A. POST {}(Day 8 的老坑)
+    → 422 ["title must be shorter than or equal to 100 characters","title 不能为空或全是空白","title must be a string"]
+B. POST {title:"   "}(自定义校验器)
+    → 422 ["title 不能为空或全是空白"]
+D. POST {title, id:99, done:true}(批量赋值)
+    → 422 ["property id should not exist","property done should not exist"]
+F. POST 合法,带 checklist
+    → 201 {"id":3,"title":"带清单","done":false,"checklist":[{"text":"买菜","done":false}],"createdAt":"2026-11-04T10:58:23.671Z"}
+G. PATCH /tasks/3 {}
+    → 422 ["至少要给 title、done、checklist 中的一个"]
+H. PATCH /tasks/3 {done:true}
+    → 200 {"id":3,"title":"带清单","done":true,"checklist":[{"text":"买菜","done":false}],"createdAt":"2026-11-04T10:58:23.671Z"}
+I. PUT /tasks/3 {title, done}(没给 checklist)
+    → 200 {"id":3,"title":"带清单","done":false,"checklist":[],"createdAt":"2026-11-04T10:58:23.671Z"}
+J. PATCH /tasks/1 {title}(格式没问题,但违反业务规则)
+    → 409 "任务 1 已完成,不能改标题;请先把 done 改为 false"</code></pre>
+  <p>Day 8 的坑补上了(A)。H 和 I 是 Day 15「PUT vs PATCH」的又一次演示:PATCH 只改 <code>done</code>,清单原样保留;PUT 是整体替换,没给 <code>checklist</code> 就被清空成 <code>[]</code> —— 这就是「PUT 缺字段的后果」。G 说明 <code>PartialType</code> 让 <code>{}</code> 也能通过 DTO 校验,「至少改一个字段」这条规则只能自己补。</p>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:ValidationPipe —— 海关的三道工序</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    全局 <code>ValidationPipe</code> 对每个带类型的参数做三件事:<b>先把普通 JSON 变成 DTO 类的实例(transform),再按装饰器逐栏检查(validate),最后按白名单处理多余字段(whitelist)</b>;任何一步不过就抛异常,Controller 根本不会执行。
+  </div>
+
+  <h3>② 生活类比:海关的三道工序</h3>
+  <ol>
+    <li><b>誊写</b>(class-transformer):报关员把手写单据誊到标准表格上,「叁拾」写成「30」,首尾多余的空格划掉;子表格也一张张誊好(<code>@Type(() =&gt; ChecklistItemDto)</code>)。</li>
+    <li><b>逐栏核对</b>(class-validator):对着每一栏的格式要求检查,子表格也要进去查(<code>@ValidateNested</code>)。一张单子上的问题<b>一次全列出来</b>,不会改一个退一次。</li>
+    <li><b>划掉没印的栏目</b>(<code>whitelist</code>):表格上没印的栏目,要么默默划掉,要么(<code>forbidNonWhitelisted</code>)整张退回。</li>
+  </ol>
+  <pre><code>// src/common/validation/validation.options.ts
+export const validationPipeOptions: ValidationPipeOptions = {
+  whitelist: true,              // 只保留有装饰器的字段
+  forbidNonWhitelisted: true,   // 多余字段不是丢掉,而是报错
+  transform: true,              // 普通对象 → DTO 实例;路径 / 查询参数按声明类型转换
+  errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,   // 422(卡 #3)
+};
+// src/app.module.ts —— Day 13 的 DI 版注册
+{ provide: APP_PIPE, useFactory: () =&gt; new ValidationPipe(validationPipeOptions) }
+
+// src/common/validation/is-not-blank.validator.ts —— 自定义校验器:名字 + validate 函数 + 默认错误信息
+registerDecorator({
+  name: 'isNotBlank', target: target.constructor, propertyName,
+  validator: {
+    validate: (value) =&gt; typeof value === 'string' &amp;&amp; value.trim().length &gt; 0,
+    defaultMessage: (args) =&gt; `${args?.property} 不能为空或全是空白`,
+  },
+});</code></pre>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th></tr>
+    <tr><td>海关站在门口</td><td>全局 <code>ValidationPipe</code>,Day 10 管线里的 ②-3 Pipe 站</td></tr>
+    <tr><td>誊写</td><td><code>class-transformer</code> 的 <code>plainToInstance</code>;<code>@Type()</code>(嵌套对象 / 数组的目标类)、<code>@Transform()</code>(自定义转换,比如 trim)</td></tr>
+    <tr><td>逐栏核对</td><td><code>class-validator</code> 的 <code>validate()</code>,读的是装饰器在类上贴的元数据(Day 11 的套路)</td></tr>
+    <tr><td>海关怎么知道用哪张表格</td><td>参数的类型:<code>@Body() dto: CreateTaskDto</code> → <code>design:paramtypes</code>(Day 8 / 9)</td></tr>
+    <tr><td>海关自己定的特殊规定</td><td>自定义校验器:<code>registerDecorator</code>(或 <code>@ValidatorConstraint</code> 类)</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「单子递上来,海关就会查」——只有它认得是哪种表格时才查。</b>ValidationPipe 靠 <code>design:paramtypes</code> 知道参数是哪个类。如果 Controller 里写成 <code>import type { CreateTaskDto }</code>,编译后类型被擦掉,参数类型变成 <code>Object</code>,<b>校验被整个跳过</b>,而且没有任何报错(习题 2 亲手试)。同理,<code>transform: false</code> 时校验照做,但你拿到的是普通对象,不是 DTO 实例(第 2 幕)。</li>
+      <li><b>「誊写也算检查」——transform 只转换,不报错。</b>开了 <code>transform</code> 后,路径参数 <code>'42'</code> 会变成数字 <code>42</code>,但 <code>'abc'</code> 会变成 <code>NaN</code>,<b>不会报错</b>(第 2 幕)。所以 <code>:id</code> 上的 <code>ParseIntPipe</code> 还得留着(观察脚本 K 的 400 就是它拦下的)。这也是为什么 Day 10 的观察脚本现在显示 <code>'NaN' 不是整数</code>:全局 pipe 先跑,把 <code>'abc'</code> 誊成了 <code>NaN</code>,参数级的 pipe 后跑。</li>
+      <li><b>「子表格自然会被一起查」——要两个装饰器配合。</b><code>@ValidateNested()</code> 告诉 class-validator「进去查」,<code>@Type(() =&gt; ChecklistItemDto)</code> 告诉 class-transformer「每一项要变成这个类」。少了 <code>@Type</code>,数组里每一项还是普通对象,上面没有任何规则,于是<b>里面那层什么都不查</b>。另外,class-validator 默认把一个字段的所有错误都列出来:A 的 <code>POST {}</code> 一次报了三条 title 错误,有点吵;Day 17 的 problem+json 会把它们按字段归组。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <code>ValidationPipe</code> 选项:<b><code>whitelist</code></b>、<b><code>forbidNonWhitelisted</code></b>、<b><code>transform</code></b>(以及 <code>transformOptions.enableImplicitConversion</code>,按 TS 类型隐式转换,今天没开)、<code>errorHttpStatusCode</code>、<code>stopAtFirstError</code>、<code>exceptionFactory</code>(自定义错误格式,Day 17 会用);<code>class-transformer</code>:<code>plainToInstance</code>、<code>@Type</code>、<code>@Transform</code>、<code>@Exclude</code> / <code>@Expose</code>(Day 18 出口用);<code>class-validator</code>:<code>registerDecorator</code>、<code>@ValidateNested</code>、<code>@ValidateIf</code>。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:E 清单第 2 项 <code>{text:" ", done:"no"}</code> 的错误路径长什么样?<code>'abc'</code> 经过全局 pipe 会变成什么?<code>{title, note, hacker}</code> 交给一个「<code>title</code> 贴了 <code>@IsString</code>、<code>note</code> 忘了贴装饰器」的 DTO,三种配置下各拿到什么?</p>
+  <p>真实运行结果(第 1 幕 E、K 和第 2、3 幕):</p>
+  <pre><code>E. POST checklist 第 2 项不合法(嵌套数组)
+    → 422 ["checklist.1.text 不能为空或全是空白","checklist.1.done must be a boolean value"]
+K. GET /tasks/abc(路径参数)
+    → 400 "Validation failed (numeric string is expected)"
+
+========== 第 2 幕:transform —— 报关员把手写数字誊成标准格式 ==========
+路径参数 '42'  → 42(typeof number)
+路径参数 'abc' → NaN  ← 没报错!所以 :id 上还要 ParseIntPipe(K 的 400 就是它拦的)
+transform: true  → body 是 CreateTaskDto 实例吗?true
+transform: false → body 是 CreateTaskDto 实例吗?false(校验照做,但拿到的还是普通对象)
+
+========== 第 3 幕:多出来的字段怎么处理 ==========
+输入:{"title":"标题","note":"我是备注","hacker":true}
+whitelist: true                       → 通过,拿到 {"title":"标题"}
+whitelist + forbidNonWhitelisted      → 422 ["property note should not exist","property hacker should not exist"]
+都不开                                 → 通过,拿到 {"title":"标题","note":"我是备注","hacker":true}</code></pre>
+  <p>第 3 幕的 <code>note</code> 是本卡边界 2 的现场:它其实「声明」在 DTO 里,只是没贴装饰器,于是被当成多余字段。<b><code>whitelist</code> vs <code>forbidNonWhitelisted</code> 选哪个?</b>nest-lab 选<b>报错</b>:① 客户端拼错字段名(<code>titel</code>)会立刻发现,而不是「发了没生效」查半天;② 有人试探性地传 <code>id</code>、<code>isAdmin</code> 时能在日志里看到 422。代价:客户端如果习惯「把 GET 拿到的整条记录改一改再 PUT 回来」,会因为带着 <code>id</code>、<code>createdAt</code> 被拒绝,必须只发可写字段(习题 3 讨论)。如果你的 API 要对大量老客户端保持宽容,选「静默丢弃」也是合理的。</p>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:400 还是 422,class-validator 还是 zod —— 两个要拍板的决定</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    校验失败回什么状态码、规则用哪种库写,都没有唯一正确答案;要的是<b>选一个、说清理由、在整个 API 里保持一致</b>,并用测试把它钉住。
+  </div>
+
+  <h3>② 生活类比:两种海关风格</h3>
+  <p>A 海关:<b>每张表格的每一栏旁边贴一张规则小标签</b>(class-validator:装饰器贴在类的属性上),表格本身就是一个「类」,能被其他部门(swagger、Nest 的各种工具)直接认出来。B 海关:<b>先写一本规则手册,表格是从手册自动印出来的</b>(zod:先写 schema,类型用 <code>z.infer</code> 推导),手册可以复印给前端用。</p>
+  <pre><code>// class-validator(主线):规则贴在字段旁边,类本身就是类型
+export class CreateTaskDto extends PickType(ReplaceTaskDto, ['title', 'checklist'] as const) {}
+@Post() create(@Body() dto: CreateTaskDto) { ... }
+
+// zod(对照):规则是数据,类型从规则推导
+const notBlank = z.string().trim().min(1, '不能为空或全是空白').max(100);
+export const createTaskSchema = replaceTaskSchema.pick({ title: true, checklist: true }).strict();
+export type CreateTaskInput = z.infer&lt;typeof createTaskSchema&gt;;
+@Post() create(@Body(new ZodValidationPipe(createTaskSchema)) dto: CreateTaskInput) { ... }</code></pre>
+
+  <h3>比喻 ↔ 真实 对照:两个决定</h3>
+  <table>
+    <tr><th>维度</th><th>class-validator + class-transformer</th><th>zod</th></tr>
+    <tr><td>类型从哪来</td><td>类本身就是类型;规则和类型写在一起,但<b>可能对不上</b>(写了 <code>title!: string</code> 却贴 <code>@IsNumber()</code>,编译器不管)</td><td><code>z.infer</code> 从 schema 推导,<b>不可能对不上</b>(Day 12 的「一份定义两用」)</td></tr>
+    <tr><td>写法噪音</td><td>装饰器多,一个字段四五行</td><td>链式调用,紧凑</td></tr>
+    <tr><td>和 Nest 生态集成</td><td><b>原生</b>:<code>ValidationPipe</code>、<code>@nestjs/swagger</code> 直接读 DTO 类生成 OpenAPI(Day 20)、<code>ClassSerializerInterceptor</code>(Day 18)</td><td>要自己写 pipe(今天 19 行),swagger 要额外的桥接库</td></tr>
+    <tr><td>性能(第 5 幕实测)</td><td>每次约 24 µs</td><td>每次约 1.3 µs</td></tr>
+    <tr><td>生态</td><td>Nest 官方文档主推,和 .NET DataAnnotations、Java Bean Validation 写法几乎一样(迁移友好)</td><td>前端、tRPC、Next.js 生态的主流,前后端能共享 schema</td></tr>
+  </table>
+  <p><b>决定 1:校验失败回 422。</b>Day 15 时我们说「先跟 Nest 生态用 400」,今天正式拍板改成 <code>errorHttpStatusCode: 422</code>。理由:nest-lab 里 400 和 422 分工明确 ——<b>400 = 请求本身坏了</b>(JSON 语法错由 body parser 回 400;路径参数不是整数由 <code>ParseIntPipe</code> 回 400),<b>422 = JSON 没问题,但内容不符合规则</b>。客户端看到 422 就知道「把表单错误标红给用户看」,看到 400 就知道「是我的代码拼请求拼错了」。GitHub 的 REST API 也用 422 表示校验失败。代价:Nest / Spring / ASP.NET Core 的默认都是 400,接入方可能要多看一眼文档 —— 所以 Day 20 的 OpenAPI 文档里要写清楚。</p>
+  <p><b>决定 2:主线用 class-validator,zod 版保留为对照。</b>理由:Week 3 后面三天(Day 18 序列化、Day 20 swagger)都建立在「DTO 是一个类」之上,Nest 生态集成最顺;写法也和 .NET / Java 一一对应。zod 的类型推导和性能确实更好,如果哪天 nest-lab 要和前端共享 schema(比如做 tRPC),换过去只需要把 pipe 和 DTO 一起换掉。<code>src/tasks/dto/task-dto.spec.ts</code> 用同一批输入测两种写法,保证它们「过 / 不过」的结论一致。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「B 海关快 18 倍,当然选 B」——要看这点时间在整单里占多少。</b>24 µs 和 1.3 µs 差了一个数量级,但一个 HTTP 请求从进门到出门通常是毫秒级(Day 13 的日志里一个最简单的请求也要 1–2 ms),校验占不到 2%。只有批量导入、高频内部消息这种「每秒几十万次校验」的热路径,才值得为此换库。第 5 幕的数字只看数量级,不要当成精确基准。</li>
+      <li><b>「两种写法规则一样,结果就一样」——默认行为不一样。</b>第 4 幕里,zod 的 <code>.trim()</code> 是规则的一部分;class-validator 要自己加 <code>@Transform</code>(今天补上之前,class-validator 版保留了首尾空格)。zod 对未知字段默认是<b>丢掉</b>,要 <code>.strict()</code> 才报错;错误信息的措辞、条数也不同(缺 title 时 class-validator 报 3 条,zod 报 1 条)。「等价」不能靠眼睛看,要靠测试钉住。</li>
+      <li><b>「422 能盖住所有输入问题」——不能。</b>JSON 语法错的请求根本走不到 ValidationPipe:body parser 先拒绝,回 400。而且这类请求的错误体里 <code>requestId</code> 是 <code>null</code>(我在 curl 实测时发现的:body parser 跑在 Day 13 的发牌 middleware 之前,那时还没有桌号牌)。这个问题 Day 17 统一错误格式时一起处理。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>400 Bad Request</b> vs <b>422 Unprocessable Content</b>(RFC 9110 §15.5.21,旧名 Unprocessable Entity,Nest 里叫 <code>UnprocessableEntityException</code>);<b>schema-first</b>(zod:先写 schema,类型由它推导)vs <b>class-first / decorator-based</b>(class-validator:类是核心,规则贴在属性上);<b>Standard Schema</b>(zod、valibot、arktype 共同实现的接口,Day 12 的 <code>@nestjs/config</code> 就是靠它直接吃 zod schema)。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:同一批 5 个输入,两种写法的结论会不会有不一致的?哪一种错误信息更多?20000 次校验,两者大概差几倍?</p>
+  <p>真实运行结果(第 4、5 幕;性能数字每次运行、每台机器都不同):</p>
+  <pre><code>========== 第 4 幕:同一份报关单,两种写法 ==========
+【合法】输入 {"title":"  学 zod  ","checklist":[{"text":"a","done":false}]}
+  class-validator → 通过 {"title":"学 zod","checklist":[{"text":"a","done":false}]}
+  zod             → 通过 {"title":"学 zod","checklist":[{"text":"a","done":false}]}
+【缺 title】输入 {}
+  class-validator → 422 ["title must be shorter than or equal to 100 characters","title 不能为空或全是空白","title must be a string"]
+  zod             → 422 ["title: Invalid input: expected string, received undefined"]
+【title 全是空白】输入 {"title":"   "}
+  class-validator → 422 ["title 不能为空或全是空白"]
+  zod             → 422 ["title: 不能为空或全是空白"]
+【多余字段 id】输入 {"title":"x","id":1}
+  class-validator → 422 ["property id should not exist"]
+  zod             → 422 ["(body): Unrecognized key: \"id\""]
+【清单第 1 项 done 不是布尔】输入 {"title":"x","checklist":[{"text":"a","done":"no"}]}
+  class-validator → 422 ["checklist.0.done must be a boolean value"]
+  zod             → 422 ["checklist.0.done: Invalid input: expected boolean, received string"]
+
+========== 第 5 幕:各校验 20000 次合法输入 ==========
+class-validator:488 ms(每次约 24.4 µs)
+zod            :25 ms(每次约 1.3 µs)</code></pre>
+  <p>测试的真实结果:<code>npm test</code> 33 个通过(含 <code>task-dto.spec.ts</code> 的 9 个对照用例),<code>npm run test:e2e</code> 41 个通过(含新增的 <code>validation.e2e-spec.ts</code> 7 个用例)。</p>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p>「输入 DTO + 声明式校验 + 框架自动拒绝」在三大企业级框架里几乎长得一样,class-validator 本来就是照着它们设计的:</p>
+  <table>
+    <tr><th>命题</th><th>NestJS(教具)</th><th>C# / ASP.NET Core</th><th>Java / Spring Boot</th><th>Go</th></tr>
+    <tr>
+      <td>写规则</td>
+      <td><code>@IsString()</code> <code>@IsNotEmpty()</code> <code>@MaxLength(100)</code> <code>@IsOptional()</code></td>
+      <td>DataAnnotations:<code>[Required]</code> <code>[StringLength(100)]</code> <code>[Range]</code>;复杂规则用 <b>FluentValidation</b>(<code>RuleFor(x =&gt; x.Title).NotEmpty().MaximumLength(100)</code>)</td>
+      <td>Bean Validation:<code>@NotBlank</code> <code>@Size(max = 100)</code> <code>@NotNull</code></td>
+      <td><code>go-playground/validator</code> 结构体 tag:<code>validate:"required,max=100"</code></td>
+    </tr>
+    <tr>
+      <td>触发校验</td>
+      <td>全局 <code>ValidationPipe</code>(<code>APP_PIPE</code>)</td>
+      <td><code>[ApiController]</code> 下<b>自动</b>校验,失败自动 400 + <code>ValidationProblemDetails</code></td>
+      <td>参数上写 <code>@Valid @RequestBody</code></td>
+      <td>手动 <code>validate.Struct(req)</code>;Gin 的 <code>ShouldBindJSON</code> 会顺便调用</td>
+    </tr>
+    <tr>
+      <td>失败时</td>
+      <td>422(nest-lab 的选择)/ 默认 400</td>
+      <td>默认 400(可在 <code>InvalidModelStateResponseFactory</code> 里改)</td>
+      <td>抛 <code>MethodArgumentNotValidException</code>,默认 400,在 <code>@ControllerAdvice</code> 里统一处理</td>
+      <td>自己决定</td>
+    </tr>
+    <tr>
+      <td>嵌套对象</td>
+      <td><code>@ValidateNested()</code> + <code>@Type()</code></td>
+      <td>自动递归校验</td>
+      <td>字段上加 <code>@Valid</code></td>
+      <td><code>dive</code> tag</td>
+    </tr>
+    <tr>
+      <td>自定义规则</td>
+      <td><code>registerDecorator</code> / <code>@ValidatorConstraint</code></td>
+      <td>继承 <code>ValidationAttribute</code>,或 FluentValidation 的 <code>Must(...)</code></td>
+      <td><code>@Constraint</code> + <code>ConstraintValidator</code></td>
+      <td><code>validate.RegisterValidation("notblank", fn)</code></td>
+    </tr>
+    <tr>
+      <td>防批量赋值</td>
+      <td><code>whitelist</code> / <code>forbidNonWhitelisted</code></td>
+      <td>用专门的输入 DTO(不直接绑定 Entity);<code>[Bind]</code> 白名单</td>
+      <td>用专门的请求 DTO;Jackson 的 <code>FAIL_ON_UNKNOWN_PROPERTIES</code></td>
+      <td><code>json.Decoder.DisallowUnknownFields()</code></td>
+    </tr>
+  </table>
+  <p>📌 roadmap 顶部对照表的「输入校验」行已有;建议你在 Day 21 复盘时补上今天亲手验证过的一句,例如「class-validator ≈ DataAnnotations ≈ Bean Validation,都是在字段上贴规则、框架统一拒绝;zod 是 schema-first,类型由规则推导」。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"How do you validate request input in NestJS? Why use DTOs instead of passing the entity directly?"</b>(或者 .NET 面试:「DataAnnotations 和 FluentValidation 怎么选?为什么不直接绑定 Entity?」)你可以答:<br>
+    <b>"我会为每个接口定义输入 DTO,用 class-validator 的装饰器声明字段规则,比如必填、长度、类型、嵌套数组里每一项的规则;全局注册 ValidationPipe,打开 whitelist 和 forbidNonWhitelisted,这样未声明的字段会被拒绝,能防止批量赋值,比如客户端偷偷传 id 或者 isAdmin;再打开 transform,让 Controller 拿到的是 DTO 实例,路径参数也会按类型转换。PUT 用完整 DTO,PATCH 用 PartialType 派生出来的全可选版本。DTO 和实体分开,是因为两者字段不同、演化速度不同,也避免把服务器管理的字段暴露给客户端写。DTO 只管格式,像『已完成的任务不能改标题』这类依赖当前状态的规则仍然放在 Service 里,返回 409。校验失败我们统一返回 422,和 JSON 语法错误的 400 区分开。这和 ASP.NET Core 的 DataAnnotations 加 ApiController 自动校验、Spring 的 Bean Validation 加 @Valid 是同一套思路。"</b><br>
+    自己练一遍:合上文档 45 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+  <p>预测都写进 <code>src/16-dto-validation/notes.md</code> 的预测区,先写,再运行,再批改。</p>
+
+  <div class="task">
+    <h3>习题 1:报关现场(动手,约 8 min)</h3>
+    <p>✍️ <b>预测(先写再运行)</b>:观察脚本第 1 幕 A–K 十一个请求的状态码,以及 E 的错误路径、I 之后清单还剩几项。然后:</p>
+    <pre><code>cd nest-lab
+npm run day16</code></pre>
+    <p>逐条批改。再用 curl 试一个脚本里没有的:<code>{"title":"x","checklist":"买菜"}</code>(清单不是数组),先预测会报几条错误。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:新增一栏 + 让海关「看不见」表格(动手,约 10 min)</h3>
+    <p>(a)给 <code>ReplaceTaskDto</code> 加一个可选字段 <code>priority</code>,只能是 <code>'low' | 'medium' | 'high'</code>(提示:<code>@IsOptional()</code> + <code>@IsIn([...])</code>)。✍️ <b>预测</b>:不改 <code>CreateTaskDto</code> 和 <code>UpdateTaskDto</code>,<code>POST /tasks {title, priority:"high"}</code> 和 <code>PATCH /tasks/2 {priority:"high"}</code> 分别会怎样?(提示:<code>PickType</code> 挑了哪几栏?)运行验证。注意 <code>Task</code> 内部模型和 Service 也要跟着改,priority 才会真的存下来,想清楚改哪几处,然后全部改回去(今天不保留这个字段)。</p>
+    <p>(b)把 <code>tasks.controller.ts</code> 里 <code>CreateTaskDto</code> 的导入改成 <code>import type { CreateTaskDto } ...</code>。✍️ <b>预测</b>:<code>npm run build</code> 会报错吗?<code>POST {}</code> 会得到什么?跑 <code>npm run test:e2e</code> 看哪些测试变红。改回来。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:forbidNonWhitelisted 的代价(思考,约 7 min)</h3>
+    <p>前端同事的习惯是:<code>GET /tasks/2</code> 拿到整条任务,改个标题,把<b>整个对象</b>原样 <code>PUT</code> 回来(里面带着 <code>id</code> 和 <code>createdAt</code>)。</p>
+    <ol>
+      <li>✍️ 先预测:今天的 nest-lab 会返回什么?用 curl 验证。</li>
+      <li>给出两种解决方式(一种改后端、一种改前端),各写一条优点、一条缺点。</li>
+      <li>如果改后端,你会选「全局关掉 <code>forbidNonWhitelisted</code>」还是「只对这个 DTO 放行 <code>id</code> / <code>createdAt</code>,但校验它们和 URL 里的 id 一致」?为什么?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/16-dto-validation/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「我们前端已经用 react-hook-form + zod 校验过了,后端为什么还要再校验一遍?DTO 又是什么?」用海关比喻讲清楚,并说出这个比喻在哪里会骗人。</li>
+      <li>全局 ValidationPipe 的三道工序分别是什么?<code>whitelist</code> 和 <code>forbidNonWhitelisted</code> 有什么区别?为什么开了 <code>transform</code> 以后 <code>:id</code> 上还要 <code>ParseIntPipe</code>?</li>
+      <li>nest-lab 为什么选 422 而不是 400?为什么主线选 class-validator 而不是 zod?「已完成的任务不能改标题」为什么不能写进 DTO?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里补上你自己做的改动;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>DTO 是接口的报关单,和内部模型分开</b>:字段不同(<code>id</code>、<code>createdAt</code> 由服务器管)、演化速度不同、防批量赋值。PUT 用完整 DTO,POST 用 <code>PickType</code>,PATCH 用 <code>PartialType</code>。</li>
+    <li><b>全局 ValidationPipe 三道工序:誊写(transform)→ 核对(validate)→ 划掉没印的栏目(whitelist)</b>;嵌套要 <code>@ValidateNested</code> + <code>@Type</code>;<code>import type</code> 会让校验整个失效;transform 不报错,<code>'abc'</code> 会变成 <code>NaN</code>。</li>
+    <li><b>DTO 只管格式,业务规则留在 Service</b>:状态冲突仍是 409;Service 只写自己明确列出的字段。</li>
+    <li><b>两个决定</b>:校验失败回 422(JSON 语法错和路径参数错是 400);主线 class-validator(Nest 生态、swagger、迁移友好),zod 版保留对照(类型推导、性能更好),用测试保证两者结论一致。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>不看代码,写出 <code>ReplaceTaskDto</code> 里 <code>checklist</code> 字段上的全部装饰器,并说出少了 <code>@Type</code> 会怎样</li>
+    <li>客户端 <code>POST {"title":"x","done":true}</code>,今天的 nest-lab 返回什么?如果只开 <code>whitelist</code> 不开 <code>forbidNonWhitelisted</code> 呢?新任务的 <code>done</code> 最终是多少?</li>
+    <li>为什么 <code>PATCH {}</code> 能通过 <code>UpdateTaskDto</code> 的校验?nest-lab 在哪里补了这条规则?</li>
+    <li>JSON 语法错的请求为什么回 400 而不是 422?它的错误体里 <code>requestId</code> 为什么是 <code>null</code>?</li>
+    <li>把 <code>ReplaceTaskDto</code> 翻译成 ASP.NET Core DataAnnotations 和 Spring Bean Validation 的写法</li>
+  </ul>
+  <p>🔮 明天 <b>Day 17</b>:统一错误格式 <b>problem+json</b>(RFC 9457)。今天这些 <code>["title must be a string", ...]</code> 字符串数组会变成按字段归组的明细;Day 15 的 405 / 406 / 409 / 415 也会换成标准格式;JSON 语法错时 <code>requestId</code> 为 <code>null</code> 的问题一起修掉。</p>
+</section>
+
+<footer>
+  Day 16 · Phase 1 / Week 3 · 产出:<code>docs/16-dto-validation/</code> 本文档 + <code>nest-lab/</code>(<code>src/tasks/dto/</code>、<code>src/common/validation/</code>、<code>APP_PIPE</code> 全局 ValidationPipe、校验失败 422、<code>checklist</code> 嵌套校验、zod 对照、<code>npm run day16</code>)+ <code>src/16-dto-validation/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

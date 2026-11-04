@@ -37,8 +37,8 @@ describe('TasksService(用真实的 TasksModule,只换掉时钟)', () => {
   });
 
   it('create 分配自增 id,createdAt = 时钟的时间', () => {
-    const task = service.create('写单元测试');
-    expect(task).toEqual({ id: 3, title: '写单元测试', done: false, createdAt: '2026-01-01T00:00:00.000Z' });
+    const task = service.create({ title: '写单元测试' });
+    expect(task).toEqual({ id: 3, title: '写单元测试', done: false, checklist: [], createdAt: '2026-01-01T00:00:00.000Z' });
     expect(service.findOne(3)).toBe(task);
   });
 });
@@ -46,7 +46,7 @@ describe('TasksService(用真实的 TasksModule,只换掉时钟)', () => {
 describe('TasksService(把仓储换成假的,只测业务逻辑)', () => {
   it('create 把 title + 时钟时间交给仓储,不关心仓储怎么存', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
-    const saved: Task = { id: 42, title: '假的', done: false, createdAt: '2026-01-01T00:00:00.000Z' };
+    const saved: Task = { id: 42, title: '假的', done: false, checklist: [], createdAt: '2026-01-01T00:00:00.000Z' };
     const fakeRepo: TasksRepository = {
       findAll: vi.fn(() => []),
       findById: vi.fn(() => undefined),
@@ -61,11 +61,12 @@ describe('TasksService(把仓储换成假的,只测业务逻辑)', () => {
       .useValue(fixedClock)
       .compile();
 
-    const result = moduleRef.get(TasksService).create('学 DI');
+    const result = moduleRef.get(TasksService).create({ title: '学 DI' });
 
     expect(fakeRepo.insert).toHaveBeenCalledWith({
       title: '学 DI',
       done: false,
+      checklist: [],
       createdAt: '2026-01-01T00:00:00.000Z',
     });
     expect(result).toBe(saved);

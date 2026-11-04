@@ -47,7 +47,7 @@ describe('Tasks (e2e)', () => {
       .get('/tasks/1')
       .expect(200)
       .expect({
-        data: { id: 1, title: '跑通 nest new', done: true, createdAt: FIXED },
+        data: { id: 1, title: '跑通 nest new', done: true, checklist: [], createdAt: FIXED },
         timestamp: FIXED,
       });
   });
@@ -100,7 +100,7 @@ describe('Tasks (e2e)', () => {
       .set(KEY)
       .send({ title: '写 e2e 测试' })
       .expect(201);
-    expect(created.body.data).toEqual({ id: 3, title: '写 e2e 测试', done: false, createdAt: FIXED });
+    expect(created.body.data).toEqual({ id: 3, title: '写 e2e 测试', done: false, checklist: [], createdAt: FIXED });
 
     await request(app.getHttpServer()).get('/tasks/3').expect(200);
   });
