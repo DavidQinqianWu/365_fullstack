@@ -38,6 +38,7 @@ npm run day29          # Day 29 观察脚本:百万行 tasks 上没有索引 vs 
 npm run day30          # Day 30 观察脚本:读计划树、BUFFERS 冷热、Index Only / Bitmap(lossy)、排序与 work_mem、三种 JOIN、统计信息过期与 ANALYZE(schema day30)
 npm run day31          # Day 31 观察脚本:最左前缀、列顺序、复合 vs 两个单列、WHERE + ORDER BY + LIMIT、keyset 的行值比较 vs OR 展开、INCLUDE 与 visibility map(schema day31)
 npm run day32          # Day 32 观察脚本:部分索引与参数化查询、部分唯一索引、表达式索引与 IMMUTABLE、外键列的索引、0/1/3/6 个索引的写放大与 WAL、HOT 更新、没用的 / 重复的索引(schema day32)
+npm run day33          # Day 33 观察脚本:B-tree 与 LIKE / 排序规则、pg_trgm + GIN(中英文子串、模糊匹配、btree_gin)、全文搜索、JSONB / 数组的 GIN、GIN 的写入代价、BRIN 与数据顺序(schema day33;会 CREATE EXTENSION pg_trgm / btree_gin)
 npm run db:reset       # 用 psql 重建 schema app(sql/schema.sql + sql/seed.sql);-- --schema app_test 重建测试用的 schema
 npm run test:e2e:pg    # 同一套 e2e,换成 PostgreSQL 版仓储再跑一遍(先自动重建 app_test)
 npm run openapi:generate  # 改了接口后重新生成 openapi.json(和代码一起提交)
@@ -107,3 +108,4 @@ psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab   # 本机装了
 | Day 30 | `sql/day30/`(schema `day30`:100 万 tasks + 1 万 users;`EXPLAIN (ANALYZE, BUFFERS)` 读计划树、shared hit vs read、Index Only Scan / Bitmap 精确与 lossy、Sort 溢出到磁盘与 top-N、Nested Loop / Hash / Merge 三种 JOIN 与 `enable_*` 对照、关闭 autovacuum 制造统计过期与 `ANALYZE` 修复、`CREATE STATISTICS`、`EXPLAIN ANALYZE` 真的执行 DELETE);`scripts/day30-try.mjs`;应用代码未改 | `docs/30-explain-plans/` |
 | Day 31 | `sql/day31/`(schema `day31`:复合索引与最左前缀、等值在前范围在后、BitmapAnd vs 复合索引、`(owner_id, created_at DESC, id DESC)` 让 WHERE + ORDER BY + LIMIT 不再排序、混合方向与 Incremental Sort、keyset 行值比较 vs OR 展开(补一个冗余范围条件后从约 100 ms 到 0.1 ms 以内)、`INCLUDE` 覆盖索引、UPDATE 后 Heap Fetches 上升与 VACUUM 归零);`scripts/day31-try.mjs`;应用代码未改(nest-lab 的索引清单写在讲义里,Day 34 落地) | `docs/31-composite-covering-indexes/` |
 | Day 32 | `sql/day32/`(schema `day32`:`WHERE done = false` 部分索引 2208 kB vs 完整索引 30 MB,通用计划里的 `done = $1` 用不上;部分唯一索引(每人一个进行中的计时、软删除后邮箱可重新注册);`lower(email)` 表达式索引与 `ILIKE`;`created_at::date` 因非 IMMUTABLE 报错及写法;外键列无索引时删一个会员约 30–60 ms、有索引不到 1 ms,以及找出无索引外键的查询;0/1/3/6 个索引的 INSERT / UPDATE 耗时与 WAL;fillfactor 与 HOT;`pg_stat_user_indexes` 找没用的 / 重复的索引);`scripts/day32-try.mjs`;应用代码与 `schema.sql` 未改 | `docs/32-partial-expression-indexes/` |
+| Day 33 | `sql/day33/`(schema `day33`:C.UTF-8 下普通 B-tree 用不上前缀 LIKE,要 `text_pattern_ops` / `COLLATE "C"`;trigram GIN 让 `ILIKE '%urgent%'` 从约 500 ms 到几 ms,中文 3 个字符以上可用、2 个字不行;全文搜索的词干与中文不分词;`tags @>`、`jsonb_ops` vs `jsonb_path_ops`;GIN 写入代价与 `fastupdate`;BRIN 24 kB vs B-tree 21 MB、打乱后失效);`scripts/day33-try.mjs`;应用代码与 `schema.sql` 未改(`?q=` 的方案写在讲义里,Day 34 落地) | `docs/33-gin-brin/` |

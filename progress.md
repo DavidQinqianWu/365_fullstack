@@ -1,7 +1,7 @@
 # 365 天全栈成长 · 进度记录
 
 - 计数方式:**只按 Day N 计数,不写具体日期**——不要求每天连续学习,完成一天才算一天,Day N 永远 = 已完成天数 + 1。
-- 当前进度:Day 5(进行中;Day 6–32 材料已备)
+- 当前进度:Day 5(进行中;Day 6–33 材料已备)
 - 时间标准:按 `roadmap.md` 每天 1.5 小时。注:另一仓库的路线图 v2(3 小时/天、Hetzner 部署、365 平台主线项目)在合并时被覆盖,已确认**以当前 `roadmap.md` 为准**;v2 原文可在提交 `8ac8470` 中查看,Day 6–7 讲义按 v2 节奏编写,使用时酌情删减。⚠️ `hetzner` 主机是公司测试环境(Coolify + Traefik),不要部署学习项目,需要服务器时另租独立 VPS。
 - 水平测试(Day 4 完成):**1 / 46**,全部 7 个领域从零起步,React/TS 深层知识为真实缺口。每个 Phase 结束重答对应题目,见 `docs/00-level-check/level-check.md`。
 - 说明:第一轮(Day 1–8)的旧文件已归档至 `archive/round-1/`,供对照参考。
@@ -40,3 +40,4 @@
 | Day 30 | Phase 2 / Week 5 | 读执行计划:账房先生的取货路线单,从最里面那一步往外读(cost / rows / actual × loops、估算 vs 实际、`BUFFERS` hit vs read、Bitmap lossy、Sort 溢出与 work_mem 实测「调大不一定更快」、EXPLAIN ANALYZE 自身开销)+ 三种 JOIN 算法各自被选中的场景(Nested Loop / Hash Join 分批 / Merge Join,`enable_*` 只用于学习)+ 统计信息过期导致估算 1 行实际 50 万行、计划选错,`ANALYZE` 后快 6–7 倍;`CREATE STATISTICS` 处理相关列;EXPLAIN ANALYZE 会真的执行 DELETE | `docs/30-explain-plans/Day 30 - 读执行计划:账房先生的取货路线单,从最里面那一步往外读.html` + `src/30-explain-plans/notes.md` + `nest-lab/`(sql/day30、`npm run day30`) | 待开始 |
 | Day 31 | Phase 2 / Week 5 | 复合索引与覆盖索引:先按会员号、再按日期排好的卡片(最左前缀命中与不命中、列顺序以查询模式为准而非「选择性高的在前」、复合 vs 两个单列 + BitmapAnd)+ 一个索引同时管 WHERE / ORDER BY / LIMIT(无 Sort 节点、混合方向要声明索引方向;keyset 行值比较 0.01 ms vs 只有 OR 的 88–144 ms vs OR + 冗余范围 0.01 ms)+ 卡片上顺手抄了标题 = INCLUDE 与 Index Only Scan(UPDATE 后 Heap Fetches 37666、VACUUM 后归零,visibility map);nest-lab 各排序所需索引清单。⚠️ 发现:nest-lab 默认 `?sort=-createdAt` 为混合方向,`keysetCondition()` 只生成 OR 条件,深分页会越来越慢(Day 34 修) | `docs/31-composite-covering-indexes/Day 31 - 复合索引与覆盖索引:先按会员号、再按日期排好的卡片,卡片上顺手抄了标题.html` + `src/31-composite-covering-indexes/notes.md` + `nest-lab/`(sql/day31、`npm run day31`) | 待开始 |
 | Day 32 | Phase 2 / Week 5 | 部分索引、表达式索引与外键索引 + 索引的代价:只给少数派建卡片(部分索引 2.2 MB vs 完整 30 MB,`done IS NOT TRUE` 与通用计划用不上;部分唯一索引)+ 卡片上统一抄小写且只抄「谁抄都一样」的(表达式索引、IMMUTABLE 报错与 `AT TIME ZONE 'UTC'` 修法)+ 注销会员要翻遍订单本(外键无索引删一个会员 32–58 ms vs 0.06–0.7 ms)+ 每多一个卡片盒每笔账多抄一张(0 / 1 / 3 / 6 个索引的写入耗时与 WAL、HOT 更新与 fillfactor、INCLUDE 列妨碍 HOT、未使用与重复索引) | `docs/32-partial-expression-indexes/Day 32 - 部分索引、表达式索引与外键索引:只给少数派建卡片,而每多一个卡片盒,每笔账都要多抄一张.html` + `src/32-partial-expression-indexes/notes.md` + `nest-lab/`(sql/day32、`npm run day32`) | 待开始 |
+| Day 33 | Phase 2 / Week 5 | GIN 与 BRIN:书末的关键词索引(pg_trgm + GIN 让 `ILIKE '%urgent%'` 从 450–650 ms 降到 2–7 ms;中文按字切三元组,两个字的子串用不上;前缀 LIKE 需要 `text_pattern_ops` / `COLLATE "C"`)+ 按「词」编的索引(全文搜索英文词干、中文默认不分词;trigram 找子串 vs 全文搜索找词;JSONB `jsonb_ops` vs `jsonb_path_ops`、数组 `@>`;GIN 写入代价与 fastupdate)+ 书架上的日期标签(BRIN 24 KB vs B-tree 21 MB,物理顺序打乱后失效);选择索引类型的决策表与 nest-lab `?q=` 的方案(trigram GIN,Day 34 落地) | `docs/33-gin-brin/Day 33 - GIN 与 BRIN:书末的关键词索引,和书架上的日期标签.html` + `src/33-gin-brin/notes.md` + `nest-lab/`(sql/day33、`npm run day33`,约 2 分钟) | 待开始 |

@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 33 - GIN 与 BRIN:书末的关键词索引,和书架上的日期标签</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 5</div>
+  <h1>Day 33 - GIN 与 BRIN:书末的关键词索引,和书架上的日期标签</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>B-tree 与 LIKE(前缀、排序规则、<code>text_pattern_ops</code>)· GIN 倒排索引 · pg_trgm 三元组与 <code>ILIKE '%…%'</code> · 中文的三元组 · 模糊匹配 · 全文搜索 <code>tsvector</code> / <code>tsquery</code> 与中文分词 · JSONB / 数组的 GIN 与 <code>jsonb_path_ops</code> · GIN 的写入代价 · BRIN 与数据的物理顺序 · 选哪种索引</b> ·
+    项目:<code>nest-lab/</code> 新增 <code>sql/day33/</code>(schema <code>day33</code>)、<code>npm run day33</code>;应用代码和 <code>schema.sql</code> 今天不改(<code>?q=</code> 的改法写在讲义里,Day 34 落地)·
+    扩展:<code>pg_trgm</code> 1.6、<code>btree_gin</code> 1.3(本机用 <code>nest_lab</code> 用户直接建成,见「先跑起来」)· 所有输出来自 PostgreSQL 16.15 的真实运行,耗时类数字跑 3 遍、每遍 3 次,写区间
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:nest-lab 的搜索框,B-tree 帮不上</a></li>
+    <li><a href="#sec2">🚀 先跑起来:扩展怎么建、今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:GIN 与 pg_trgm —— 书末的关键词索引,关键词是每 3 个字一组</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:全文搜索与 JSONB / 数组 —— 关键词换成「词」和「键值」</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:BRIN —— 书架上贴一张「这架的日期从 X 到 Y」</a></li>
+    <li><a href="#sec6">🧭 选哪种索引:一张决策表 + nest-lab 的 <code>?q=</code> 怎么改</a></li>
+    <li><a href="#sec7">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec8">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec9">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:nest-lab 的搜索框,B-tree 帮不上</h2>
+  <p>Day 29–32 的卡片盒都是 B-tree:按某个值<b>从小到大排好</b>,所以能做等值、范围、排序、最左前缀。nest-lab 的 <code>?q=</code>(Day 19 / 27)生成的却是这样的 SQL:</p>
+  <pre><code>WHERE t.title ILIKE '%' || 关键字 || '%' ESCAPE '\'</code></pre>
+  <p>Day 30 的习题里你应该已经看到了:不管有没有索引,计划都是 <code>Seq Scan</code>。原因很简单:卡片是<b>按标题开头</b>排的,「标题<b>中间</b>有 urgent」的卡片散落在整盒的各个位置,没有一个「从这里开始、到那里结束」的范围。今天学两种结构完全不同的索引:</p>
+  <ul>
+    <li><b>GIN</b>:一行里拆出很多「关键词」,每个关键词记下它出现在哪些行。用来做子串搜索、全文搜索、JSONB 和数组的「包含」查询。</li>
+    <li><b>BRIN</b>:不记每一行,只给每一段连续的数据页记一个「最小值到最大值」。用来对付按时间追加的超大表,索引只有几十 KB。</li>
+  </ul>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你做过前端搜索框:<code>items.filter(x =&gt; x.title.toLowerCase().includes(q))</code>,每次都把全部数据扫一遍,数据一多就卡。浏览器的 Ctrl+F 也是从头扫到尾。Algolia、Elasticsearch 快,是因为它们<b>提前</b>建好了一张「词 → 出现在哪些文档」的表(倒排索引),搜的时候直接查表。GIN 就是 PostgreSQL 里的这张表。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:扩展怎么建、今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+docker compose up -d     # 或本机的 PostgreSQL 已在运行(Day 22)
+npm run day33            # 建扩展 → 造 100 万任务 → 7 个实验 → 关键对比各跑 3 次(本机约 3 分钟)
+
+psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab
+nest_lab=&gt; SET search_path = day33, public;   -- public 也要放进来:pg_trgm 的函数和操作符类在 public 里</code></pre>
+  <p><b>扩展(extension)</b>是 PostgreSQL 的插件:<code>pg_trgm</code> 提供三元组,<code>btree_gin</code> 让普通的标量列也能放进 GIN 索引。它们随 PostgreSQL 一起安装在磁盘上,但要在<b>每个数据库</b>里 <code>CREATE EXTENSION</code> 一次才能用。谁能建?</p>
+  <ul>
+    <li><code>pg_trgm</code> 和 <code>btree_gin</code> 都是<b>受信任的扩展</b>(trusted,PostgreSQL 13 起有这个概念):对数据库有 <code>CREATE</code> 权限的用户就能建,不需要超级用户。本机的 <code>nest_lab</code> 是 <code>nest_lab</code> 库的 owner、不是超级用户,<code>01-setup.sql</code> 里直接 <code>CREATE EXTENSION</code> 成功了(<code>pg_extension.extowner</code> 显示为 <code>nest_lab</code>)。</li>
+    <li>用 Docker 的官方镜像时,<code>POSTGRES_USER</code> 指定的用户本身就是超级用户,什么扩展都能直接建。</li>
+    <li>如果你的用户既不是 owner 也没有 <code>CREATE</code> 权限,或者要装的是不受信任的扩展,就用超级用户在这个库里建一次:<code>sudo -u postgres psql -d nest_lab -c 'CREATE EXTENSION pg_trgm'</code>。托管数据库(RDS、Cloud SQL 等)通常有一张允许的扩展清单。</li>
+  </ul>
+  <p>今天的 <code>tasks</code> 是 100 万行,标题像真的待办:一半英文(<code>Fix invoice export #3</code>)、一半中文(<code>修复发票导出 #4</code>,汉字之间没有空格);约 0.1% 带「(加急)」、约 0.1% 带「 urgent」。另外有 <code>tags text[]</code>(1–2 个标签,约 0.3% 带 <code>security</code>)和 <code>meta jsonb</code>(优先级、来源,约 1% 有 <code>due</code>)。表 159 MB,一开始只有主键。</p>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用</th></tr>
+    <tr><td><code>sql/day33/01-setup.sql</code></td><td>新增</td><td>建扩展,建 schema <code>day33</code>:100 万任务(标题、标签、JSONB)</td></tr>
+    <tr><td><code>sql/day33/02-btree-like.sql</code></td><td>新增</td><td>B-tree 与 LIKE:前缀、排序规则、<code>text_pattern_ops</code>、<code>COLLATE "C"</code></td></tr>
+    <tr><td><code>sql/day33/03-trgm.sql</code></td><td>新增</td><td>三元组、trigram GIN、中文、模糊匹配、<code>btree_gin</code></td></tr>
+    <tr><td><code>sql/day33/04-fts.sql</code></td><td>新增</td><td>全文搜索:分词、词干、中文、GIN、<code>ts_rank</code>、和 trigram 的区别</td></tr>
+    <tr><td><code>sql/day33/05-jsonb-array.sql</code></td><td>新增</td><td>数组和 JSONB 的 GIN:<code>@&gt;</code>、<code>&amp;&amp;</code>、<code>?</code>、<code>jsonb_ops</code> vs <code>jsonb_path_ops</code></td></tr>
+    <tr><td><code>sql/day33/06-gin-cost.sql</code></td><td>新增</td><td>GIN 的写入代价:<code>fastupdate</code> 开 / 关、先插数据后建索引</td></tr>
+    <tr><td><code>sql/day33/07-brin.sql</code></td><td>新增</td><td>BRIN:大小、按顺序的表 vs 打乱的表</td></tr>
+    <tr><td><code>scripts/day33-try.mjs</code> + <code>package.json</code> 的 <code>day33</code></td><td>新增</td><td>观察脚本:跑 7 个文件,关键对比各测 3 次;用 nest-lab 的 <code>pg</code> 驱动看 <code>?q=</code> 那条 SQL 拿到的计划</td></tr>
+    <tr><td><code>README.md</code></td><td>修改</td><td>命令、成长日志 Day 33</td></tr>
+  </table>
+
+  <p><b>⑤ 先看 B-tree 能帮 LIKE 什么忙。</b>✍️ <b>预测</b>:给 <code>title</code> 建一个普通 B-tree,<code>LIKE 'Fix invoice%'</code>(约 5000 行,只占 0.5%)会用它吗?真实结果(<code>02-btree-like.sql</code>):</p>
+  <pre><code> 本库的排序规则
+----------------
+ C.UTF-8
+=== ② 普通 B-tree (title):前缀查询 LIKE 'Fix invoice%'
+ Seq Scan on tasks (actual time=0.660..92.149 rows=4942 loops=1)
+   Filter: (title ~~ 'Fix invoice%'::text)
+=== ③ 按字节比较的索引:text_pattern_ops
+ Index Scan using tasks_title_pattern_idx on tasks (actual time=0.027..5.943 rows=4942 loops=1)
+   Index Cond: ((title ~&gt;=~ 'Fix invoice'::text) AND (title ~&lt;~ 'Fix invoicf'::text))
+   Filter: (title ~~ 'Fix invoice%'::text)
+--- 但它帮不了 ORDER BY title
+   -&gt;  Sort
+         Sort Key: title
+--- 前后都有 %:LIKE '%invoice%'   →  Seq Scan
+--- 不分大小写的前缀:ILIKE 'fix invoice%'   →  Seq Scan
+=== ④ 排序规则就是 "C" 的索引也可以
+CREATE INDEX tasks_title_c_idx ON tasks (title COLLATE "C");
+ Index Scan using tasks_title_c_idx on tasks
+   Index Cond: ((title &gt;= 'Fix invoice'::text) AND (title &lt; 'Fix invoicf'::text))</code></pre>
+  <ul>
+    <li>前缀查询能改写成范围条件:<code>title &gt;= 'Fix invoice' AND title &lt; 'Fix invoicf'</code>。前提是索引<b>按字节 / 码点</b>排序,否则「Fix invoice 开头的」在索引里不一定连在一起。</li>
+    <li>Day 32 习题 1 第 3 题留的悬念,答案在这里:本库的排序规则是 <code>C.UTF-8</code>,它实际也按码点排序,但 <b>PostgreSQL 16 只认名字就叫 <code>C</code> / <code>POSIX</code> 的排序规则</b>,所以普通 B-tree 用不上,实测是全表扫描。官方 Docker 镜像默认的 <code>en_US.utf8</code> 按英语习惯排序,同样用不上(这一条没有在 Docker 上实测,原理相同)。</li>
+    <li>两种解法:<code>text_pattern_ops</code> 操作符类(专门给 LIKE 前缀用,但不能用于正常的 <code>ORDER BY</code>),或者 <code>COLLATE "C"</code> 的索引。nest-lab 的 <code>title</code> 排序本来就用 <code>COLLATE "C"</code>(Day 27),Day 31 清单里的 <code>(title COLLATE "C", id)</code> 顺带也能服务前缀查询。各跑 3 次、脚本跑 3 遍:普通 B-tree <b>65.6 – 87.4 ms</b>(全表扫描),<code>text_pattern_ops</code> <b>2.1 – 14.0 ms</b>。</li>
+    <li>B-tree 救不了的两种:<b>前面也有 %</b>,以及 <b>ILIKE</b>(不分大小写,大小写不同的写法在索引里不挨在一起)。nest-lab 的 <code>?q=</code> 两样都占了。</li>
+  </ul>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:GIN 与 pg_trgm —— 书末的关键词索引,关键词是每 3 个字一组</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>GIN</b>(Generalized Inverted Index,通用倒排索引)反过来记:不是「这一行的值是什么」,而是「<b>这个关键词出现在哪些行</b>」。一行可以拆出很多关键词。<b>pg_trgm</b> 把文本拆成「每 3 个字符一组」的<b>三元组</b>;查 <code>'%urgent%'</code> 时,先把 urgent 也拆成三元组,找出「这几组都出现过」的行,再逐行复查一遍。这样「中间有某个子串」也能走索引了,而且天然不分大小写。
+  </div>
+
+  <h3>② 生活类比:书末的关键词索引</h3>
+  <p>技术书最后几页的「索引」:每个关键词后面列着页码,「事务 …… 12, 87, 203」。想找讲事务的地方,不用从第一页翻起。账房给账本也做了一份这样的索引,只是他偷懒,不判断什么算「词」,而是把每个标题<b>每 3 个字切一刀</b>:「urgent」切成 urg、rge、gen、ent,再加上表示开头结尾的几组。有人问「标题里有 urgent 的单子」,账房把 urgent 也这样切开,在索引里找出这几组都出现过的单子号,然后翻到这些单子<b>逐张核对一遍</b>(几组都出现过,不一定就是连在一起的 urgent)。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测</th></tr>
+    <tr><td>书末的关键词索引</td><td><b>GIN 倒排索引</b>:关键词(key)→ 行位置列表(posting list)</td><td>—</td></tr>
+    <tr><td>每 3 个字切一刀</td><td><b>trigram</b>:<code>show_trgm('invoice')</code></td><td><code>{"  i"," in","ce ",ice,inv,nvo,oic,voi}</code></td></tr>
+    <tr><td>把要查的词也切开,找都出现过的单子</td><td><code>Bitmap Index Scan</code>,<code>Index Cond: (title ~~* '%urgent%')</code></td><td>找出 1028 行</td></tr>
+    <tr><td>逐张核对</td><td><code>Recheck Cond</code>(三元组都在 ≠ 子串一定在)</td><td>—</td></tr>
+    <tr><td>切出来的组太少就没法查</td><td>查询词少于 3 个字符(两边是 %)时抽不出三元组</td><td><code>'%加急%'</code> 全表扫描</td></tr>
+    <tr><td>写错一两个字也能找到</td><td><code>similarity()</code> / <code>word_similarity()</code> / <code>%</code>、<code>&lt;%</code></td><td>dashbord → dashboard,0.67</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:三元组长什么样,中文呢?</b>✍️ <b>预测</b>:<code>show_trgm('发票导出')</code> 和 <code>show_trgm('登录')</code> 会输出什么?真实结果(<code>03-trgm.sql</code>):</p>
+  <pre><code>            invoice 的三元组
+-----------------------------------------
+ {"  i"," in","ce ",ice,inv,nvo,oic,voi}
+               Fix invoice(大小写不分,按单词切)
+---------------------------------------------------------------
+ {"  f","  i"," fi"," in","ce ",fix,ice,inv,"ix ",nvo,oic,voi}
+                    发票导出
+------------------------------------------------
+ {0xaefd5e,0xb50bdf,0xf99c7f,0x1a370e,0x55a252}
+         登录(2 个字,作为一个完整的词)
+------------------------------
+ {0xb28a6f,0x1768db,0x68a9d1}</code></pre>
+  <ul>
+    <li>先按非字母数字的字符(空格、标点)切成「词」,全部转小写,每个词前面补两个空格、后面补一个空格,再每 3 个字符取一组。所以 invoice 得到 8 组,其中 <code>"  i"</code>、<code>" in"</code> 表示「词的开头」。</li>
+    <li><b>中文能用</b>:在本机的 <code>C.UTF-8</code> 下,汉字被当成「字母」,「发票导出」4 个字也是补位后每 3 个<b>字</b>一组,得到 5 组(「  发」「 发票」「发票导」「票导出」「出 」)。多字节的三元组显示成十六进制,是因为 pg_trgm 把放不进 3 个字节的组存成了一个哈希值。汉字之间没有空格,所以「修复发票导出」整串是一个「词」。汉字算不算「字母」取决于数据库的字符分类(ctype)设置,换一个 locale 时要先用 <code>show_trgm</code> 确认一下。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 B:<code>ILIKE '%…%'</code> 用上 GIN。</b>建 <code>CREATE INDEX … USING gin (title gin_trgm_ops)</code>(本机用了 4.8 – 4.9 秒),它有 <b>40 MB</b>,表是 159 MB,<code>title</code> 这一列本身只有 26 MB。✍️ <b>预测</b>:少见的 urgent(约 1000 行)、常见的 invoice(约 5 万行)、中文 4 个字、中文 2 个字,各快多少?真实结果:</p>
+  <pre><code>=== ③ ILIKE '%urgent%'
+ Bitmap Heap Scan on tasks (actual time=0.796..5.252 rows=1028 loops=1)
+   Recheck Cond: (title ~~* '%urgent%'::text)
+   Heap Blocks: exact=1002
+   -&gt;  Bitmap Index Scan on tasks_title_trgm_idx (actual time=0.696..0.696 rows=1028 loops=1)
+         Index Cond: (title ~~* '%urgent%'::text)
+         Buffers: shared hit=44
+ Execution Time: 5.337 ms
+=== ④ ILIKE '%invoice%'(约 5 万行)
+ Bitmap Heap Scan on tasks (actual time=11.037..137.730 rows=50298 loops=1)
+   Heap Blocks: exact=18764
+ Execution Time: 139.985 ms
+=== ⑥ 中文 2 个字:LIKE '%加急%'
+ Seq Scan on tasks (actual time=0.057..112.589 rows=1009 loops=1)
+   Filter: (title ~~ '%加急%'::text)
+--- 同样的意思,带上括号:LIKE '%(加急)%'
+ Bitmap Heap Scan on tasks (actual time=0.352..2.781 rows=1009 loops=1)
+   -&gt;  Bitmap Index Scan on tasks_title_trgm_idx (…)
+         Index Cond: (title ~~ '%(加急)%'::text)
+ Execution Time: 2.842 ms</code></pre>
+  <p>各跑 3 次、脚本跑 3 遍:</p>
+  <table>
+    <tr><th>查询</th><th>命中行数</th><th>没有索引</th><th>trigram GIN</th></tr>
+    <tr><td><code>ILIKE '%urgent%'</code></td><td>1028</td><td>449.6 – 649.5 ms</td><td><b>1.74 – 7.41 ms</b></td></tr>
+    <tr><td><code>ILIKE '%invoice%'</code></td><td>50298</td><td>444.6 – 555.1 ms</td><td>111.1 – 177.1 ms</td></tr>
+    <tr><td><code>LIKE '%发票导出%'</code></td><td>49905</td><td>97.6 – 157.7 ms</td><td>81.4 – 136.4 ms</td></tr>
+    <tr><td><code>LIKE '%(加急)%'</code></td><td>1009</td><td>99.9 – 150.7 ms</td><td><b>0.87 – 6.64 ms</b></td></tr>
+    <tr><td><code>LIKE '%加急%'</code>(2 个字)</td><td>1009</td><td>106.6 – 163.1 ms</td><td>114.1 – 145.4 ms(全表扫描)</td></tr>
+  </table>
+  <ul>
+    <li><b>选择性高时(少见的词),快两个数量级。</b>索引只读了 44 页,剩下的时间花在取 1000 行和复查上。</li>
+    <li><b>常见的词帮助有限。</b>invoice 命中 5 万行、分布在 18764 个表页上,GIN 很快就找出了这些行,但要把它们全取出来复查,省下的主要是那 95 万行的 <code>ILIKE</code> 比较。顺便注意:没有索引时 <code>ILIKE</code> 要 450 ms 以上,<code>LIKE</code> 只要 100 ms 左右,不分大小写的比较本身就贵。</li>
+    <li><b>2 个字的中文查不了。</b><code>'%加急%'</code> 两边都是 %,不知道「加急」是不是一个完整的词,所以不能补空格,而 2 个字凑不出 3 个字符的一组,一个三元组都抽不出来,只能全表扫描。写成 <code>'%(加急)%'</code> 就行了:括号是确定的词边界,于是可以补位,得到「  加」「 加急」「加急 」三组。中文里 2 个字的词很常见(「登录」「支付」),这是 pg_trgm 用在中文上最大的限制。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 C:nest-lab 的参数化 SQL,还有模糊匹配。</b>✍️ <b>预测</b>:nest-lab 发的是 <code>title ILIKE $1 ESCAPE '\'</code>,参数是 <code>%urgent%</code>。数据库做计划时,能看出它可以用 GIN 吗?真实结果(观察脚本用 nest-lab 的 <code>pg</code> 驱动发的):</p>
+  <pre><code>  参数 %urgent%:
+    Bitmap Heap Scan on tasks
+      Recheck Cond: (title ~~* '%urgent%'::text)
+      -&gt;  Bitmap Index Scan on b_trgm
+            Index Cond: (title ~~* '%urgent%'::text)
+  参数 %加急%:
+    Gather
+      Workers Planned: 2
+      -&gt;  Parallel Seq Scan on tasks
+            Filter: (title ~~* '%加急%'::text)</code></pre>
+  <p>不具名的查询带着参数值做计划(Day 32),<code>ESCAPE '\'</code> 也被折叠掉了,所以 nest-lab <b>不用改 SQL</b>,建上索引就能用。2 个字的关键词照样全表扫描(这里开了并行)。</p>
+  <pre><code> similarity(invoice, invoce) | word_similarity(dashbord, …dashboard…) | word_similarity(paymnet, …payment…)
+-----------------------------+----------------------------------------+-------------------------------------
+                         0.5 |                              0.6666667 |                                 0.5
+ id |            title             | 相似度
+----+------------------------------+--------
+ 10 | Write dashboard chart #10    |   0.67
+ 66 | Review dashboard chart #66   |   0.67
+ 87 | Refactor dashboard chart #87 |   0.67
+ Execution Time: 380.140 ms</code></pre>
+  <p>三元组也能算「两个字符串有多像」:相同的三元组占的比例。<code>'dashbord' &lt;% title</code> 表示 word_similarity 超过阈值(默认 0.6),拼错的 dashbord 找到了 dashboard。但 paymnet(0.5)就没过阈值。而且「像 dashboard 的」有 5 万行,要全部取出来算分再排序,用了 380 ms。模糊匹配适合做「您是不是要找……」的提示,不适合直接当主搜索。</p>
+
+  <p><b>⑤ 动手验证 D:<code>btree_gin</code>,把普通列和三元组放进同一个 GIN。</b>「2 号用户的任务里搜 invoice」。建 <code>USING gin (owner_id, title gin_trgm_ops)</code>(44 MB)。✍️ <b>预测</b>:<code>owner_id = 2</code> 会进 Index Cond 吗?</p>
+  <pre><code>--- owner_id = 2(2 是 integer,owner_id 是 bigint)
+ Bitmap Heap Scan on tasks (actual time=11.331..112.195 rows=956 loops=1)
+   Recheck Cond: (title ~~* '%invoice%'::text)
+   Filter: (owner_id = 2)
+   Rows Removed by Filter: 49342
+ Execution Time: 112.307 ms
+--- owner_id = 2::bigint
+   -&gt;  Bitmap Index Scan on … (actual time=3.357..3.358 rows=956 loops=1)
+         Index Cond: ((owner_id = '2'::bigint) AND (title ~~* '%invoice%'::text))
+ Execution Time: 7.149 ms</code></pre>
+  <p>一个意外的坑(单次实测):btree_gin 的 bigint 操作符类里没有「bigint = integer」这种跨类型的比较,写字面量 <code>2</code> 时这个条件进不了索引,只能在 5 万行里过滤;写成 <code>2::bigint</code> 后两个条件一起在索引里求交集,从 112 ms 降到 7 ms。B-tree 有跨类型的比较,不会这样。nest-lab 用 <code>pg</code> 驱动传参数时,参数类型会按列推断成 bigint,不会踩到它。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「书末索引能找到页码,就能按顺序翻」——倒排索引不能排序,也不能做范围查询。</b>GIN 只回答「哪些行包含它」,给出的是一堆行位置,没有顺序;<code>ORDER BY</code>、<code>LIMIT</code> 和 keyset 分页还要靠 B-tree 或者排序。所以 GIN 只有 <code>Bitmap Index Scan</code>,没有普通的 Index Scan。</li>
+      <li><b>「什么词都能查」——少于 3 个字符的查询帮不上忙。</b><code>'%加急%'</code>、<code>'%ab%'</code> 抽不出三元组;很常见的词(命中 5% 的行)也只是快一点。用三元组时要给搜索框设一个最短长度,或者接受这些情况下的全表扫描。</li>
+      <li><b>「卡片小,书末索引也小」——GIN 很大,写起来也慢。</b>trigram GIN 40 MB,比 <code>title</code> 列本身(26 MB)还大,因为每个标题拆成十几组,每组都要进索引。写入代价见下一张卡的实验 C。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>GIN</b>(generalized inverted index)、<b>posting list / posting tree</b>、<b>operator class</b>(<code>gin_trgm_ops</code>);<b>trigram</b>、<code>show_trgm</code>、<code>similarity</code> / <code>word_similarity</code>、<code>%</code> / <code>&lt;%</code>、<code>pg_trgm.similarity_threshold</code>;<b>recheck</b>;<b>GiST</b>(一句话:也能做 trigram,还能按「相似度距离」做最近邻排序 <code>ORDER BY title &lt;-&gt; 'x' LIMIT 10</code>,但通常查得比 GIN 慢、建得和写得比 GIN 快);<b>trusted extension</b>;<b>btree_gin</b>。
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:全文搜索与 JSONB / 数组 —— 关键词换成「词」和「键值」</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    同一个 GIN,换一种「拆关键词」的方法就是另一种功能。<b>全文搜索</b>按语言切成<b>词</b>,再把每个词还原成<b>词根</b>(running → run,invoices → invoic),扔掉 the 这种没意义的词,所以搜 deploying 能找到 Deploy。代价是它不懂中文,一整串汉字会被当成一个词。<b>JSONB / 数组</b>的 GIN 把每个元素、每个键和值当成关键词,回答「包含……的行有哪些」。
+  </div>
+
+  <h3>② 生活类比:按「词」编的索引,和按「标签」编的索引</h3>
+  <p>书末的索引如果是认真编的,就不会按 3 个字乱切,而是按词编:「部署(deploy, deploying, deployed)…… 12, 87」,同一个词的各种变形归到一条。但编索引的人得懂这门语言,英文有现成的规则(哪里是词的边界、怎么去掉 -ing / -s);中文的词之间没有空格,他不知道「修复发票导出」该从哪里切开,只好整串当一个词记下来。</p>
+  <p>另一种索引是贴标签:每张单子贴着几个标签(backend、security),或者一张小卡写着「来源:api,优先级:high」。按标签编的索引回答「贴了 security 的有哪些单子」「来源是 api 且优先级是 high 的有哪些」。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测</th></tr>
+    <tr><td>按词编、变形归到一条</td><td><code>to_tsvector('english', …)</code>:分词 + 词干 + 停用词</td><td><code>'api':4 'payment':3 'quick':5 'run':1</code></td></tr>
+    <tr><td>把用户的问题也按词处理</td><td><code>to_tsquery</code> / <code>websearch_to_tsquery</code></td><td>deploying invoices → <code>'deploy' &amp; 'invoic'</code></td></tr>
+    <tr><td>按问题对上的词</td><td><code>@@</code></td><td>GIN 7.3 – 28.9 ms,没有索引约 2 秒</td></tr>
+    <tr><td>哪一条更相关</td><td><code>ts_rank</code></td><td>—</td></tr>
+    <tr><td>不懂中文,整串当一个词</td><td>默认解析器只按空格和标点切</td><td><code>'修复发票导出':1</code></td></tr>
+    <tr><td>按标签编的索引</td><td>数组 / JSONB 的 GIN:<code>@&gt;</code>、<code>&amp;&amp;</code>、<code>?</code></td><td><code>tags @&gt; {security}</code> 从约 170 ms 到 2.6 – 15.1 ms</td></tr>
+    <tr><td>只记「路径 + 值」的精简版</td><td><code>jsonb_path_ops</code></td><td>2336 kB vs 4496 kB,但不支持 <code>?</code></td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:英文的分词和词干,中文呢?</b>✍️ <b>预测</b>:<code>to_tsvector('english', 'Running the payment APIs quickly')</code> 会剩下哪几个词?<code>to_tsvector('simple', '修复发票导出')</code> 里能搜到「发票」吗?真实结果(<code>04-fts.sql</code>):</p>
+  <pre><code>                english                |                        simple
+---------------------------------------+------------------------------------------------------
+ 'api':4 'payment':3 'quick':5 'run':1 | 'apis':4 'payment':3 'quickly':5 'running':1 'the':2
+ 查 runs | 查 deploying &amp; invoices
+---------+-------------------------
+ 'run'   | 'deploy' &amp; 'invoic'
+ running 能匹配 runs 吗
+------------------------
+ t
+          simple           |     english
+---------------------------+------------------
+ '修复发票导出':1 '加急':2 | '修复发票导出':1
+ 能搜到「发票」吗 | 人工加空格之后呢
+------------------+------------------
+ f                | t
+ 分词配置数 | 本库有的分词配置(没有中文)
+------------+----------------------------------------------
+         29 | arabic armenian basque … simple spanish swedish tamil turkish yiddish</code></pre>
+  <ul>
+    <li><code>english</code> 配置做了三件事:按词切开、转小写、还原词根(running → run,APIs → api,quickly → quick),扔掉停用词 the,还记下每个词的位置(<code>:1</code>、<code>:4</code>)。<code>simple</code> 只切开、转小写,不还原词根。词根不一定是真单词:invoices → <code>invoic</code>,只要查询也用同一个配置处理,两边对得上就行。</li>
+    <li><b>中文不分词</b>:PostgreSQL 自带的解析器只按空格和标点切,「修复发票导出」整串成了一个词,搜「发票」搜不到;括号把「加急」切了出来,所以它能被单独搜到。本库自带 29 种分词配置,没有中文。要做中文全文搜索,需要装 zhparser、pg_jieba 之类的分词扩展(今天不装,没有实测),或者在应用里先分好词、用空格连起来再存。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 B:全文搜索的 GIN。</b>对表达式 <code>to_tsvector('english', title)</code> 建 GIN(两个参数的形式才是 IMMUTABLE,Day 32),56 MB,建了 5.6 秒。✍️ <b>预测</b>:搜 voice 和 exports,trigram 和全文搜索各找到几行?真实结果:</p>
+  <pre><code> 转换后的查询
+---------------------
+ 'deploy' &amp; 'invoic'
+ Bitmap Heap Scan on tasks (actual time=4.405..18.824 rows=5120 loops=1)
+   Recheck Cond: (to_tsvector('english'::regconfig, title) @@ '''deploy'' &amp; ''invoic'''::tsquery)
+   -&gt;  Bitmap Index Scan on tasks_title_fts_idx (…)
+ Execution Time: 19.063 ms
+   id   |                 title                 |   相关度
+--------+---------------------------------------+-------------
+  69565 | Update invoice export urgent #69565   | 0.098500855
+  97296 | Refactor invoice export urgent #97296 | 0.098500855
+ 118537 | Write invoice export urgent #118537   | 0.098500855
+ trigram/ILIKE:标题里有 voice 这个子串 | 全文搜索:有 voice 这个词
+                                 50298 |                        0
+ ILIKE '%exports%' | 全文搜索 exports
+                 0 |            50298</code></pre>
+  <p>各跑 3 次、脚本跑 3 遍:没有索引(每一行都要现算 <code>to_tsvector</code>)<b>1866 – 2118 ms</b>,有 GIN <b>7.3 – 28.9 ms</b>。最后两行就是两种搜索的根本区别:<b>trigram 找子串</b>(voice 是 invoice 的一部分,找到了;标题里没有 exports 这串字母,找不到);<b>全文搜索找「词」</b>(没有 voice 这个词;exports 还原成 export,找到了)。用户输入的搜索词交给 <code>websearch_to_tsquery</code>,它支持 <code>"引号短语"</code>、<code>or</code>、<code>-排除</code>,而且不会因为用户输入了奇怪的符号就报语法错误。<code>ts_rank</code> 按词出现的次数和位置打分,这里的标题很短,大部分分数一样。</p>
+
+  <p><b>⑤ 动手验证 C:数组和 JSONB 的 GIN。</b>✍️ <b>预测</b>:<code>jsonb_ops</code> 和 <code>jsonb_path_ops</code> 哪个小?<code>meta ? 'due'</code>(有没有 due 这个键)两个都能用吗?真实结果(<code>05-jsonb-array.sql</code>):</p>
+  <pre><code>-- 数组:tags @&gt; ARRAY['security'](约 0.3%)
+ Seq Scan on tasks (actual time=0.160..181.714 rows=3083 loops=1)          -- 没有索引
+ Bitmap Heap Scan on tasks (actual time=0.698..9.783 rows=3083 loops=1)    -- GIN (tags),1648 kB
+   -&gt;  Bitmap Index Scan on tasks_tags_idx (…)
+         Index Cond: (tags @&gt; '{security}'::text[])
+-- tags &amp;&amp; ARRAY['security', 'docs'](有交集)也能用
+
+        索引         |  大小
+---------------------+---------
+ tasks_meta_idx      | 4496 kB      -- jsonb_ops(默认)
+ tasks_meta_path_idx | 2336 kB      -- jsonb_path_ops
+    操作符类    |     支持的操作符
+----------------+-----------------------
+ jsonb_ops      | ?  ?&amp;  ?|  @&gt;  @?  @@
+ jsonb_path_ops | @&gt;  @?  @@
+--- ? 'due',只有 jsonb_path_ops:   Seq Scan on tasks   Filter: (meta ? 'due'::text)
+--- ? 'due',换回 jsonb_ops:
+         -&gt;  Bitmap Index Scan on tasks_meta_idx (… rows=9932 loops=1)
+               Index Cond: (meta ? 'due'::text)
+--- meta-&gt;&gt;'source' = 'api':两种 GIN 都帮不上   Seq Scan on tasks</code></pre>
+  <p>各跑 3 次、脚本跑 3 遍:</p>
+  <table>
+    <tr><th>查询</th><th>没有索引</th><th>有 GIN</th></tr>
+    <tr><td><code>tags @&gt; {security}</code>(3083 行)</td><td>156.2 – 197.1 ms</td><td>2.64 – 15.1 ms</td></tr>
+    <tr><td><code>meta ? 'due'</code>(9932 行)</td><td>116.2 – 172.9 ms</td><td><code>jsonb_ops</code> 12.5 – 28.9 ms</td></tr>
+    <tr><td><code>meta @&gt; {"source":"api","priority":"high"}</code>(83102 行)</td><td>174.8 – 250.3 ms</td><td><code>jsonb_ops</code> 128.4 – 157.5 ms;<code>jsonb_path_ops</code> 127.3 – 184.1 ms</td></tr>
+  </table>
+  <ul>
+    <li><code>jsonb_path_ops</code> 把「路径 + 值」合成一个哈希,只有一半大,但只支持 <code>@&gt;</code> 和 JSON 路径查询(<code>@?</code>、<code>@@</code>);「有没有某个键」(<code>?</code>)它用不上。只做包含查询时选它。</li>
+    <li>和 trigram 一样,命中 8 万行(8%)的条件,索引也只快一点。</li>
+    <li><code>meta-&gt;&gt;'source' = 'api'</code> 这种写法两种 GIN 都用不上:要么改写成 <code>meta @&gt; '{"source":"api"}'</code>,要么专门建一个 B-tree 表达式索引 <code>((meta-&gt;&gt;'source'))</code>(Day 32)。如果某个键经常被这样查,Day 26 说过,它大概应该是一个普通列。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 D:GIN 的写入代价。</b>往一张新表里插 10 万个标题。✍️ <b>预测</b>:trigram GIN 会让插入慢几倍?关掉 <code>fastupdate</code> 呢?真实结果(<code>06-gin-cost.sql</code> + 观察脚本各跑 3 次、跑 3 遍):</p>
+  <table>
+    <tr><th>表上的索引</th><th>插入 10 万行</th><th>WAL</th><th>索引大小(单次)</th></tr>
+    <tr><td>没有</td><td>54.0 – 74.0 ms</td><td>7.8 MB</td><td>—(表 5728 kB)</td></tr>
+    <tr><td>B-tree (title)</td><td>208.9 – 323.5 ms</td><td>19.3 MB</td><td>7160 kB</td></tr>
+    <tr><td>trigram GIN · <code>fastupdate</code> on(默认)</td><td>786.6 – 911.1 ms</td><td>60.3 – 61.6 MB</td><td>8384 kB</td></tr>
+    <tr><td>trigram GIN · <code>fastupdate</code> off</td><td><b>8115 – 8875 ms</b></td><td><b>1057.6 – 1058.9 MB</b></td><td>4440 kB</td></tr>
+    <tr><td>先插数据,再一次性建 GIN</td><td>插入约 70 ms + 建索引 472 ms</td><td>—</td><td>3912 kB</td></tr>
+  </table>
+  <ul>
+    <li>一个标题拆成十几个三元组,每个都要找到自己在 GIN 里的位置并把这一行加进列表,所以 GIN 的插入比 B-tree 贵得多。</li>
+    <li><code>fastupdate</code>(默认开)让新条目先进一张「待整理清单」(pending list),攒到 <code>gin_pending_list_limit</code>(默认 4MB)或 VACUUM 时再批量并入。这里关掉它以后,同样的插入慢了 10 倍,WAL 写了 1 GB 以上:每插入一行,都要分别改十几个三元组的列表页,每次修改都写 WAL。开着它的代价是:查询时要额外扫这张清单;「攒满了」的那次插入会突然变慢;索引也更大一些(没整理的清单还占着地方)。</li>
+    <li>批量导入时,<b>先导数据、后建索引</b>最快:同样 10 万行,一次性建 GIN 只要 0.47 秒,得到的索引也最紧凑。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「认真编的索引 = 搜索引擎」——全文搜索不是 Google。</b>没有拼写纠错(拼错的词还原不出同一个词根,要配合 trigram 做提示)、没有同义词(要自己配同义词词典)、没有中文分词(要装扩展)、<code>ts_rank</code> 也只是简单的打分。它适合「在自己的数据里按词搜」,不是一个完整的搜索产品。</li>
+      <li><b>「按词编的比按字切的高级」——两者解决的是不同的问题。</b>trigram 找子串(搜「voice」能找到 invoice、搜中文 3 个字以上的片段都行),不懂词形变化;全文搜索懂词形变化,但找不了子串,也不懂中文。nest-lab 的标题有中文,用户期待的是「输入什么就找包含什么的」,所以 <code>?q=</code> 更适合 trigram。</li>
+      <li><b>「贴了标签就都能按标签找」——操作符和写法要对上。</b><code>jsonb_path_ops</code> 不支持 <code>?</code>;<code>-&gt;&gt;</code> 取值后的等值比较两种 GIN 都不支持;数组的 GIN 只支持 <code>@&gt;</code>、<code>&lt;@</code>、<code>&amp;&amp;</code>、<code>=</code>,不支持 <code>'security' = ANY(tags)</code> 这种写法(要改写成 <code>tags @&gt; ARRAY['security']</code>)。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>full-text search</b>;<b><code>tsvector</code> / <code>tsquery</code></b>、<code>@@</code>;<b>text search configuration</b>(<code>english</code>、<code>simple</code>)、<b>parser / dictionary</b>、<b>stemming</b>、<b>stop words</b>、<b>lexeme</b>;<code>to_tsquery</code> / <code>plainto_tsquery</code> / <code>websearch_to_tsquery</code>;<code>ts_rank</code> / <code>ts_rank_cd</code>;<b>generated column</b>(<code>tsvector GENERATED ALWAYS AS (…) STORED</code>,另一种存法);<b>Chinese word segmentation</b>(zhparser、pg_jieba);<b><code>jsonb_ops</code> / <code>jsonb_path_ops</code></b>、<code>@&gt;</code>、<code>?</code>、<code>?|</code>、<code>?&amp;</code>、<code>@?</code>;<b><code>array_ops</code></b>;<b><code>fastupdate</code> / pending list / <code>gin_pending_list_limit</code></b>。
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:BRIN —— 书架上贴一张「这架的日期从 X 到 Y」</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>BRIN</b>(Block Range Index,块范围索引)不记每一行,只给每一段连续的数据页(默认 128 页一段)记一个「这一段里的最小值到最大值」。查某一天时,先排除范围不沾边的段,只把可能有的那几段读出来、逐行检查。数据如果是<b>按时间顺序追加</b>的,每一段的范围都很窄,一下子就能跳过绝大部分数据,而索引本身只有几十 KB。数据顺序一乱,每段的范围都很宽,它就什么也跳不过了。
+  </div>
+
+  <h3>② 生活类比:书架上的日期标签</h3>
+  <p>账房的旧账本按日子一本本往后放,放满一个书架就换下一个。他不给每一页做卡片,只在每个书架上贴一张标签:「这一架:2025-05-28 到 2025-06-03」。问「6 月 1 日的单子」,看一眼标签就知道只可能在这一架,别的几百架都不用碰;到了这一架,还得一本本翻、一行行找(标签只说「大概在这里」)。可要是有人把账本打乱了放,每一架上都混着各个日子,每张标签都写着「2024-01-01 到 2025-11-27」,标签就没用了。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测</th></tr>
+    <tr><td>一个书架</td><td>一个 block range(<code>pages_per_range</code>,默认 128 页)</td><td>表 20397 页 ≈ 160 段</td></tr>
+    <tr><td>书架上的日期标签</td><td>这一段的 min / max(minmax 摘要)</td><td>整个索引 24 kB</td></tr>
+    <tr><td>看标签排除书架</td><td><code>Bitmap Index Scan</code> on BRIN</td><td>读 5 页</td></tr>
+    <tr><td>到了书架还要一行行找</td><td><code>Heap Blocks: lossy</code> + <code>Rows Removed by Index Recheck</code></td><td>读 128 页,扔掉 4831 行</td></tr>
+    <tr><td>账本按日子顺序放</td><td>物理顺序和值的顺序一致,<code>pg_stats.correlation</code> ≈ 1</td><td>1.0000</td></tr>
+    <tr><td>账本被打乱</td><td>correlation ≈ 0</td><td>0.0022,BRIN 什么也跳不过</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证:大小、按顺序的表、打乱的表。</b>✍️ <b>预测</b>:<code>created_at</code> 上的 B-tree 是 21 MB,BRIN 会是多大?查某一天(1440 行)时它比 B-tree 慢多少?打乱以后呢?真实结果(<code>07-brin.sql</code>):</p>
+  <pre><code>     列     | correlation
+------------+-------------
+ created_at |      1.0000
+ owner_id   |      0.0127
+         索引         | 大小
+----------------------+-------
+ tasks_created_btree  | 21 MB
+ tasks_created_brin16 | 56 kB      -- pages_per_range = 16
+ tasks_created_brin   | 24 kB      -- 默认 128
+--- B-tree
+   -&gt;  Index Scan using tasks_created_btree on tasks (actual time=0.029..0.305 rows=1440 loops=1)
+         Buffers: shared hit=29 read=8
+ Execution Time: 0.601 ms
+--- BRIN
+   -&gt;  Bitmap Heap Scan on tasks (actual time=0.586..0.990 rows=1440 loops=1)
+         Rows Removed by Index Recheck: 4831
+         Heap Blocks: lossy=128
+         -&gt;  Bitmap Index Scan on tasks_created_brin (… rows=1280 loops=1)
+               Buffers: shared hit=5
+ Execution Time: 1.215 ms
+=== ④ 同样的数据,打乱物理顺序
+ 打乱后的 correlation
+----------------------
+               0.0022
+ Seq Scan on tasks_shuffled (actual time=0.037..56.874 rows=1440 loops=1)
+ Execution Time: 57.184 ms
+--- 强行用 BRIN
+   -&gt;  Bitmap Heap Scan on tasks_shuffled (… rows=1440 loops=1)
+         Rows Removed by Index Recheck: 998560
+         Heap Blocks: lossy=9216
+ Execution Time: 84.299 ms</code></pre>
+  <p>各跑 3 次、脚本跑 3 遍:</p>
+  <table>
+    <tr><th>情况</th><th>耗时</th></tr>
+    <tr><td>按时间顺序的表 · B-tree(21 MB)</td><td>0.247 – 0.548 ms</td></tr>
+    <tr><td>按时间顺序的表 · BRIN(24 kB)</td><td>0.468 – 1.436 ms</td></tr>
+    <tr><td>打乱的表 · 优化器选全表扫描</td><td>46.8 – 68.1 ms</td></tr>
+    <tr><td>打乱的表 · 强行用 BRIN</td><td>57.9 – 107.4 ms</td></tr>
+  </table>
+  <ul>
+    <li>BRIN 只有 B-tree 的 <b>九百分之一</b>大,查一天只慢一倍左右:它只能说「在这一段(128 页)里」,所以要读整段、扔掉 4831 行不相关的(<code>lossy</code> 表示位图只精确到页,不精确到行)。表越大,这个体积差别越有意义:10 亿行的日志表,B-tree 要几十 GB,BRIN 只要几 MB。</li>
+    <li>打乱之后 correlation 接近 0,每一段的 min / max 都几乎覆盖全部日期,BRIN 一段也排除不了,要读全部 9216 页、复查 100 万行,比直接全表扫描还慢。优化器看了 correlation,自己选了全表扫描。</li>
+    <li><code>pages_per_range</code> 点到为止:改成 16 页一段,索引大一些(56 kB),每段更窄,复查的行更少。默认值对大部分按时间追加的表就够了。</li>
+    <li>适合的表:日志、事件、监控数据、Day 26 的 <code>imports</code> 这类<b>只追加、按时间查</b>的大表。不适合的:经常 UPDATE / DELETE 后又插入的表(新行会填进旧页的空位,顺序慢慢就乱了)、按非时间列查的表。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「看标签就知道单子在哪」——BRIN 只给「大概在哪几架」。</b>它永远要逐行复查,结果是 lossy 的,读的页数以「段」为单位。要精确定位到行、要 <code>ORDER BY … LIMIT</code>、要唯一约束,还得用 B-tree。</li>
+      <li><b>「贴一次标签就一直准」——顺序是会被破坏的。</b>按时间追加的表,只要中间夹着大量 UPDATE、DELETE 后的空位复用,或者补录了一批旧数据,相关段的范围就变宽了。新插入的页也要等 VACUUM(或 <code>autosummarize</code>)才会补上摘要。上线 BRIN 后要定期看 correlation 和计划里的 <code>Rows Removed by Index Recheck</code>。</li>
+      <li><b>「小索引总是更好」——小表上 BRIN 没有意义。</b>100 万行的表上 B-tree 也只有 21 MB,而且查得更快。BRIN 的价值在 B-tree 大到放不进内存、维护成本太高的表上。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>BRIN</b>(block range index)、<b>block range</b>、<b><code>pages_per_range</code></b>、<b>minmax</b> 操作符类(还有 <code>minmax_multi</code>、<code>bloom</code>,PostgreSQL 14 起)、<b>lossy bitmap</b>、<b>Rows Removed by Index Recheck</b>、<b><code>pg_stats.correlation</code></b>、<b><code>autosummarize</code></b> / <code>brin_summarize_new_values()</code>、<b>physical order / clustering</b>(<code>CLUSTER</code> 命令,Week 6 以后)。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🧭 选哪种索引:一张决策表 + nest-lab 的 <code>?q=</code> 怎么改</h2>
+  <table>
+    <tr><th>索引类型</th><th>擅长</th><th>不擅长 / 注意</th><th>今天的实测</th></tr>
+    <tr><td><b>B-tree</b>(默认)</td><td>等值、范围、排序、<code>LIMIT</code>、唯一约束、最左前缀、前缀 <code>LIKE 'abc%'</code>(要 <code>C</code> 排序规则或 <code>text_pattern_ops</code>)</td><td><code>'%abc%'</code>、<code>ILIKE</code>、多值的列</td><td>前缀查询 2.1 – 14.0 ms</td></tr>
+    <tr><td><b>GIN</b></td><td>「一行有多个值」:trigram 子串、全文搜索、JSONB、数组的包含查询</td><td>不能排序、不能范围查询;写入慢、体积大;查询词少于 3 个字符时 trigram 帮不上</td><td><code>'%urgent%'</code> 约 500 ms → 2–7 ms</td></tr>
+    <tr><td><b>BRIN</b></td><td>物理顺序和值高度相关的大表(按时间追加)</td><td>顺序一乱就没用;结果是 lossy 的;小表没意义</td><td>24 kB vs 21 MB</td></tr>
+    <tr><td><b>Hash</b></td><td>只做等值;PostgreSQL 10 起写 WAL、崩溃安全</td><td>不能范围、不能排序、不能唯一约束;B-tree 几乎总能替代它</td><td>未实测</td></tr>
+    <tr><td><b>GiST / SP-GiST</b></td><td>几何、范围类型(<code>tstzrange</code> 的重叠、排除约束)、最近邻(<code>ORDER BY … &lt;-&gt; … LIMIT</code>)、也能做 trigram</td><td>点到为止,用到时再学</td><td>未实测</td></tr>
+  </table>
+
+  <h3>给 Day 34 的建议:nest-lab 的 <code>?q=</code></h3>
+  <ol>
+    <li><b>用 trigram GIN,不用全文搜索。</b>标题里有中文,用户期待的是「包含这几个字」,全文搜索不分中文词;trigram 对 3 个字符以上的子串(中英文都行)有效。</li>
+    <li><b>SQL 不用改。</b>今天用 nest-lab 的 <code>pg</code> 驱动实测:不具名查询 <code>title ILIKE $1 ESCAPE '\'</code> 带着参数做计划,能直接用上 GIN。</li>
+    <li><code>schema.sql</code> 里要加两样:<code>CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;</code>(受信任的扩展,库的 owner 就能建;放在 <code>DROP SCHEMA</code> 之外,它不属于 app schema),以及 <code>CREATE INDEX … USING gin (title public.gin_trgm_ops)</code>。nest-lab 连接时只设了 <code>search_path=app</code>(<code>src/database/pg-pool.ts</code>),<code>schema.sql</code> 里也是 <code>SET search_path = :"schema"</code>,所以建索引时操作符类要写全名,或者把 <code>public</code> 加进 <code>search_path</code>。</li>
+    <li><b>短关键词</b>:1–2 个字符(中文「登录」也算)抽不出三元组。可以接受(nest-lab 的列表有 <code>LIMIT 21</code>,按主键顺序扫描时常见的匹配会很快凑够一页,但罕见的短词会扫全表),也可以在 DTO 里给 <code>q</code> 加最短长度。这个取舍 Day 34 用 <code>pg_stat_statements</code> 和真实数据来定。</li>
+    <li>常见词(命中很多行)加上排序和 keyset 分页时,GIN + 排序不一定比「按排序索引扫、边扫边过滤」快,Day 34 要对比两种计划。</li>
+  </ol>
+</section>
+
+<section id="sec7">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <table>
+    <tr><th></th><th>PostgreSQL</th><th>MySQL(InnoDB)</th><th>SQL Server</th></tr>
+    <tr><td>全文搜索</td><td><code>tsvector</code> / <code>tsquery</code> + GIN</td><td><code>FULLTEXT</code> 索引 + <code>MATCH … AGAINST</code></td><td>Full-Text Search(全文目录 + <code>CONTAINS</code> / <code>FREETEXT</code>)</td></tr>
+    <tr><td>中文</td><td>默认不分词;装 zhparser / pg_jieba,或用 trigram 做子串</td><td>自带 <b>ngram 解析器</b>(5.7.6 起):<code>FULLTEXT … WITH PARSER ngram</code>,按 <code>ngram_token_size</code>(默认 2)切</td><td>有中文的断词器(word breaker)</td></tr>
+    <tr><td><code>LIKE '%abc%'</code> 的索引</td><td>pg_trgm + GIN / GiST</td><td>没有对应的东西,通常改用 FULLTEXT(ngram)</td><td>没有对应的东西,通常改用全文搜索</td></tr>
+    <tr><td>JSON / 数组的包含索引</td><td>GIN</td><td>多值索引(multi-valued index,8.0.17 起,给 JSON 数组用)</td><td>给计算列建索引</td></tr>
+    <tr><td>BRIN 这类块级摘要</td><td>BRIN</td><td>无</td><td>列存储索引的段元数据(segment elimination)有类似的思路</td></tr>
+  </table>
+  <p><b>ORM 里怎么声明 GIN:</b></p>
+  <ul>
+    <li><b>Prisma</b>:<code>@@index([tags], type: Gin)</code>(PostgreSQL 上可选 <code>Gin</code>、<code>Gist</code>、<code>Brin</code>、<code>SpGist</code>);trigram 要指定操作符类,写法是 <code>@@index([title(ops: raw("gin_trgm_ops"))], type: Gin)</code>;扩展用 <code>postgresqlExtensions</code> 预览功能,或者在迁移 SQL 里手写 <code>CREATE EXTENSION</code>。</li>
+    <li><b>EF Core(Npgsql)</b>:<code>HasIndex(t =&gt; t.Title).HasMethod("gin").HasOperators("gin_trgm_ops")</code>;全文搜索用 <code>HasIndex(…).HasMethod("GIN").IsTsVectorExpressionIndex("english")</code>。</li>
+    <li><b>JPA / Hibernate</b>:标准 <code>@Index</code> 不能指定索引方法,写在 Flyway / Liquibase 的 SQL 里。<b>Go</b>:迁移文件里手写 SQL。</li>
+  </ul>
+  <p><b>什么时候该用专门的搜索引擎</b>(Elasticsearch / OpenSearch / Meilisearch / Algolia):需要相关度调优、同义词、拼写纠错、按拼音或中文分词、分面统计(「每个标签各有多少结果」)、高亮、千万级以上的文档和高并发搜索,或者要搜的数据来自多个系统。代价是多了一个要运维的系统,还要解决「数据库改了以后搜索引擎什么时候同步」的问题(Week 13 的消息队列 / CDC)。nest-lab 这种规模,PostgreSQL 的 trigram 和全文搜索足够了。</p>
+  <p>🔎 核实说明:</p>
+  <ul>
+    <li>联网核对过:MySQL 官方文档的 ngram 解析器(5.7.6 起、<code>WITH PARSER ngram</code>、<code>ngram_token_size</code> 默认 2);Prisma 文档里的 <code>@@index([tags], type: Gin)</code>(可选 GiST、BRIN、SP-GiST);Npgsql 文档里的 <code>HasMethod("GIN").IsTsVectorExpressionIndex("english")</code>。</li>
+    <li>记忆中的写法、<b>没有核实</b>:Prisma 的 <code>ops: raw("gin_trgm_ops")</code> 和 <code>postgresqlExtensions</code> 预览功能、Npgsql 的 <code>HasOperators("gin_trgm_ops")</code>。</li>
+    <li>公认事实或我的记忆、<b>没有在本机实测</b>(本课程环境只有 PostgreSQL):SQL Server Full-Text Search 的细节、MySQL 的多值索引、SQL Server 的段消除。zhparser / pg_jieba 今天没有安装。</li>
+  </ul>
+  <p>📌 Day 35 补「索引 / 执行计划」那一行时,可以加上:「子串 / 全文搜索:PG pg_trgm + GIN、tsvector ↔ MySQL FULLTEXT(ngram 支持中文)↔ SQL Server Full-Text Search;大表按时间:PG BRIN」,内容自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"Why doesn't LIKE '%abc%' use an index? How would you optimize it? What is an inverted index?"</b>(或者:「LIKE '%abc%' 为什么不走索引?怎么优化?什么是倒排索引?」)你可以答:<br>
+    <b>"B-tree 按值的开头排序,前缀查询 LIKE 'abc%' 能变成一个范围,所以能用(在 PostgreSQL 里还要求索引按字节排序,也就是 C 排序规则或 text_pattern_ops);'%abc%' 匹配的行散在整个索引里,没有一个连续的范围,只能全表扫描。优化办法要看需求:要找子串,在 PostgreSQL 里用 pg_trgm 建 trigram 的 GIN 索引,它把文本拆成三个字符一组,查询时先找出包含这些组的行再复查,我实测少见的词从 500 毫秒降到几毫秒,但少于三个字符的词帮不上,常见词的提升也有限;要按词搜,用全文搜索,它会分词和还原词根,但默认不支持中文;规模更大、要相关度和分词时,上 Elasticsearch 这类搜索引擎。倒排索引就是反过来记:不是『这一行有什么』,而是『每个词出现在哪些行』,一行可以对应很多词。GIN 就是 PostgreSQL 的倒排索引,也用于 JSONB 和数组的包含查询;它的代价是写入慢、体积大,而且不能用来排序。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec8">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:跟着跑一遍(动手,约 8 min)</h3>
+    <ol>
+      <li>先把第 2–5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day33</code> 批改。你那边的耗时会不同,看量级和谁快谁慢。如果建扩展报权限错误,按第 2 节的办法用超级用户建一次。</li>
+      <li>psql 连进去,<code>SET search_path = day33, public;</code>,建 trigram GIN。✍️ <b>预测</b>:<code>title ILIKE '%invoice export%'</code> 比 <code>'%invoice%'</code> 命中的行少吗?索引会更快吗?<code>title ~* 'inv(oice|entory)'</code>(正则)能用 trigram GIN 吗?</li>
+      <li>✍️ <b>预测</b>:<code>show_trgm('登录页')</code> 有几组?<code>LIKE '%登录页%'</code> 和 <code>LIKE '%登录%'</code> 的计划各是什么?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:为三个需求选索引(动笔 + 动手,约 12 min)</h3>
+    <p>每个需求先写出你选的索引类型、操作符类和理由,再在 <code>day33</code> 里验证:</p>
+    <ol>
+      <li>「按标签筛选,最新的 20 个」:<code>WHERE tags @&gt; ARRAY['security'] ORDER BY created_at DESC LIMIT 20</code>。GIN 能帮上排序吗?计划里会有什么节点?</li>
+      <li>「最近 7 天的操作日志」:一张只追加的 <code>audit_log</code>,每天 1000 万行,只按时间范围查。B-tree 还是 BRIN?估一下一年后两种索引各多大(按今天 100 万行时的大小线性估算)。</li>
+      <li>「搜索框:英文用户要能搜到 running 写成 run 的任务,中文用户要能搜子串」:一个索引够吗?你会怎么组合?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:为 nest-lab 的 <code>?q=</code> 写方案(思考,约 5 min)</h3>
+    <ol>
+      <li>按第 6 节的建议,写出 Day 34 要加进 <code>schema.sql</code> 的两条语句,说明为什么 <code>CREATE EXTENSION</code> 要放在 <code>DROP SCHEMA … CASCADE</code> 影响不到的地方。</li>
+      <li><code>?q=</code> 只有 1–2 个字符时,你选「接受全表扫描」还是「DTO 里限制最短长度」?各自的代价是什么?(提示:400 错误也是 API 契约的一部分,Day 20 的 OpenAPI 要跟着改。)</li>
+      <li>nest-lab 的任务经常被 PATCH 改标题。按 06 的实测,trigram GIN 会让写入慢多少?要不要担心?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/33-gin-brin/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事说:「我的搜索框就是 <code>items.filter(x =&gt; x.title.includes(q))</code>,数据多了就卡;Algolia 和浏览器的 Ctrl+F 是怎么做到快的?数据库里的 <code>LIKE '%q%'</code> 为什么也慢?」用书末关键词索引的比喻讲清楚倒排索引和三元组,并说出这个比喻在哪里会骗人。</li>
+      <li>trigram 和全文搜索各自找的是什么?各举一个对方做不到的例子。为什么 nest-lab 的 <code>?q=</code> 选 trigram?</li>
+      <li>BRIN 存的是什么?为什么它只有几十 KB?什么情况下它会失效?</li>
+    </ol>
+    <p>写完回到第 2–5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:把习题 3 的方案记进 <code>notes.md</code>(Day 34 改 nest-lab 时要用);在 <code>nest-lab/README.md</code> 的成长日志里记一笔;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec9">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>B-tree 只能帮 LIKE 做前缀</b>,而且要求索引按字节排序(PostgreSQL 16 只认 <code>C</code> / <code>POSIX</code>:本机的 <code>C.UTF-8</code> 和 Docker 的 <code>en_US.utf8</code> 都要 <code>text_pattern_ops</code> 或 <code>COLLATE "C"</code>);<code>'%abc%'</code> 和 <code>ILIKE</code> 它都帮不上。</li>
+    <li><b>GIN 是倒排索引,pg_trgm 把文本拆成三元组</b>:<code>ILIKE '%urgent%'</code> 从 450–650 ms 到 1.7–7.4 ms,中文 3 个字符以上也能用;但少于 3 个字符(<code>'%加急%'</code>)抽不出三元组,常见词的帮助有限,索引(40 MB)比列本身还大,写入慢 10 倍以上(关掉 <code>fastupdate</code> 时 100 倍、WAL 1 GB)。nest-lab 的参数化 SQL 不用改就能用上它。</li>
+    <li><b>全文搜索找「词」,trigram 找子串</b>:<code>english</code> 配置会还原词根(exports → export),但 PostgreSQL 默认不分中文词。JSONB / 数组的 GIN 做包含查询,<code>jsonb_path_ops</code> 小一半但不支持 <code>?</code>。</li>
+    <li><b>BRIN 只记每一段数据页的 min / max</b>:24 kB 对 B-tree 的 21 MB,按时间顺序的表上查一天只慢一倍;数据一打乱(correlation 0.0022)就一段也排除不了,比全表扫描还慢。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>为什么本机的 <code>C.UTF-8</code> 库里,普通 B-tree 用不上 <code>LIKE 'Fix invoice%'</code>?有哪两种解法?</li>
+    <li><code>show_trgm('urgent')</code> 大概有哪些组?查 <code>'%urgent%'</code> 时 GIN 做了什么,为什么还要 Recheck?</li>
+    <li>为什么 <code>'%加急%'</code> 用不上 trigram GIN,<code>'%(加急)%'</code> 却可以?</li>
+    <li>搜 voice 和 exports,trigram 和全文搜索的结果为什么正好相反?</li>
+    <li><code>jsonb_ops</code> 和 <code>jsonb_path_ops</code> 怎么选?<code>meta-&gt;&gt;'source' = 'api'</code> 为什么两种都用不上?</li>
+    <li>BRIN 的计划里 <code>Heap Blocks: lossy</code> 和 <code>Rows Removed by Index Recheck</code> 说明了什么?打乱数据后为什么会失效?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 34</b>:把这一周学的落到 nest-lab 上。先装上 <code>pg_stat_statements</code>,看真实的请求里哪些 SQL 最慢、最常执行;再按 Day 31–33 的清单给 nest-lab 加索引(排序组合、<code>?done=</code>、<code>?q=</code> 的 trigram GIN),修掉 Day 31 发现的 keyset 混合方向深分页问题,并用 <code>EXPLAIN</code> 和测试证明它们真的生效了。</p>
+</section>
+
+<footer>
+  Day 33 · Phase 2 / Week 5 · 产出:<code>docs/33-gin-brin/</code> 本文档 + <code>nest-lab/</code>(<code>sql/day33/</code> 七个实验文件、<code>npm run day33</code>)+ <code>src/33-gin-brin/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>
