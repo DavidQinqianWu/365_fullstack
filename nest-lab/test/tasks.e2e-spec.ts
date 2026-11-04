@@ -94,4 +94,27 @@ describe('Tasks (e2e)', () => {
 
     await request(app.getHttpServer()).get('/tasks/3').expect(200);
   });
+
+  // ---------- Day 11:全局保安 + @Public() + @AdminOnly() ----------
+  it('GET 接口贴了 @Public():不带钥匙也是 200', () => {
+    return request(app.getHttpServer()).get('/tasks').expect(200);
+  });
+
+  it('DELETE /tasks/1 带钥匙但没有 admin 角色 → 403(RolesGuard 拦下)', async () => {
+    await request(app.getHttpServer()).delete('/tasks/1').set(KEY).expect(403);
+    await request(app.getHttpServer()).delete('/tasks/1').set({ ...KEY, 'x-demo-role': 'staff' }).expect(403);
+  });
+
+  it('DELETE /tasks/1 不带钥匙,即使是 admin → 403(全局保安先拦下)', () => {
+    return request(app.getHttpServer()).delete('/tasks/1').set({ 'x-demo-role': 'admin' }).expect(403);
+  });
+
+  it('DELETE /tasks/1 钥匙 + admin → 200 + 被删的任务,之后 GET 是 404', async () => {
+    const res = await request(app.getHttpServer())
+      .delete('/tasks/1')
+      .set({ ...KEY, 'x-demo-role': 'admin' })
+      .expect(200);
+    expect(res.body.data).toEqual({ id: 1, title: '跑通 nest new', done: true, createdAt: FIXED });
+    await request(app.getHttpServer()).get('/tasks/1').expect(404);
+  });
 });

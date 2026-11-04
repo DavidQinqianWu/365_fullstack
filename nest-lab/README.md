@@ -18,6 +18,7 @@ npm run test:e2e       # e2e 测试(test/**/*.e2e-spec.ts,supertest 发真实 HT
 npm run day08          # Day 8 观察脚本:看装饰器标签 + 一个请求流过哪些站
 npm run day09          # Day 9 观察脚本:IoC 容器的元数据 + 三种作用域各造了几个实例
 npm run day10          # Day 10 观察脚本:一个请求在 AOP 管线里走过哪些站、在哪一站停下
+npm run day11          # Day 11 观察脚本:标签什么时候贴、Reflector 怎么读、拼错 key 静默失效
 ```
 
 ## 成长日志
@@ -27,3 +28,4 @@ npm run day10          # Day 10 观察脚本:一个请求在 AOP 管线里走过
 | Day 8 | `nest new` 起项目;`src/tasks/`(Module + Controller + Service,内存数组);`src/common/request-logger.middleware.ts`;`main.ts` 挂全局 middleware;`test/tasks.e2e-spec.ts`;`scripts/day08-try.mjs` | `docs/08-nestjs-intro/` |
 | Day 9 | 仓储抽成接口 + `TASKS_REPOSITORY` token(`useClass: InMemoryTasksRepository`);`src/common/clock.ts`(`CLOCK` + `useValue`);`TASKS_SEED`(`useFactory` + `inject`);`TasksService` 改用 `@Inject(token)`;`Task` 加 `createdAt`;`src/scope-demo/`(三种作用域实验,不挂进 AppModule);单元测试改用 `Test.createTestingModule` + `overrideProvider`;`test/scope-demo.e2e-spec.ts`;`scripts/day09-try.mjs` | `docs/09-di-ioc/` |
 | Day 10 | `src/common/` 新增计时 / 包装 interceptor、`DemoKeyGuard`、`TracedParseIntPipe`、`AllExceptionsFilter`;`src/app.setup.ts`(`configureApp`:全局 middleware + interceptor + filter,main.ts / e2e / 脚本共用);`TasksController` 挂 Controller 级 interceptor、POST 级 guard、`:id` 参数 pipe;响应改为 `{ data, timestamp }`,`POST /tasks` 需要请求头 `x-demo-key: let-me-in`;新增 2 个单元测试文件,e2e 补 403 / 400 / 响应头;`scripts/day10-try.mjs` | `docs/10-aop/` |
+| Day 11 | `src/common/decorators/`(`@Public()` = SetMetadata、`@Roles()` = `Reflector.createDecorator`、`@RequestId()` = createParamDecorator、`@AdminOnly()` = applyDecorators);`DemoKeyGuard` 升级为全局默认要钥匙(`APP_GUARD`,读 `@Public()`);新增 `RolesGuard`(角色暂读 `x-demo-role`);`DELETE /tasks/:id`(`@AdminOnly()`);GET 接口、首页、scope-demo 贴 `@Public()`;`src/decorator-demo/`(覆盖 / 合并 / 拼错 key 演示);测试补齐;`scripts/day11-try.mjs` | `docs/11-custom-decorators/` |

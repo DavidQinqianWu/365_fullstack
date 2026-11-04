@@ -37,4 +37,11 @@ export class TasksService {
       createdAt: this.clock.now().toISOString(), // 不写 new Date():时间也是注入的
     });
   }
+
+  remove(id: number): Task {
+    console.log(`   ④ Service    后厨做菜:remove(${id})`);
+    const removed = this.repo.remove(id);
+    if (!removed) throw new NotFoundException(`没有 id 为 ${id} 的任务`);
+    return removed;
+  }
 }

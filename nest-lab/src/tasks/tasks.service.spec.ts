@@ -51,6 +51,7 @@ describe('TasksService(把仓储换成假的,只测业务逻辑)', () => {
       findAll: vi.fn(() => []),
       findById: vi.fn(() => undefined),
       insert: vi.fn(() => saved),
+      remove: vi.fn(() => undefined), // Day 11:接口新增了 remove,假仓储也要补上
     };
     const moduleRef = await Test.createTestingModule({ imports: [TasksModule] })
       .overrideProvider(TASKS_REPOSITORY)

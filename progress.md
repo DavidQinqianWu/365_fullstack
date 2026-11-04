@@ -1,7 +1,7 @@
 # 365 天全栈成长 · 进度记录
 
 - 计数方式:**只按 Day N 计数,不写具体日期**——不要求每天连续学习,完成一天才算一天,Day N 永远 = 已完成天数 + 1。
-- 当前进度:Day 5(进行中;Day 6–10 材料已备)
+- 当前进度:Day 5(进行中;Day 6–11 材料已备)
 - 时间标准:按 `roadmap.md` 每天 1.5 小时。注:另一仓库的路线图 v2(3 小时/天、Hetzner 部署、365 平台主线项目)在合并时被覆盖,已确认**以当前 `roadmap.md` 为准**;v2 原文可在提交 `8ac8470` 中查看,Day 6–7 讲义按 v2 节奏编写,使用时酌情删减。⚠️ `hetzner` 主机是公司测试环境(Coolify + Traefik),不要部署学习项目,需要服务器时另租独立 VPS。
 - 水平测试(Day 4 完成):**1 / 46**,全部 7 个领域从零起步,React/TS 深层知识为真实缺口。每个 Phase 结束重答对应题目,见 `docs/00-level-check/level-check.md`。
 - 说明:第一轮(Day 1–8)的旧文件已归档至 `archive/round-1/`,供对照参考。
@@ -18,3 +18,4 @@
 | Day 8 | Phase 1 / Week 2 | NestJS 入门:`nest new nest-lab` 起项目(从此所有后端习题写进它)+ 连锁加盟体系比喻:Module 部门编制表 / Controller 前台 / Provider 后厨 + 装饰器 = 岗位便利贴(开业时读标签排路由表)+ 一个请求在 Nest 里的一生(生命周期图,标出 middleware/guard/interceptor/pipe/filter 位置,后几天展开)+ 掀开盖子:Day 6 手写的杂活 Nest 替你做了哪些;实战:tasks 模块(GET 列表 / GET :id 404 / POST)+ 进出门日志 middleware | `docs/08-nestjs-intro/Day 8 - NestJS 入门:从街边小店到连锁餐厅.html` + `nest-lab/`(tasks 模块、单元与 e2e 测试、`npm run day08` 观察脚本)+ `src/08-nestjs-intro/notes.md` | 待开始 |
 | Day 9 | Phase 1 / Week 2 | 依赖注入与控制反转:前台交「用人申请单」(构造函数参数)、总部人事部(IoC 容器)派人 + 容器四步(注册 → 排依赖图 → 造人 → 派人)与 token、`useClass` / `useValue` / `useFactory` + 三种作用域(制冰机 / 每桌一套餐具 / 每人一把刀)与「传染」;实验:手写 56 行迷你 IoC 容器(单例缓存、循环依赖报错);nest-lab:抽出 `TASKS_REPOSITORY` 接口 + token(Week 4 换 PG 只改一行)、注入时钟、作用域计数实验(1 / 3 / 6)、`overrideProvider` 测试 | `docs/09-di-ioc/Day 9 - 依赖注入与控制反转:前台不招人,总部人事部派人.html` + `src/09-di-ioc/`(mini-container、ex1、notes)+ `nest-lab/`(tasks 仓储与时钟、scope-demo、`npm run day09`) | 待开始 |
 | Day 10 | Phase 1 / Week 2 | 面向切面编程 AOP:店规不写进菜谱(横切关注点;aspect / advice / pointcut 对上 Nest)+ 管线五件套(登记员 middleware / 保安 guard / 领班 interceptor / 核单员 pipe / 投诉台 filter:时机、能拿到什么、全局·Controller·方法三种绑定)+ 异常短路(哪一站出事就直奔投诉台);实验:不用框架手写切面 `weave()`;nest-lab:计时 interceptor(`X-Response-Time`)、统一响应包装、DemoKeyGuard、ParseIntPipe、全局 exception filter、`configureApp`、`npm run day10` 四种情况走到哪一站 | `docs/10-aop/Day 10 - 面向切面编程 AOP:不改一道菜谱,给全店立规矩.html` + `src/10-aop/`(ex1、notes)+ `nest-lab/`(common/ 下切面、app.setup.ts、`npm run day10`) | 待开始 |
+| Day 11 | Phase 1 / Week 2 | 自定义装饰器与元数据(AOP 闭环):门上的贴纸 + 会看贴纸的保安(`SetMetadata` / `Reflector.createDecorator`,`get` / `getAllAndOverride` / `getAllAndMerge`)+ 参数装饰器 = 前台自动填表员(`@RequestId()`)+ 组合装饰器 `applyDecorators`(`@AdminOnly()`)+ 默认上锁(`APP_GUARD` 全局保安 + `@Public()` 免检);实验:手写迷你 Reflector;nest-lab:RolesGuard、`DELETE /tasks/:id`、decorator-demo(就近覆盖 vs 合并、拼错 key 静默失效)、`npm run day11` | `docs/11-custom-decorators/Day 11 - 自定义装饰器与元数据:贴「免检」标签,保安按标签放行.html` + `src/11-custom-decorators/`(ex1、notes)+ `nest-lab/`(common/decorators、roles.guard、decorator-demo、`npm run day11`) | 待开始 |

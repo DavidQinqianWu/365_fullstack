@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 11 - 自定义装饰器与元数据:贴「免检」标签,保安按标签放行</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 2</div>
+  <h1>Day 11 - 自定义装饰器与元数据:贴「免检」标签,保安按标签放行</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>元数据装饰器(<code>SetMetadata</code> / <code>Reflector.createDecorator</code>)· <code>Reflector</code> 的三种读法 · 参数装饰器 · 组合装饰器</b> ·
+    项目:<code>nest-lab/</code> 的保安升级为「全局默认要钥匙 + <code>@Public()</code> 免检」,新增 <code>@Roles</code> / <code>@AdminOnly()</code> / <code>@RequestId()</code> ·
+    手写实验:<code>src/11-custom-decorators/</code> 30 行的迷你 Reflector ·
+    这是 Week 2 AOP 的最后一块拼图:<b>切面按标签决定做不做</b>
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🏷️ 接上回:保安只会「挂上就查」</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:元数据装饰器 + Reflector —— 贴标签的人和读标签的人</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:参数装饰器 —— 前台的自动填表员</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:组合装饰器与「默认上锁」—— 一张套餐贴纸</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🏷️ 接上回:保安只会「挂上就查」</h2>
+  <p>Day 10 的 <code>DemoKeyGuard</code> 挂在哪个接口上,哪个接口就要钥匙。这个做法有两个隐患:</p>
+  <ul>
+    <li><b>默认不设防</b>:以后新写一个 <code>PATCH /tasks/:id</code>,忘了挂 <code>@UseGuards</code>,它就<b>裸奔</b>上线了,没有任何报错提醒你。</li>
+    <li><b>规则写死</b>:「只有管理员能删」「这几个接口谁都能看」—— 这些都是<b>每个接口不同的规则</b>,保安却只有一种行为。</li>
+  </ul>
+  <p>更安全的做法是反过来:<b>保安守在全店每个门口(全局),默认谁都要钥匙;只有贴了「免检」标签的门才放行</b>。这样忘贴标签的后果是「多拦了一个人」(403,安全的失败),而不是「放进了一个不该进的人」。</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    Day 8 我们说过,装饰器是贴在员工身上的<b>便利贴</b>,开店时总部读便利贴排路由。今天我们<b>自己印便利贴</b>:「免检」「仅限管理员」;再<b>自己写读便利贴的人</b>:保安上岗时看一眼这道门上贴了什么,再决定查不查。Day 8 提过的那句话 ——「<b>只贴不读等于白贴</b>」—— 今天把「读」的那一侧亲手写出来。
+  </div>
+  <table>
+    <tr><th>Week 2 已经有的</th><th>今天补上的</th></tr>
+    <tr><td>Day 8:框架贴、框架读(<code>@Get</code> → 路由表)</td><td><b>你贴、你读</b>(<code>@Public()</code> → 你的 guard)</td></tr>
+    <tr><td>Day 9:容器能注入任何 Provider</td><td>guard 注入 <code>Reflector</code>(读标签的工具),所以全局 guard 要用 <code>APP_GUARD</code> 放进容器</td></tr>
+    <tr><td>Day 10:guard / interceptor 拿得到 <code>ExecutionContext</code></td><td>用 <code>context.getHandler()</code> / <code>getClass()</code> 找到<b>要去的那个方法和类</b>,读它们身上的标签</td></tr>
+  </table>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+npm test             # 单元测试:两个 guard 读标签的规则
+npm run test:e2e     # e2e:@Public() / @AdminOnly() / 覆盖 / 拼错 key
+npm run day11        # 观察脚本:标签什么时候贴、怎么读、10 种请求的结果
+
+# 手动试:删除要「钥匙 + admin 角色」
+curl -i -X DELETE localhost:3000/tasks/1 -H 'x-demo-key: let-me-in' -H 'x-demo-role: admin'</code></pre>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用(餐厅版)</th></tr>
+    <tr><td><code>src/common/decorators/public.decorator.ts</code></td><td>新增</td><td>「免检」贴纸:<code>SetMetadata(IS_PUBLIC_KEY, true)</code>,key 是导出的常量</td></tr>
+    <tr><td><code>src/common/decorators/roles.decorator.ts</code></td><td>新增</td><td>「限定角色」贴纸:<code>Reflector.createDecorator&lt;string[]&gt;()</code>(新写法,不需要 key)</td></tr>
+    <tr><td><code>src/common/decorators/request-id.decorator.ts</code></td><td>新增</td><td>自动填表员:<code>createParamDecorator</code>,把请求 ID 填进参数</td></tr>
+    <tr><td><code>src/common/decorators/admin-only.decorator.ts</code></td><td>新增</td><td>套餐贴纸:<code>applyDecorators(Roles(['admin']), UseGuards(RolesGuard))</code></td></tr>
+    <tr><td><code>src/common/roles.guard.ts</code></td><td>新增</td><td>查角色的保安:读 <code>@Roles</code>,角色暂时从请求头 <code>x-demo-role</code> 来(Week 10 换 JWT)</td></tr>
+    <tr><td><code>src/common/demo-key.guard.ts</code></td><td>修改</td><td>注入 <code>Reflector</code>;贴了 <code>@Public()</code> 就免检,否则查钥匙</td></tr>
+    <tr><td><code>src/app.module.ts</code></td><td>修改</td><td><code>{ provide: APP_GUARD, useClass: DemoKeyGuard }</code>:保安变成<b>全局</b>,而且在容器里</td></tr>
+    <tr><td><code>src/tasks/tasks.controller.ts</code></td><td>修改</td><td>两个 GET 贴 <code>@Public()</code>;去掉 POST 上的 <code>@UseGuards</code>(全局了);POST 加 <code>@RequestId()</code>;新增 <code>DELETE /tasks/:id</code> 贴 <code>@AdminOnly()</code></td></tr>
+    <tr><td><code>src/tasks/tasks.repository.ts</code>、<code>in-memory-tasks.repository.ts</code>、<code>tasks.service.ts</code></td><td>修改</td><td>仓储接口和实现加 <code>remove()</code>,Service 加 <code>remove()</code>(找不到抛 404)</td></tr>
+    <tr><td><code>src/app.controller.ts</code>、<code>src/scope-demo/scope-demo.controller.ts</code></td><td>修改</td><td>贴 <code>@Public()</code>:全局保安上岗后,首页和 Day 9 的实验接口要显式标成免检</td></tr>
+    <tr><td><code>src/decorator-demo/</code>(2 个文件)</td><td>新增</td><td>实验部门:类级 / 方法级标签、覆盖与合并、故意拼错的 key、会「自报家门」的 <code>@Note()</code>。不挂进 AppModule</td></tr>
+    <tr><td><code>src/common/demo-key.guard.spec.ts</code></td><td>改写</td><td>用 <code>new Reflector()</code> 测「贴了 / 没贴 <code>@Public()</code>」</td></tr>
+    <tr><td><code>src/common/roles.guard.spec.ts</code>、<code>test/decorator-demo.e2e-spec.ts</code></td><td>新增</td><td>角色规则、覆盖、拼错 key 的测试</td></tr>
+    <tr><td><code>test/tasks.e2e-spec.ts</code></td><td>修改</td><td>新增 GET 免检、DELETE 的三种 403 / 200 用例</td></tr>
+    <tr><td><code>src/tasks/tasks.service.spec.ts</code></td><td>修改</td><td>假仓储补上 <code>remove</code>(接口加了方法,TypeScript 立刻逼你补齐)</td></tr>
+    <tr><td><code>scripts/day11-try.mjs</code> + <code>package.json</code> 的 <code>day11</code>、<code>README.md</code></td><td>新增 / 修改</td><td>观察脚本、成长日志</td></tr>
+  </table>
+  <p>(<code>npm run day10</code> 照样能跑,只是每个 GET 请求多了一行「②-1 Guard 保安 → …:贴了 @Public(),免检放行」—— 因为保安现在是全局的。)</p>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:元数据装饰器 + Reflector —— 贴标签的人和读标签的人</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    在方法或类上贴一张写着「数据」的标签(<code>@Public()</code>、<code>@Roles(['admin'])</code>);切面(guard / interceptor)运行时用 <code>Reflector</code> 把标签读出来,<b>按标签决定怎么做</b>。
+  </div>
+
+  <h3>② 生活类比:门上的贴纸 + 会看贴纸的保安</h3>
+  <p>开业前,装修队按图纸在各个门上贴好贴纸:大堂门贴「免检」,仓库门贴「仅限管理员」。<b>装修队贴完就走了</b>,贴纸本身不会拦任何人。开业后,保安每放一个人进门之前,先抬头看一眼这道门上的贴纸:「免检」→ 直接放;「仅限管理员」→ 查工牌。如果某道门上贴了一张保安<b>看不懂</b>的贴纸(写错了字),保安就当没看见,按默认规则办事。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>nest-lab 里</th></tr>
+    <tr><td>贴纸</td><td><b>metadata</b>:挂在类 / 方法上的键值数据</td><td><code>isPublic = true</code>、<code>Roles = ['admin']</code></td></tr>
+    <tr><td>印贴纸的模具(经典款)</td><td><code>SetMetadata(key, value)</code>:返回一个装饰器</td><td><code>Public = () =&gt; SetMetadata(IS_PUBLIC_KEY, true)</code></td></tr>
+    <tr><td>印贴纸的模具(防错款)</td><td><code>Reflector.createDecorator&lt;T&gt;()</code>:装饰器对象本身就是 key,值有类型</td><td><code>Roles = Reflector.createDecorator&lt;string[]&gt;()</code></td></tr>
+    <tr><td>装修队贴贴纸</td><td>装饰器在<b>类定义时</b>执行,把数据写进元数据表</td><td>import 文件的那一刻</td></tr>
+    <tr><td>保安抬头看贴纸</td><td><b><code>Reflector</code></b>(一个可注入的 Provider)</td><td><code>DemoKeyGuard</code>、<code>RolesGuard</code> 的构造函数里注入</td></tr>
+    <tr><td>「先看这道门,没有再看整栋楼的规定」</td><td><code>getAllAndOverride(key, [handler, class])</code>:第一个有值的胜出</td><td>方法上的 <code>['admin']</code> 盖过类上的 <code>['staff']</code></td></tr>
+    <tr><td>「门上的和楼里的规定都算」</td><td><code>getAllAndMerge(key, [handler, class])</code>:数组拼起来、对象合并</td><td><code>['admin', 'staff']</code></td></tr>
+    <tr><td>只看这道门</td><td><code>get(key, target)</code></td><td><code>reflector.get(Roles, TasksController.prototype.remove)</code></td></tr>
+  </table>
+
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    <b>Angular</b> 的 <code>@Component({ selector, template })</code> 就是元数据装饰器:组件类本身不知道自己是组件,框架读标签才知道。<b>React</b> 圈也有同款套路,只是不用装饰器:老版 Next.js 常写 <code>Page.requireAuth = true</code>(给组件挂 static 属性),再在 <code>_app.tsx</code> 里读 <code>Component.requireAuth</code> 决定要不要跳登录页 —— 「页面贴标签,外层布局读标签」,和今天的「handler 贴标签,guard 读标签」一模一样。App Router 里 <code>export const dynamic = 'force-dynamic'</code> 也是一种给框架读的元数据。
+  </div>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「贴了『仅限管理员』,就只有管理员能进」——错,要有保安读它才算数。</b>标签是<b>数据,不是代码</b>,本身不拦任何人。实验部门里 <code>DecoratorDemoController</code> 类上贴了 <code>@Roles(['staff'])</code>,但 <code>open</code> 方法没挂 <code>RolesGuard</code>,于是这张标签对 <code>open</code> 毫无作用(J1、J2 都是 200)。这就是 Day 8 说的「只贴不读等于白贴」。</li>
+      <li><b>「贴纸写错字,保安会提出来」——不会,保安当没看见。</b>手写字符串 key 拼错了(<code>'isPubilc'</code>),TypeScript 不报错、启动不报错、请求也不报错,只是<b>静默失效</b>(实验 G:想免检的接口照样 403)。防法:key 用导出的常量(<code>IS_PUBLIC_KEY</code>),或者直接用 <code>Reflector.createDecorator</code>,它连 key 都不需要,拼错装饰器名字就是编译错误。</li>
+      <li><b>「就近原则是贴纸自带的规矩」——不是,是保安自己选的读法。</b>同样两张贴纸(类上 <code>staff</code>、方法上 <code>admin</code>),用 <code>getAllAndOverride</code> 读出 <code>['admin']</code>,用 <code>getAllAndMerge</code> 读出 <code>['admin','staff']</code>,结论完全不同。「方法覆盖类」还是「两者都算」,是你写 guard 时做的<b>设计决定</b>,要和团队约定清楚。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>metadata decorator</b>(元数据装饰器);<code>SetMetadata</code>;<code>Reflector</code> 的 <code>get</code> / <code>getAllAndOverride</code> / <code>getAllAndMerge</code>;<code>Reflector.createDecorator</code>(Nest 10.2 起提供,类型安全、无需 key,今天的 <code>@Roles</code> 用它;<code>@Public()</code> 保留经典写法,因为官方文档和大量现有代码都这么写,两种你都要认得)。<br>
+    <b>declarative security(声明式安全)</b>:在接口上<b>声明</b>需要什么权限,由统一的切面去执行,而不是在每个方法里写 <code>if (role !== 'admin') throw ...</code>。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>先掀开盖子:不用 Nest,30 行写一个「标签表 + SetMetadata + Reflector」。✍️ <b>预测(先写再运行)</b>:「📌 贴标签」会在「第 1 幕」标题之前还是之后打印?拼错 key 时程序会报错吗?</p>
+  <pre><code>npx tsx src/11-custom-decorators/ex1-mini-reflector.ts</code></pre>
+  <p>真实运行结果:</p>
+  <pre><code>  📌 贴标签 isPublic=true → menu
+  📌 贴标签 roles=["admin"] → adminZone
+  📌 贴标签 isPubilc=true → typo
+  📌 贴标签 roles=["staff"] → ShopController
+
+========== 第 1 幕:类已经定义好了,还没有任何「请求」 ==========
+(往上看:📌 是什么时候打印的?)
+
+========== 第 2 幕:保安按「方法优先、类兜底」读 roles ==========
+  menu      roles=["staff"]  isPublic=true
+  staffZone roles=["staff"]  isPublic=false
+  adminZone roles=["admin"]  isPublic=false
+
+========== 第 3 幕:拼错 key 的后果 ==========
+  按 'isPublic' 读 typo: undefined
+  按 'isPubilc' 读 typo: true
+  → 标签确实贴上了,只是贴在了一个没人读的 key 上。没有任何报错。</code></pre>
+  <p>它的核心只有两件事:<code>SetMetadata</code> 往一张 <code>WeakMap</code>(目标 → 键值表)里<b>写</b>,<code>reflector</code> 从里面<b>读</b>。注意贴标签的顺序:<b>方法上的先贴、类上的最后贴</b>(类要等方法都定义完才算定义完),而且全部发生在任何「请求」之前。这个 demo 用的是 JS 标准装饰器;Nest 用的是 TS 旧版实验装饰器 + <code>reflect-metadata</code> 那张隐形表(Day 8),写法细节不同,思想完全一样。</p>
+  <p>再看 Nest 版:<code>npm run day11</code> 第 0、2 幕的真实输出(第 0 幕只是 import 编译好的类,还没开店):</p>
+  <pre><code>========== 第 0 幕:import 编译好的类(还没开店) ==========
+  📌 @Note('方法上的便签') 执行了 —— 类定义时贴标签
+  📌 @Note('类上的便签') 执行了 —— 类定义时贴标签
+
+========== 第 1 幕:开店 ==========
+开店完成(注意:开店过程中 📌 没有再打印)
+
+========== 第 2 幕:Reflector 读到的标签 ==========
+TasksController.findAll  isPublic=true           Roles=undefined
+TasksController.findOne  isPublic=true           Roles=undefined
+TasksController.create   isPublic=undefined      Roles=undefined
+TasksController.remove   isPublic=undefined      Roles=["admin"]
+
+DecoratorDemoController 类上   Roles = ["staff"]
+staffZone  方法上 Roles=undefined       getAllAndOverride=["staff"]          getAllAndMerge=["staff"]
+adminZone  方法上 Roles=["admin"]       getAllAndOverride=["admin"]          getAllAndMerge=["admin","staff"]
+
+Note 标签:类上 = 类上的便签 | open 方法上 = 方法上的便签
+typo 方法:按正确的 key 读 isPublic = undefined | 按拼错的 key 读 isPubilc = true</code></pre>
+  <p><code>remove</code> 上明明写的是 <code>@AdminOnly()</code>,读出来却是 <code>Roles=["admin"]</code> —— 组合装饰器展开后就是那几张原始贴纸(第 5 节)。</p>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:参数装饰器 —— 前台的自动填表员</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    参数装饰器是一个「<b>每个请求都执行一次</b>」的小函数,从请求里取出某样东西,直接当成 handler 的参数值递进去。<code>@Param()</code>、<code>@Body()</code> 是 Nest 自带的,今天自己写一个 <code>@RequestId()</code>。
+  </div>
+
+  <h3>② 生活类比:自动填表员</h3>
+  <p>前台接单时要填一张表:「桌号」「点了什么」「流水号」。Nest 自带的填表员会填「桌号」(<code>@Param</code>)和「点了什么」(<code>@Body</code>)。今天新雇一个填表员专门填「<b>流水号</b>」:单子上已经印了流水号就照抄(方便后厨、收银对账),没印就当场编一个新的。<b>每来一张单子,他就填一次。</b></p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th></tr>
+    <tr><td>填表员这个岗位</td><td><code>createParamDecorator((data, ctx) =&gt; 值)</code> 创建的装饰器</td></tr>
+    <tr><td>填表员的工作手册</td><td>工厂函数:拿到 <code>ExecutionContext</code>(Day 10)→ 取出 req → 返回值</td></tr>
+    <tr><td>表上那一栏</td><td>handler 的那个参数:<code>create(@Body() body, @RequestId() requestId: string)</code></td></tr>
+    <tr><td>单子上印好的流水号</td><td>请求头 <code>x-request-id</code>(网关 / 上游服务常会带)</td></tr>
+    <tr><td>当场编一个</td><td><code>randomUUID()</code></td></tr>
+    <tr><td>给填表员的额外说明</td><td><code>data</code> 参数:<code>@RequestId('xxx')</code> 里的 <code>'xxx'</code>(今天没用到)</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「装饰器都只在开业时执行一次」——参数装饰器例外。</b>元数据装饰器(<code>@Public()</code>)在类定义时执行一次,之后只是被读;参数装饰器的<b>工厂函数在每个请求都会执行</b>(实验 J1、J2:两次请求拿到两个不同的 UUID)。所以工厂函数里不要做慢操作,它和 Day 10 的切面一样,算在每个请求的成本里。</li>
+      <li><b>「填表员会检查流水号对不对」——不会,他只负责取值。</b>参数装饰器不做校验;要校验 / 转换,再挂一个 pipe(Day 10)。例如自带的 <code>@Param('id', ParseIntPipe)</code> 就是「取值 + 核单」两步。</li>
+      <li><b>「单子上印的就是真的」——客户端说什么都可以。</b><code>x-request-id</code> 用来串日志没问题;但今天的 <code>x-demo-role</code> 也是从请求头读的,<b>任何人都能伪造自己是 admin</b>。这只是演示。Week 10 的 <code>@CurrentUser()</code> 会用同样的写法,但值来自<b>验过签名的 JWT</b>,而不是客户端随手写的头。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>param decorator</b>:<code>createParamDecorator</code>;<b>request ID / correlation ID</b>(请求 ID / 关联 ID):一个请求从网关到各个服务都带着同一个 ID,出问题时用它把所有日志串起来(Week 15 可观测性会用到);常见的自定义参数装饰器还有 <code>@CurrentUser()</code>、<code>@ClientIp()</code>、<code>@Tenant()</code>。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:实验 C 带了 <code>x-request-id: demo-123</code>,J1、J2 什么都没带。三次 <code>🏷️ @RequestId() 取值</code> 各会打印什么?J1 和 J2 会一样吗?</p>
+  <pre><code>========== C. 带钥匙 + x-request-id POST /tasks ==========
+  ②-1 Guard 保安查 x-demo-key → TasksController.create:放行
+  🏷️ @RequestId() 取值:demo-123
+   → 201 {"data":{"id":3,"title":"学装饰器","done":false,"createdAt":"2026-11-04T09:29:28.171Z"},"timestamp":"2026-11-04T09:29:28.171Z"}
+
+========== J1. 参数装饰器第 1 次 GET /decorator-demo/open ==========
+  ②-1 Guard 保安 → DecoratorDemoController.open:贴了 @Public(),免检放行
+  🏷️ @RequestId() 取值:65d3c678-2f9d-43b7-a3a5-7adfb314ed36
+   → 200 {"requestId":"65d3c678-2f9d-43b7-a3a5-7adfb314ed36"}
+
+========== J2. 参数装饰器第 2 次 GET /decorator-demo/open ==========
+  ②-1 Guard 保安 → DecoratorDemoController.open:贴了 @Public(),免检放行
+  🏷️ @RequestId() 取值:7e187574-24ce-49f9-803b-0585bdc21f28
+   → 200 {"requestId":"7e187574-24ce-49f9-803b-0585bdc21f28"}</code></pre>
+  <p>(UUID 每次运行都不同。)注意顺序:<b>保安先放行,填表员才开始填</b> —— 参数是在 guard、interceptor(前)之后,紧挨着调用 handler 之前才解析的,和 Day 10 的 pipe 在同一个位置。</p>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:组合装饰器与「默认上锁」—— 一张套餐贴纸</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <code>applyDecorators</code> 把几张贴纸和几个切面打包成一个装饰器(<code>@AdminOnly()</code>);再配上「全局保安默认拦、<code>@Public()</code> 例外」,就得到 Nest 里最常见的鉴权写法。
+  </div>
+
+  <h3>② 生活类比:套餐贴纸 + 默认上锁</h3>
+  <p>仓库、财务室、监控室都要「贴『仅限管理员』+ 门口加一个查工牌的保安」。与其每道门都贴两样,不如印一张<b>套餐贴纸</b>「管理员区」,背面写清楚「= 仅限管理员贴纸 + 工牌保安」。同时,总部规定<b>所有门默认上锁</b>(要钥匙),只有贴了「免检」的门才敞开。</p>
+  <pre><code>// src/common/decorators/admin-only.decorator.ts
+export function AdminOnly() {
+  return applyDecorators(Roles(['admin']), UseGuards(RolesGuard));
+}
+
+// src/tasks/tasks.controller.ts
+@Public() @Get()        findAll() { ... }      // 免检
+@Public() @Get(':id')   findOne(...) { ... }   // 免检
+@Post()                 create(...) { ... }    // 没贴 = 要钥匙
+@AdminOnly() @Delete(':id') remove(...) { ... } // 要钥匙 + 要 admin</code></pre>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th></tr>
+    <tr><td>套餐贴纸</td><td><b>composite decorator</b>:<code>applyDecorators(...)</code></td></tr>
+    <tr><td>所有门默认上锁</td><td>全局 guard:<code>{ provide: APP_GUARD, useClass: DemoKeyGuard }</code></td></tr>
+    <tr><td>「免检」贴纸</td><td><code>@Public()</code>:全局 guard 读到就放行</td></tr>
+    <tr><td>门口第一道保安 → 第二道保安</td><td>全局 guard 先执行,方法上 <code>@UseGuards</code> 的 guard 后执行;任何一道返回 <code>false</code> 就 403</td></tr>
+    <tr><td>保安要会「看贴纸」</td><td>guard 要注入 <code>Reflector</code> → 全局 guard 必须在容器里(<code>APP_GUARD</code>),不能用 <code>app.useGlobalGuards(new X())</code>(Day 10 讲过:那个在容器外)</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「套餐贴纸是一种新能力」——它只是打包。</b><code>@AdminOnly()</code> 展开后和你手写 <code>@Roles(['admin']) @UseGuards(RolesGuard)</code> <b>完全等价</b>,第 2 幕读到的 <code>remove</code> 上就是 <code>Roles=["admin"]</code>。好处是「改一处、全站生效」(以后加 swagger 的 <code>@ApiBearerAuth()</code> 也只改这里);坏处是读代码的人要点进去才知道它到底贴了什么。</li>
+      <li><b>「默认上锁了,就万无一失」——只锁住了第一道门。</b>全局保安只管「有没有钥匙」。角色检查(<code>RolesGuard</code>)仍然是<b>挂上才有</b>:如果哪天新写了一个删除接口却忘了贴 <code>@AdminOnly()</code>,拿着钥匙的普通用户照样能删。真实项目会把角色也做成全局 guard(没有 <code>@Roles</code> 就不限制),并配上测试兜底。</li>
+      <li><b>「哪个保安写在前面,哪个先查」——顺序看范围,不看你写的位置。</b>全局 guard 永远先于 Controller / 方法级的 guard(实验 D:先过钥匙,才轮到角色)。所以「不带钥匙的 admin」会被第一道保安拦下,根本见不到查角色的那位(e2e 里专门有这个用例)。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <code>applyDecorators</code>(composite / composed decorator,Java 里叫 meta-annotation);<code>APP_GUARD</code>;<b>secure by default / default deny</b>(默认拒绝):先全部拦住,再显式开放,忘了的代价是 403 而不是数据泄露;<b>RBAC</b>(Role-Based Access Control,基于角色的访问控制)—— Week 10 会把今天的请求头换成 JWT 里的角色声明。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:先把下面 A–I 九个请求的状态码填进 <code>notes.md</code>,再跑 <code>npm run day11</code> 对答案:</p>
+  <table>
+    <tr><th>请求</th><th>钥匙</th><th>角色</th><th>你的预测</th><th>真实结果</th></tr>
+    <tr><td>A. <code>GET /tasks/1</code>(<code>@Public()</code>)</td><td>无</td><td>无</td><td>?</td><td>200</td></tr>
+    <tr><td>B. <code>POST /tasks</code></td><td>无</td><td>无</td><td>?</td><td>403(全局保安)</td></tr>
+    <tr><td>C. <code>POST /tasks</code></td><td>有</td><td>无</td><td>?</td><td>201</td></tr>
+    <tr><td>D. <code>DELETE /tasks/1</code>(<code>@AdminOnly()</code>)</td><td>有</td><td>无</td><td>?</td><td>403(RolesGuard)</td></tr>
+    <tr><td>E. <code>DELETE /tasks/1</code></td><td>有</td><td>staff</td><td>?</td><td>403(RolesGuard)</td></tr>
+    <tr><td>F. <code>DELETE /tasks/1</code></td><td>有</td><td>admin</td><td>?</td><td>200</td></tr>
+    <tr><td>G. <code>GET /decorator-demo/typo</code>(拼错的 <code>'isPubilc'</code>)</td><td>无</td><td>无</td><td>?</td><td>403(静默失效)</td></tr>
+    <tr><td>H. <code>GET /decorator-demo/staff-zone</code>(类级 staff)</td><td>有</td><td>staff</td><td>?</td><td>200</td></tr>
+    <tr><td>I. <code>GET /decorator-demo/admin-zone</code>(方法级 admin 覆盖类级 staff)</td><td>有</td><td>staff</td><td>?</td><td>403</td></tr>
+  </table>
+  <p>(先遮住最后一列再填。)真实输出(B、D、E、F、G、I):</p>
+  <pre><code>========== B. 受保护接口不带钥匙 POST /tasks ==========
+  ②-1 Guard 保安查 x-demo-key → TasksController.create:拦下
+   → 403 {"statusCode":403,"error":"FORBIDDEN","message":"Forbidden resource","path":"/tasks"}
+
+========== D. 带钥匙但没有角色 DELETE /tasks/1 ==========
+  ②-1 Guard 保安查 x-demo-key → TasksController.remove:放行
+  ②-1 RolesGuard → TasksController.remove:需要 [admin],你是 (没带) → 拦下
+   → 403 {"statusCode":403,"error":"FORBIDDEN","message":"Forbidden resource","path":"/tasks/1"}
+
+========== E. 带钥匙,角色 staff DELETE /tasks/1 ==========
+  ②-1 Guard 保安查 x-demo-key → TasksController.remove:放行
+  ②-1 RolesGuard → TasksController.remove:需要 [admin],你是 staff → 拦下
+   → 403 {"statusCode":403,"error":"FORBIDDEN","message":"Forbidden resource","path":"/tasks/1"}
+
+========== F. 带钥匙,角色 admin DELETE /tasks/1 ==========
+  ②-1 Guard 保安查 x-demo-key → TasksController.remove:放行
+  ②-1 RolesGuard → TasksController.remove:需要 [admin],你是 admin → 放行
+   → 200 {"data":{"id":1,"title":"跑通 nest new","done":true,"createdAt":"2026-11-04T09:29:28.103Z"},"timestamp":"2026-11-04T09:29:28.179Z"}
+
+========== G. 拼错 key 的「免检」接口,不带钥匙 GET /decorator-demo/typo ==========
+  ②-1 Guard 保安查 x-demo-key → DecoratorDemoController.typo:拦下
+   → 403 {"statusCode":403,"error":"FORBIDDEN","message":"Forbidden resource","path":"/decorator-demo/typo"}
+
+========== I. 方法级别 admin 覆盖类级别,角色 staff GET /decorator-demo/admin-zone ==========
+  ②-1 Guard 保安查 x-demo-key → DecoratorDemoController.adminZone:放行
+  ②-1 RolesGuard → DecoratorDemoController.adminZone:需要 [admin],你是 staff → 拦下
+   → 403 {"statusCode":403,"error":"FORBIDDEN","message":"Forbidden resource","path":"/decorator-demo/admin-zone"}</code></pre>
+  <p>(为了好读,脚本只保留了保安 / 标签相关的日志;时间戳每次不同。)D 和 E 的 403 与 B 长得一模一样,客户端分不出是「没钥匙」还是「角色不够」。Week 10 会把「没登录」区分成 401、「没权限」才是 403(Day 6 讲过这两个状态码的区别)。</p>
+  <p>测试的真实结果:<code>npm test</code> 13 个通过,<code>npm run test:e2e</code> 18 个通过,其中:</p>
+  <pre><code> ✓ test/decorator-demo.e2e-spec.ts &gt; 自定义装饰器 (e2e) &gt; @Public() + @RequestId():不带钥匙 200,沿用客户端给的 x-request-id 53ms
+ ✓ test/decorator-demo.e2e-spec.ts &gt; 自定义装饰器 (e2e) &gt; @RequestId() 每个请求执行一次:不带头时两次拿到不同的 ID 13ms
+ ✓ test/decorator-demo.e2e-spec.ts &gt; 自定义装饰器 (e2e) &gt; 拼错 key 的 SetMetadata("isPubilc") 静默失效:不带钥匙仍然 403 7ms
+ ✓ test/decorator-demo.e2e-spec.ts &gt; 自定义装饰器 (e2e) &gt; 类级别 [staff]:staff 能进 staff-zone 5ms
+ ✓ test/decorator-demo.e2e-spec.ts &gt; 自定义装饰器 (e2e) &gt; 方法级别 [admin] 覆盖类级别:staff 进不了 admin-zone,admin 能进 9ms
+ ✓ test/tasks.e2e-spec.ts &gt; Tasks (e2e) &gt; GET 接口贴了 @Public():不带钥匙也是 200 8ms
+ ✓ test/tasks.e2e-spec.ts &gt; Tasks (e2e) &gt; DELETE /tasks/1 带钥匙但没有 admin 角色 → 403(RolesGuard 拦下) 11ms
+ ✓ test/tasks.e2e-spec.ts &gt; Tasks (e2e) &gt; DELETE /tasks/1 不带钥匙,即使是 admin → 403(全局保安先拦下) 6ms
+ ✓ test/tasks.e2e-spec.ts &gt; Tasks (e2e) &gt; DELETE /tasks/1 钥匙 + admin → 200 + 被删的任务,之后 GET 是 404 10ms</code></pre>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p>「给方法贴注解,框架 / 切面运行时用反射读注解」是 .NET 和 Java 的看家本领,它们比 TypeScript 早用了二十年:</p>
+  <table>
+    <tr><th>命题</th><th>NestJS(教具)</th><th>C# / ASP.NET Core</th><th>Java / Spring Boot</th><th>Go</th></tr>
+    <tr>
+      <td>定义一种标签</td>
+      <td><code>SetMetadata(key, v)</code> / <code>Reflector.createDecorator&lt;T&gt;()</code></td>
+      <td>继承 <code>Attribute</code> 的类 + <code>[AttributeUsage]</code></td>
+      <td><code>@interface Roles</code> + <b><code>@Retention(RUNTIME)</code></b>(否则运行时读不到)+ <code>@Target</code></td>
+      <td><b>没有注解</b>(struct tag 只用于序列化)</td>
+    </tr>
+    <tr>
+      <td>运行时读标签</td>
+      <td><code>reflector.getAllAndOverride(key, [handler, class])</code></td>
+      <td>反射 <code>GetCustomAttribute&lt;T&gt;()</code>;管线里读 endpoint metadata:<code>context.GetEndpoint()?.Metadata.GetMetadata&lt;T&gt;()</code></td>
+      <td>反射 <code>method.getAnnotation(Roles.class)</code>;Spring 的 <code>AnnotationUtils</code></td>
+      <td>不读标签:在注册路由时就决定挂哪些 middleware</td>
+    </tr>
+    <tr>
+      <td>免检</td>
+      <td><code>@Public()</code>(自己写)</td>
+      <td><b><code>[AllowAnonymous]</code></b>(内置)</td>
+      <td>Spring Security <code>.requestMatchers(...).permitAll()</code></td>
+      <td>把公开路由放进<b>不挂</b>鉴权 middleware 的路由分组</td>
+    </tr>
+    <tr>
+      <td>默认上锁</td>
+      <td><code>APP_GUARD</code> 全局 guard</td>
+      <td><code>FallbackPolicy</code> 设为必须登录 / <code>MapControllers().RequireAuthorization()</code></td>
+      <td><code>.anyRequest().authenticated()</code></td>
+      <td>根路由分组挂鉴权 middleware</td>
+    </tr>
+    <tr>
+      <td>按角色</td>
+      <td><code>@Roles(['admin'])</code> + <code>RolesGuard</code></td>
+      <td><b><code>[Authorize(Roles = "admin")]</code></b> / 授权策略</td>
+      <td><b><code>@PreAuthorize("hasRole('ADMIN')")</code></b> / <code>@Secured</code></td>
+      <td><code>admin := r.Group("/admin", RequireRole("admin"))</code></td>
+    </tr>
+    <tr>
+      <td>自定义参数</td>
+      <td><code>createParamDecorator</code></td>
+      <td><code>[FromHeader(Name = "x-request-id")]</code> / 自定义 <code>IModelBinder</code></td>
+      <td>自定义 <b><code>HandlerMethodArgumentResolver</code></b></td>
+      <td>middleware 里 <code>c.Set("requestID", id)</code>,handler 里 <code>c.GetString("requestID")</code></td>
+    </tr>
+    <tr>
+      <td>组合标签</td>
+      <td><code>applyDecorators</code></td>
+      <td>自定义 Attribute 继承 / 授权策略打包多个要求</td>
+      <td><b>meta-annotation</b>(<code>@GetMapping</code> 本身就是标了 <code>@RequestMapping(method=GET)</code> 的注解)</td>
+      <td>把几个 middleware 组成一个切片复用</td>
+    </tr>
+  </table>
+  <p>📌 一个关键差异:Java 注解要写 <code>@Retention(RUNTIME)</code> 才能在运行时被反射读到;C# 的 Attribute 默认就保留在程序集里;TypeScript 的类型和接口在运行时<b>全部消失</b>,只有装饰器<b>主动写进去的</b>元数据才留得下来 —— 这也是 Day 9 里接口要配 token 的同一个原因。Go 干脆不走这条路:没有注解、没有反射式的框架魔法,一切都在注册路由时显式写出来。</p>
+  <p>📌 roadmap 顶部对照表 Day 8 已经有「声明式路由 / 注解 + 元数据」一行;建议你在 Day 14 复盘时在旁边补上今天的「<b>声明式鉴权</b>」(<code>@Public()</code> / <code>@Roles</code> ↔ <code>[AllowAnonymous]</code> / <code>[Authorize(Roles)]</code> ↔ <code>permitAll()</code> / <code>@PreAuthorize</code> ↔ Go 路由分组 + middleware)。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"How would you implement role-based authorization in NestJS? How does a guard know which roles an endpoint requires?"</b>(或者 .NET 面试:「<code>[Authorize(Roles=...)]</code> 背后是怎么工作的?」)你可以答:<br>
+    <b>"我会用元数据装饰器加 guard。在接口上用自定义装饰器声明需要的角色,比如 @Roles('admin'),它在类定义时把角色作为元数据挂到方法上。guard 通过 ExecutionContext 拿到目标 handler 和 controller,用 Reflector 读出元数据,通常是方法级覆盖类级,再和当前用户的角色比较,不满足就返回 false,得到 403。为了默认安全,我会把鉴权 guard 注册成全局的,公开接口用 @Public() 显式放行,这样忘了标注的接口是被拒绝而不是被暴露。常用的组合可以用 applyDecorators 打包,比如 @AdminOnly()。这和 ASP.NET Core 的 [Authorize] / [AllowAnonymous]、Spring 的 @PreAuthorize 加 permitAll 是同一个思路:声明式安全,用注解描述规则,由统一的切面执行。"</b><br>
+    自己练一遍:合上文档 45 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+  <p>预测都写进 <code>src/11-custom-decorators/notes.md</code> 的预测区,先写,再运行,再批改。</p>
+
+  <div class="task">
+    <h3>习题 1:30 行的迷你 Reflector(动手,约 7 min)</h3>
+    <p>文件:<code>src/11-custom-decorators/ex1-mini-reflector.ts</code>,顶部有 3 道 ✍️ 预测题。</p>
+    <pre><code>npx tsx src/11-custom-decorators/ex1-mini-reflector.ts</code></pre>
+    <p>对完答案后,给 <code>reflector</code> 加一个 <code>getAllAndMerge</code>(把各个目标上的数组拼起来)。✍️ 先预测 <code>adminZone</code> 合并后是 <code>["admin","staff"]</code> 还是 <code>["staff","admin"]</code>,再运行验证。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:十个请求的结果(动手,约 8 min)</h3>
+    <p>✍️ <b>预测(先写再运行)</b>:遮住第 5 节表格的最后一列,填完 A–I 的状态码,再预测 J1、J2 的 requestId 是否相同。然后:</p>
+    <pre><code>cd nest-lab
+npm run day11</code></pre>
+    <p>逐条批改。最后用一句话回答:G 为什么没有任何报错?你会用哪两种办法防止它再发生?</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:撕标签 + 写一个自己的参数装饰器(动手,约 10 min)</h3>
+    <p>(a)把 <code>src/tasks/tasks.controller.ts</code> 里 <code>findAll</code> 上的 <code>@Public()</code> 删掉。✍️ <b>预测</b>:<code>npm run test:e2e</code> 会红几个?是返回 401、403 还是 404?运行验证,然后改回来。对比一下:如果用 Day 10 的「挂上才查」,忘挂的后果是什么?</p>
+    <p>(b)仿照 <code>@RequestId()</code> 写一个 <code>@ClientIp()</code>(返回 <code>req.ip</code>),用在 <code>DecoratorDemoController.open</code> 上,让它返回 <code>{ requestId, clientIp }</code>。✍️ <b>预测</b>:本机用 <code>curl</code> 访问时 <code>clientIp</code> 会是什么?(提示:IPv4 / IPv6 的本机地址)在 <code>test/decorator-demo.e2e-spec.ts</code> 里补一个断言,跑 <code>npm run test:e2e</code>。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/11-custom-decorators/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「Nest 里 <code>@Public()</code>、<code>@Roles('admin')</code> 这种自定义装饰器是怎么起作用的?和 Angular 的 <code>@Component</code>、React 里给组件挂 <code>Page.requireAuth = true</code> 像吗?」用餐厅比喻讲清楚,并说出比喻在哪里会骗人。</li>
+      <li><code>getAllAndOverride</code> 和 <code>getAllAndMerge</code> 对「类上 staff、方法上 admin」分别读出什么?为什么拼错 key 不会报错?用什么办法防止?</li>
+      <li>元数据装饰器和参数装饰器各在什么时候执行、执行几次?为什么全局 guard 要用 <code>APP_GUARD</code> 注册,而且要「默认拦、<code>@Public()</code> 放」而不是反过来?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里补上你自己做的改动,确认 <code>git status</code> 里没有 <code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>元数据装饰器只「贴」,切面用 <code>Reflector</code>「读」</b>:标签是数据不是代码,贴了没人读就毫无作用;拼错 key 会静默失效,用常量或 <code>Reflector.createDecorator</code> 防住。</li>
+    <li><b>读法决定结论</b>:<code>get</code> 只看一处,<code>getAllAndOverride</code> 就近覆盖(方法优先),<code>getAllAndMerge</code> 合并;这是你的设计决定。</li>
+    <li><b>两种装饰器的执行时机不同</b>:元数据装饰器在类定义时执行一次;参数装饰器(<code>createParamDecorator</code>)每个请求执行一次,负责「取值」,校验交给 pipe。</li>
+    <li><b>AOP 闭环 = 全局切面 + 按标签开关</b>:<code>APP_GUARD</code> 默认拦(secure by default),<code>@Public()</code> 例外,<code>@AdminOnly()</code> 用 <code>applyDecorators</code> 打包。这就是 <code>[Authorize]</code> / <code>[AllowAnonymous]</code>、<code>@PreAuthorize</code> 在 Nest 里的样子。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>不看代码,写出 <code>@Public()</code> 和读它的 guard 的核心两行(贴的那行 + 读的那行)</li>
+    <li>为什么 <code>📌 @Note(...)</code> 在开店之前就打印了,而且方法上的比类上的先打印?</li>
+    <li>不带钥匙的 admin 去 <code>DELETE /tasks/1</code>,会被哪个保安拦下?为什么另一个保安根本见不到他?</li>
+    <li>全局 guard 为什么不能写成 <code>app.useGlobalGuards(new DemoKeyGuard())</code>?(提示:构造函数要 <code>Reflector</code>,Day 9 的容器)</li>
+    <li>把 <code>@Roles(['admin'])</code> + <code>RolesGuard</code> 翻译成 ASP.NET Core 和 Spring 的写法;Go 里没有注解,同样的效果怎么做?</li>
+  </ul>
+  <p>🔮 接下来:Day 12 把 TypeScript 的类型能力用到服务端(类型安全的 env 配置、zod 推导类型、DI token 的类型安全);Day 13 给 nest-lab 做一次小实战整理;Day 14 复盘 Week 2,把 DI 和 AOP 两大支柱串成一张图。</p>
+</section>
+
+<footer>
+  Day 11 · Phase 1 / Week 2 · 产出:<code>docs/11-custom-decorators/</code> 本文档 + <code>nest-lab/</code>(<code>@Public()</code> / <code>@Roles</code> / <code>@RequestId()</code> / <code>@AdminOnly()</code>、全局 <code>APP_GUARD</code>、<code>RolesGuard</code>、<code>DELETE /tasks/:id</code>、<code>npm run day11</code>)+ <code>src/11-custom-decorators/</code> 迷你 Reflector 与 notes 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

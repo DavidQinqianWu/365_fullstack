@@ -27,4 +27,11 @@ export class InMemoryTasksRepository implements TasksRepository {
     this.rows.push(task);
     return task;
   }
+
+  remove(id: number): Task | undefined {
+    const index = this.rows.findIndex((t) => t.id === id);
+    if (index === -1) return undefined;
+    const [removed] = this.rows.splice(index, 1);
+    return removed;
+  }
 }

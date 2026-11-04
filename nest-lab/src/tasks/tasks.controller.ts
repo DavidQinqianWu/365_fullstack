@@ -1,13 +1,15 @@
-import { Body, Controller, Get, Param, Post, UseGuards, UseInterceptors } from '@nestjs/common';
-import { DemoKeyGuard } from '../common/demo-key.guard.js';
+import { Body, Controller, Delete, Get, Param, Post, UseInterceptors } from '@nestjs/common';
+import { AdminOnly } from '../common/decorators/admin-only.decorator.js';
+import { Public } from '../common/decorators/public.decorator.js';
+import { RequestId } from '../common/decorators/request-id.decorator.js';
 import { TracedParseIntPipe } from '../common/traced-parse-int.pipe.js';
 import { WrapResponseInterceptor } from '../common/wrap-response.interceptor.js';
 import type { Task } from './task.js';
 import { TasksService } from './tasks.service.js';
 
 // Controller = 前台接待:只管「哪张单子交给谁」(路由 + 取参数 + 交回结果),不自己做菜。
-// @Controller('tasks') 这张标签的意思:「这个类负责 /tasks 开头的请求」。
 // Day 10:Controller 级别的切面 —— 这个类的所有方法返回值都被包成 { data, timestamp }
+// Day 11:全局保安(APP_GUARD)默认要钥匙;读接口贴 @Public() 免检,写接口不贴 = 要钥匙
 @UseInterceptors(WrapResponseInterceptor)
 @Controller('tasks')
 export class TasksController {
@@ -15,27 +17,36 @@ export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
   // GET /tasks
+  @Public()
   @Get()
   findAll(): Task[] {
     console.log('  ③ Controller 前台接单:GET /tasks');
-    return this.tasksService.findAll(); // 直接 return 对象,Nest 帮你 JSON.stringify + 设 Content-Type
+    return this.tasksService.findAll();
   }
 
-  // GET /tasks/:id —— :id 是路径参数,取出来永远是字符串
-  // Day 10:参数级别的切面 —— Pipe 先把 '2' 转成 2;'abc' 直接 400,根本到不了这里
+  // GET /tasks/:id —— Day 10:Pipe 先把 '2' 转成 2;'abc' 直接 400
+  @Public()
   @Get(':id')
   findOne(@Param('id', TracedParseIntPipe) id: number): Task {
     console.log(`  ③ Controller 前台接单:GET /tasks/${id}`);
     return this.tasksService.findOne(id);
   }
 
-  // POST /tasks —— @Body() 拿到的是已经解析好的 JSON(Day 6 里你自己拼 chunk、JSON.parse 的活)
-  // 注意:今天没有任何校验,body 里没有 title 也会被收下。Week 3 用 DTO + ValidationPipe 补上。
-  // Day 10:方法级别的切面 —— 只有新建任务要过保安(请求头 x-demo-key: let-me-in)
-  @UseGuards(DemoKeyGuard)
+  // POST /tasks —— 没贴 @Public(),要过全局保安(请求头 x-demo-key: let-me-in)
+  // Day 11:@RequestId() 参数装饰器,每个请求执行一次,把请求 ID 交到参数里
+  // 注意:今天仍然没有 body 校验,Week 3 用 DTO + ValidationPipe 补上。
   @Post()
-  create(@Body() body: { title: string }): Task {
-    console.log('  ③ Controller 前台接单:POST /tasks');
+  create(@Body() body: { title: string }, @RequestId() requestId: string): Task {
+    console.log(`  ③ Controller 前台接单:POST /tasks(requestId=${requestId})`);
     return this.tasksService.create(body.title);
+  }
+
+  // DELETE /tasks/:id —— Day 11:组合装饰器 @AdminOnly() = @Roles(['admin']) + @UseGuards(RolesGuard)
+  // 要同时过两道保安:全局的钥匙检查 + 这里的角色检查(请求头 x-demo-role: admin)
+  @AdminOnly()
+  @Delete(':id')
+  remove(@Param('id', TracedParseIntPipe) id: number): Task {
+    console.log(`  ③ Controller 前台接单:DELETE /tasks/${id}`);
+    return this.tasksService.remove(id);
   }
 }
