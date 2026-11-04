@@ -1,0 +1,39 @@
+-- Day 37 · 04:五种并发异常的手动步骤(开两个 psql 窗口,按时间顺序一步一步做;观察脚本 npm run day37 自动做了一遍)
+-- 两个窗口都先:SET search_path = day37;  每个场景开始前:\i 02-reset.sql(在任意一个窗口里执行一次)
+-- 把 <级别> 换成 READ COMMITTED / REPEATABLE READ / SERIALIZABLE 各做一遍。
+--
+-- ① 脏读(读到别人没提交的数据)
+--   T1: BEGIN;  UPDATE accounts SET balance = 999 WHERE id = 1;
+--   T2: BEGIN ISOLATION LEVEL READ UNCOMMITTED;  SELECT balance FROM accounts WHERE id = 1;   -- 100,不是 999
+--   T1: ROLLBACK;     T2: COMMIT;
+--
+-- ② 不可重复读(同一事务里两次读同一行,结果不同)
+--   T2: BEGIN ISOLATION LEVEL <级别>;  SELECT balance FROM accounts WHERE id = 1;   -- 100
+--   T1: UPDATE accounts SET balance = 200 WHERE id = 1;                            -- autocommit,立刻提交
+--   T2: SELECT balance FROM accounts WHERE id = 1;                                 -- RC:200 / RR、SER:100
+--   T2: COMMIT;
+--
+-- ③ 幻读(同一事务里两次按条件查,行数不同)
+--   T2: BEGIN ISOLATION LEVEL <级别>;  SELECT count(*) FROM tasks WHERE owner_id = 1 AND NOT done;   -- 2
+--   T1: INSERT INTO tasks (owner_id, title) VALUES (1, '新任务');
+--   T2: SELECT count(*) FROM tasks WHERE owner_id = 1 AND NOT done;                                 -- RC:3 / RR、SER:2
+--   T2: COMMIT;
+--
+-- ④ 丢失更新(两人都「读 → 在应用里算 → 写回」)
+--   T1: BEGIN ISOLATION LEVEL <级别>;  SELECT n FROM counters WHERE id = 1;    -- 0,应用算出 0 + 1 = 1
+--   T2: BEGIN ISOLATION LEVEL <级别>;  SELECT n FROM counters WHERE id = 1;    -- 0,应用也算出 1
+--   T1: UPDATE counters SET n = 1 WHERE id = 1;  COMMIT;
+--   T2: UPDATE counters SET n = 1 WHERE id = 1;  -- RC:成功 / RR、SER:ERROR 40001 could not serialize access due to concurrent update
+--   T2: COMMIT;
+--   SELECT n FROM counters;   -- RC:1(丢了一次)
+--   对照:两边都写 UPDATE counters SET n = n + 1 WHERE id = 1,RC 下最后是 2
+--
+-- ⑤ 写偏斜(两人各读一组行、各写不同的行;合起来违反「至少留一个人值班」)
+--   T1: BEGIN ISOLATION LEVEL <级别>;  SELECT count(*) FROM doctors WHERE on_call;   -- 2,「还有别人」
+--   T2: BEGIN ISOLATION LEVEL <级别>;  SELECT count(*) FROM doctors WHERE on_call;   -- 2
+--   T1: UPDATE doctors SET on_call = false WHERE name = 'Alice';
+--   T2: UPDATE doctors SET on_call = false WHERE name = 'Bob';
+--   T1: COMMIT;
+--   T2: COMMIT;       -- RC、RR:成功 → 没人值班 / SER:ERROR 40001 could not serialize access due to read/write dependencies among transactions
+--   SELECT * FROM doctors;
+SELECT '手动步骤见本文件的注释' AS 说明;
