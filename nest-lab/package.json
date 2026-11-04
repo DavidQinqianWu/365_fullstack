@@ -28,6 +28,7 @@
     "day20": "nest build && node scripts/day20-try.mjs",
     "day22": "node scripts/day22-try.mjs",
     "day23": "node scripts/day23-try.mjs",
+    "day24": "node scripts/day24-try.mjs",
     "openapi:generate": "nest build && node scripts/openapi.mjs",
     "openapi:check": "nest build && node scripts/openapi.mjs --check",
     "lint": "oxlint src/ test/",

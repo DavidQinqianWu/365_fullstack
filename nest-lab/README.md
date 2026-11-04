@@ -30,6 +30,7 @@ npm run day19          # Day 19 观察脚本:offset vs cursor 翻页、过滤排
 npm run day20          # Day 20 观察脚本:拉取 OpenAPI、列接口清单、自动检查契约、生成前端 TS 类型、生产环境不开放文档
 npm run day22          # Day 22 观察脚本:检查 PG 是否在线、每个连接一个后端进程、跑 sql/day22/ 下的 CRUD 实验(需要先启动 PostgreSQL)
 npm run day23          # Day 23 观察脚本:宽表的三类异常 → 1NF / 2NF / 3NF 逐级拆解 → JOIN 拼回 → 计数缓存失真(schema day23,需要 PostgreSQL)
+npm run day24          # Day 24 观察脚本:serial / IDENTITY、integer 用完、UUID v4 vs v7、约束与 SQLSTATE、ON DELETE、并发注册(schema day24,需要 PostgreSQL)
 npm run openapi:generate  # 改了接口后重新生成 openapi.json(和代码一起提交)
 npm run openapi:check     # openapi.json 是否和代码一致(过期 → 退出码 1,给 CI 用)
 ```
@@ -64,7 +65,7 @@ psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab   # 本机装了
 
 - 没有 Docker:本机安装 PostgreSQL 16,再用超级用户建角色和库(步骤见 Day 22 讲义)
 - 每天的 SQL 实验在 `sql/dayNN/`:本机 psql 在 nest-lab 目录下 `\i sql/day22/01-create.sql`(或 `psql -f`);容器里的 psql 用挂进去的路径 `\i /sql/day22/01-create.sql`
-- 数据模型(ER 图,3NF 设计稿):[`docs/er-diagram.md`](docs/er-diagram.md)
+- 数据模型(ER 图 + 主键与约束 + 约束违反→状态码的约定):[`docs/er-diagram.md`](docs/er-diagram.md)
 - `compose.yaml` 按标准写法编写,未在课程验证环境实测(那里没有 Docker);SQL 部分均在 PostgreSQL 16.15 实测
 
 ## 错误格式
@@ -89,3 +90,4 @@ psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab   # 本机装了
 | Day 20 | 依赖 `@nestjs/swagger`(去掉直接依赖 `@nestjs/mapped-types`,`PickType` / `PartialType` 改从 swagger 导入)、dev 依赖 `openapi-typescript`;`src/openapi.ts`(`DocumentBuilder` + `SwaggerModule`,只收录 tasks / users,operationId 规则,无版本别名路径不重复登记);`configureApp` 按 `SWAGGER_ENABLED` 挂 `/docs` 与 `/docs-json`(env schema 新增该项,生产默认关);DTO 全部显式 `@ApiProperty`(不用 CLI 插件:vitest 下插件不生效);响应 `interface` 改为 class(`TaskResponse` / `UserResponse` / `TaskPage`,既是映射函数返回类型又是 schema);`src/common/problems/problem.schema.ts`(`ProblemDetailsDto` / `ValidationProblemDto` + `@ApiProblemResponses()`);各控制器 `@ApiTags` / `@ApiOperation` / `@ApiResponse` / `@ApiSecurity` / `@ApiHeader`,v1 标 `deprecated`;`openapi.json` + `scripts/openapi.mjs`(generate / check);`docs/api-design.md`;`test/openapi.e2e-spec.ts`;`scripts/day20-try.mjs` | `docs/20-openapi/` |
 | Day 22 | `compose.yaml`(`postgres:16`,用户 / 密码 / 库名从 `.env` 读,具名数据卷,`pg_isready` 健康检查,只绑定 127.0.0.1);`.env.example` 新增 `POSTGRES_*`;`sql/day22/`(建表、CRUD 对应 HTTP 方法、忘写 WHERE 用 `BEGIN … ROLLBACK` 兜底、没有 ORDER BY 就没有顺序、`EXPLAIN` 看一眼、没有 BEGIN 时 ROLLBACK 无效);`scripts/day22-try.mjs`(用 `node:child_process` 调 psql,没有数据库时给出提示并退出);应用代码未改 | `docs/22-postgres-intro/` |
 | Day 23 | `sql/day23/`(独立 schema `day23`:宽表与更新 / 插入 / 删除异常、1NF → 2NF → 3NF 逐级拆表并用 `INSERT … SELECT` 搬数据、`JOIN` 拼回原视图、`tasks_count` 计数缓存失真与校正);`docs/er-diagram.md`(mermaid `erDiagram`:users / tasks / checklist_items / tags / task_tags,表 ≠ API 资源对照);`scripts/day23-try.mjs`;应用代码未改 | `docs/23-data-modeling/` |
+| Day 24 | `sql/day24/`(schema `day24`:serial vs `GENERATED ALWAYS / BY DEFAULT AS IDENTITY`、回滚后序列不回退、integer 上限、UUID v4 vs v7 与 PG 16 下的 `uuid_v7()` SQL 函数、20 万行插入与主键索引大小对比、带命名约束的 3NF 表(NOT NULL / UNIQUE / `lower(email)` 唯一索引 / CHECK / 外键 `ON DELETE`)、四种 SQLSTATE、并发「先查后插」);`docs/er-diagram.md` 补上主键与约束和 SQLSTATE → 状态码约定;`scripts/day24-try.mjs`;应用代码未改 | `docs/24-keys-constraints/` |

@@ -1,9 +1,9 @@
 # nest-lab 数据模型(ER 图)
 
 > Day 23 的设计稿,按 3NF 拆分。它描述「数据在数据库里怎么存」,**不是** API 的形状(API 的契约见 [`api-design.md`](api-design.md) 和 [`../openapi.json`](../openapi.json))。
-> 状态:设计中。主键怎么选、NOT NULL / UNIQUE / CHECK / 外键删除行为由 Day 24 决定;Day 27 先把 `tasks` + `checklist_items` 接进 nest-lab。
+> 状态:设计中。Day 24 定下了主键和约束(见下方「主键与约束」);Day 27 先把 `tasks` + `checklist_items` 接进 nest-lab。
 > `tasks.owner_id` 和标签现在还不在 API 里:有了真正的登录用户(Week 10)才有「负责人」,标签作为多对多的例子先画进来。
-> 实验用的 SQL 在 [`../sql/day23/`](../sql/day23/)(schema `day23`,字段做了简化)。
+> 实验用的 SQL:拆表过程在 [`../sql/day23/`](../sql/day23/)(schema `day23`),加上约束后的版本在 [`../sql/day24/04-constraints.sql`](../sql/day24/04-constraints.sql)(schema `day24`)。
 
 ```mermaid
 erDiagram
@@ -13,36 +13,58 @@ erDiagram
     tags  ||--o{ task_tags : "被贴在"
 
     users {
-        integer id PK
-        text email "唯一(Day 24 加约束)"
-        text display_name
-        text role "user / admin"
+        bigint id PK "GENERATED ALWAYS AS IDENTITY"
+        uuid public_id UK "对外暴露的 id(UUIDv7)"
+        text email UK "NOT NULL;lower(email) 唯一"
+        text display_name "NOT NULL;1–50 字符"
+        text role "NOT NULL;CHECK in (user, admin)"
         text password_hash "永不出现在响应里(Day 18)"
         text internal_note "只有 admin 视图能看到"
-        timestamptz created_at
+        timestamptz created_at "NOT NULL DEFAULT now()"
     }
     tasks {
-        integer id PK
-        text title
-        boolean done
-        integer owner_id FK "→ users.id"
-        timestamptz created_at
+        bigint id PK "GENERATED ALWAYS AS IDENTITY"
+        text title "NOT NULL;去掉首尾空白后 1–100 字符"
+        boolean done "NOT NULL DEFAULT false"
+        bigint owner_id FK "NOT NULL → users.id ON DELETE RESTRICT"
+        timestamptz created_at "NOT NULL DEFAULT now()"
     }
     checklist_items {
-        integer task_id PK, FK "→ tasks.id"
-        integer position PK "在清单里的第几项"
-        text text
-        boolean done
+        bigint task_id PK, FK "→ tasks.id ON DELETE CASCADE"
+        integer position PK "CHECK >= 1"
+        text text "NOT NULL;1–100 字符"
+        boolean done "NOT NULL DEFAULT false"
     }
     tags {
-        integer id PK
-        text name "唯一(Day 24 加约束)"
+        bigint id PK "GENERATED ALWAYS AS IDENTITY"
+        text name UK "NOT NULL"
     }
     task_tags {
-        integer task_id PK, FK "→ tasks.id"
-        integer tag_id PK, FK "→ tags.id"
+        bigint task_id PK, FK "→ tasks.id ON DELETE CASCADE"
+        bigint tag_id PK, FK "→ tags.id ON DELETE CASCADE"
     }
 ```
+
+## 主键与约束(Day 24)
+
+| 决定 | 选择 | 理由 |
+|---|---|---|
+| 主键类型 | `bigint GENERATED ALWAYS AS IDENTITY` | 代理键不随业务变化;`bigint` 不会像 `integer` 那样在 21 亿处用完;`ALWAYS` 拒绝手写 id,不会和序列撞车 |
+| 对外的 id | `users.public_id uuid`(UUIDv7) | 自增 id 可被枚举、会泄露业务量(Week 20 IDOR);内部关联仍用 `bigint`。任务要不要也加,Day 27 决定 |
+| 邮箱唯一 | `CREATE UNIQUE INDEX users_email_lower_key ON users (lower(email))` | 不区分大小写;并发注册时只有它拦得住(先查后插拦不住) |
+| `tasks.owner_id` | `ON DELETE RESTRICT` | 用户还有任务时不许直接删,先转移或删除任务;如果业务改成「保留任务、变成无人负责」,就改成 `SET NULL`(列要允许为空) |
+| `checklist_items.task_id`、`task_tags.*` | `ON DELETE CASCADE` | 离开任务 / 标签就没有意义的行,跟着一起删 |
+| 约束命名 | `表_列_key` / `表_列_check` / `表_列_fkey` | 违反时错误信息里带着这个名字,Day 27 按名字映射成具体的错误类型 |
+
+### 约束违反 → HTTP 状态码(Day 27 落地)
+
+| SQLSTATE | 名称 | 典型场景 | 映射 |
+|---|---|---|---|
+| `23505` | unique_violation | 邮箱已被注册 | 409(资源当前状态冲突) |
+| `23503` | foreign_key_violation(插入 / 更新时) | 引用了不存在的负责人 / 标签 | 422(请求内容不合规) |
+| `23503` | foreign_key_violation(删除时) | 删除仍被引用的用户(RESTRICT) | 409 |
+| `23502` | not_null_violation | 必填字段没给 | 422,并记一条警告日志:DTO 校验本该先拦住 |
+| `23514` | check_violation | 标题全空白、角色不在白名单 | 422,同上 |
 
 ## 关系一览
 
