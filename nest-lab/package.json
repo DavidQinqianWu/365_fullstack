@@ -19,6 +19,7 @@
     "day10": "nest build && node scripts/day10-try.mjs",
     "day11": "nest build && node scripts/day11-try.mjs",
     "day12": "nest build && node scripts/day12-try.mjs",
+    "day13": "nest build && node scripts/day13-try.mjs",
     "lint": "oxlint src/ test/",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -21,6 +21,7 @@ npm run day09          # Day 9 观察脚本:IoC 容器的元数据 + 三种作�
 npm run day10          # Day 10 观察脚本:一个请求在 AOP 管线里走过哪些站、在哪一站停下
 npm run day11          # Day 11 观察脚本:标签什么时候贴、Reflector 怎么读、拼错 key 静默失效
 npm run day12          # Day 12 观察脚本:env 写错时拒绝启动、写对时类型正确、钥匙来自配置
+npm run day13          # Day 13 观察脚本:并发请求的日志按 requestId 归组 + 单例字段串号反例
 ```
 
 ## 成长日志
@@ -32,3 +33,4 @@ npm run day12          # Day 12 观察脚本:env 写错时拒绝启动、写对�
 | Day 10 | `src/common/` 新增计时 / 包装 interceptor、`DemoKeyGuard`、`TracedParseIntPipe`、`AllExceptionsFilter`;`src/app.setup.ts`(`configureApp`:全局 middleware + interceptor + filter,main.ts / e2e / 脚本共用);`TasksController` 挂 Controller 级 interceptor、POST 级 guard、`:id` 参数 pipe;响应改为 `{ data, timestamp }`,`POST /tasks` 需要请求头 `x-demo-key: let-me-in`;新增 2 个单元测试文件,e2e 补 403 / 400 / 响应头;`scripts/day10-try.mjs` | `docs/10-aop/` |
 | Day 11 | `src/common/decorators/`(`@Public()` = SetMetadata、`@Roles()` = `Reflector.createDecorator`、`@RequestId()` = createParamDecorator、`@AdminOnly()` = applyDecorators);`DemoKeyGuard` 升级为全局默认要钥匙(`APP_GUARD`,读 `@Public()`);新增 `RolesGuard`(角色暂读 `x-demo-role`);`DELETE /tasks/:id`(`@AdminOnly()`);GET 接口、首页、scope-demo 贴 `@Public()`;`src/decorator-demo/`(覆盖 / 合并 / 拼错 key 演示);测试补齐;`scripts/day11-try.mjs` | `docs/11-custom-decorators/` |
 | Day 12 | 依赖 `@nestjs/config` + `zod`;`src/config/env.schema.ts`(zod 开店检查单:`z.coerce.number` / `z.stringbool` / 生产环境禁用默认钥匙,`z.infer` 推导 `Env`);`ConfigModule.forRoot({ validate })`;`DemoKeyGuard` 从 `ConfigService<Env, true>` 读 `DEMO_KEY`;`main.ts` 读 `PORT`;`LOG_REQUESTS` 开关进出门日志;`src/common/typed-token.ts`(带类型的 token + `valueProvider` / `classProvider`);`.env.example`;vitest 配置里固定测试用 env;`scripts/day12-try.mjs` | `docs/12-typescript-server/` |
+| Day 13 | `src/common/request-context/`(AsyncLocalStorage + `RequestContextService` + `RequestContextMiddleware` 读取 / 生成 / 回写 `x-request-id` + `ctxLog` 带桌号日志);全部站点日志改用 `ctxLog`;`@RequestId()` 改读 ALS;全局 interceptor / filter 改为 `APP_INTERCEPTOR` / `APP_FILTER`(注入 `RequestContextService`,错误体带 `requestId`);middleware 改在 `AppModule.configure()` 注册,`configureApp` 变为空壳;`src/request-context-demo/`(并发厨房 + 单例字段反例);测试补齐;`scripts/day13-try.mjs` | `docs/13-request-context/` |

@@ -6,6 +6,7 @@ import { TracedParseIntPipe } from '../common/traced-parse-int.pipe.js';
 import { WrapResponseInterceptor } from '../common/wrap-response.interceptor.js';
 import type { Task } from './task.js';
 import { TasksService } from './tasks.service.js';
+import { ctxLog } from '../common/request-context/request-context.js';
 
 // Controller = 前台接待:只管「哪张单子交给谁」(路由 + 取参数 + 交回结果),不自己做菜。
 // Day 10:Controller 级别的切面 —— 这个类的所有方法返回值都被包成 { data, timestamp }
@@ -20,7 +21,7 @@ export class TasksController {
   @Public()
   @Get()
   findAll(): Task[] {
-    console.log('  ③ Controller 前台接单:GET /tasks');
+    ctxLog('  ③ Controller 前台接单:GET /tasks');
     return this.tasksService.findAll();
   }
 
@@ -28,7 +29,7 @@ export class TasksController {
   @Public()
   @Get(':id')
   findOne(@Param('id', TracedParseIntPipe) id: number): Task {
-    console.log(`  ③ Controller 前台接单:GET /tasks/${id}`);
+    ctxLog(`  ③ Controller 前台接单:GET /tasks/${id}`);
     return this.tasksService.findOne(id);
   }
 
@@ -37,7 +38,7 @@ export class TasksController {
   // 注意:今天仍然没有 body 校验,Week 3 用 DTO + ValidationPipe 补上。
   @Post()
   create(@Body() body: { title: string }, @RequestId() requestId: string): Task {
-    console.log(`  ③ Controller 前台接单:POST /tasks(requestId=${requestId})`);
+    ctxLog(`  ③ Controller 前台接单:POST /tasks(requestId=${requestId})`);
     return this.tasksService.create(body.title);
   }
 
@@ -46,7 +47,7 @@ export class TasksController {
   @AdminOnly()
   @Delete(':id')
   remove(@Param('id', TracedParseIntPipe) id: number): Task {
-    console.log(`  ③ Controller 前台接单:DELETE /tasks/${id}`);
+    ctxLog(`  ③ Controller 前台接单:DELETE /tasks/${id}`);
     return this.tasksService.remove(id);
   }
 }

@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CLOCK, type Clock } from '../common/clock.js';
 import type { Task } from './task.js';
 import { TASKS_REPOSITORY, type TasksRepository } from './tasks.repository.js';
+import { ctxLog } from '../common/request-context/request-context.js';
 
 // Provider / Service = 后厨:只管「把菜做出来」(业务逻辑),不关心 HTTP。
 // Day 9 起:数据存哪、现在几点,都不自己决定,而是在构造函数里「声明我需要什么」,由 Nest 的 IoC 容器送来。
@@ -14,12 +15,12 @@ export class TasksService {
   ) {}
 
   findAll(): Task[] {
-    console.log('   ④ Service    后厨做菜:findAll');
+    ctxLog('   ④ Service    后厨做菜:findAll');
     return this.repo.findAll();
   }
 
   findOne(id: number): Task {
-    console.log(`   ④ Service    后厨做菜:findOne(${id})`);
+    ctxLog(`   ④ Service    后厨做菜:findOne(${id})`);
     const task = this.repo.findById(id);
     if (!task) {
       // 不用自己 res.writeHead(404):抛一个「带状态码的异常」,
@@ -30,7 +31,7 @@ export class TasksService {
   }
 
   create(title: string): Task {
-    console.log(`   ④ Service    后厨做菜:create("${title}")`);
+    ctxLog(`   ④ Service    后厨做菜:create("${title}")`);
     return this.repo.insert({
       title,
       done: false,
@@ -39,7 +40,7 @@ export class TasksService {
   }
 
   remove(id: number): Task {
-    console.log(`   ④ Service    后厨做菜:remove(${id})`);
+    ctxLog(`   ④ Service    后厨做菜:remove(${id})`);
     const removed = this.repo.remove(id);
     if (!removed) throw new NotFoundException(`没有 id 为 ${id} 的任务`);
     return removed;

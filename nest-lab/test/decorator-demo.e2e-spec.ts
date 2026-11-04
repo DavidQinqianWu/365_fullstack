@@ -1,12 +1,30 @@
 import { Test } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { validateEnv } from './../src/config/env.schema.js';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { DemoKeyGuard } from './../src/common/demo-key.guard.js';
+import { RequestContextMiddleware } from './../src/common/request-context/request-context.middleware.js';
+import { RequestContextModule } from './../src/common/request-context/request-context.module.js';
 import { DecoratorDemoModule } from './../src/decorator-demo/decorator-demo.module.js';
+
+// Day 13:@RequestId() 改为读 ALS 里的桌号牌,所以测试模块也要挂上 RequestContextMiddleware
+@Module({
+  // Day 12:DemoKeyGuard 要 ConfigService;ignoreEnvFile 保证不读本机 .env
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnv, ignoreEnvFile: true }),
+    RequestContextModule,
+    DecoratorDemoModule,
+  ],
+  providers: [{ provide: APP_GUARD, useClass: DemoKeyGuard }], // 和 AppModule 一样挂上全局保安
+})
+class DecoratorTestModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestContextMiddleware).forRoutes('*');
+  }
+}
 
 // Day 11:元数据「贴在哪、怎么读、读错了会怎样」
 describe('自定义装饰器 (e2e)', () => {
@@ -15,11 +33,7 @@ describe('自定义装饰器 (e2e)', () => {
 
   beforeAll(async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
-    const moduleRef = await Test.createTestingModule({
-      // Day 12:DemoKeyGuard 要 ConfigService;ignoreEnvFile 保证不读本机 .env
-      imports: [ConfigModule.forRoot({ isGlobal: true, validate: validateEnv, ignoreEnvFile: true }), DecoratorDemoModule],
-      providers: [{ provide: APP_GUARD, useClass: DemoKeyGuard }], // 和 AppModule 一样挂上全局保安
-    }).compile();
+    const moduleRef = await Test.createTestingModule({ imports: [DecoratorTestModule] }).compile();
     app = moduleRef.createNestApplication();
     await app.init();
   });

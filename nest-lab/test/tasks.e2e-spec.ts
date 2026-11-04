@@ -60,12 +60,14 @@ describe('Tasks (e2e)', () => {
   it('GET /tasks/999 → 404(全局 filter 的统一错误格式,不被包装)', () => {
     return request(app.getHttpServer())
       .get('/tasks/999')
+      .set('x-request-id', 'e2e-404') // Day 13:错误体带上 requestId
       .expect(404)
       .expect({
         statusCode: 404,
         error: 'NOT_FOUND',
         message: '没有 id 为 999 的任务',
         path: '/tasks/999',
+        requestId: 'e2e-404',
       });
   });
 
@@ -76,12 +78,19 @@ describe('Tasks (e2e)', () => {
       error: 'BAD_REQUEST',
       message: 'Validation failed (numeric string is expected)',
       path: '/tasks/abc',
+      requestId: res.headers['x-request-id'], // Day 13:没带头时服务端生成,响应头和错误体是同一个
     });
   });
 
   it('POST /tasks 不带 x-demo-key → 403,而且没有 X-Response-Time(Guard 在 interceptor 之前)', async () => {
     const res = await request(app.getHttpServer()).post('/tasks').send({ title: '没钥匙' }).expect(403);
-    expect(res.body).toEqual({ statusCode: 403, error: 'FORBIDDEN', message: 'Forbidden resource', path: '/tasks' });
+    expect(res.body).toEqual({
+      statusCode: 403,
+      error: 'FORBIDDEN',
+      message: 'Forbidden resource',
+      path: '/tasks',
+      requestId: res.headers['x-request-id'],
+    });
     expect(res.headers['x-response-time']).toBeUndefined();
   });
 

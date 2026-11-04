@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 13 - 小实战:请求 ID 贯穿日志,给每桌客人一张隐形桌号牌</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 2</div>
+  <h1>Day 13 - 小实战:请求 ID 贯穿日志,给每桌客人一张隐形桌号牌</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>并发日志归组 · AsyncLocalStorage · <code>x-request-id</code> · 全局切面改成 <code>APP_INTERCEPTOR</code> / <code>APP_FILTER</code> 的 DI 版 · Week 2 能力总览</b> ·
+    项目:<code>nest-lab/</code> 新增请求上下文模块,所有日志自动带上 requestId ·
+    手写实验:<code>src/13-request-context/</code>(纯 Node:全局变量串号 vs ALS 不串号)·
+    今天没有新依赖
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🍽️ 接上回:五桌客人的小票混在一起</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:请求 ID —— 每桌一张桌号牌</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:AsyncLocalStorage —— 跟着这桌客人走的隐形桌号牌</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:全局切面的 DI 版 —— 外包临时工 vs 编制内员工</a></li>
+    <li><a href="#sec6">🗺️ Week 2 串一串:nest-lab 现在会什么</a></li>
+    <li><a href="#sec7">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec8">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec9">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🍽️ 接上回:五桌客人的小票混在一起</h2>
+  <p>Day 8–12 的观察脚本都是<b>一个请求跑完再发下一个</b>,日志整整齐齐。真实线上不是这样:几十个请求同时在店里,Day 1–2 讲过,服务员在每个 <code>await</code> 处都会放下手里这桌、先去招呼别桌。于是日志变成这样(今天观察脚本的真实输出,截取一段):</p>
+  <pre><code>   ④ Kitchen 开始做菜(要等 60 ms)
+   ④ Kitchen 查完库存
+   ④ Kitchen 出菜
+  ⑤-1 Interceptor(后) 计时结束:正常返回(handler 21.6 ms,从进门算起 22.3 ms)
+← ⑥ Middleware 出门:200(25.6 ms)
+   ④ Kitchen 查完库存
+   ④ Kitchen 查完库存
+   ④ Kitchen 查完库存
+   ④ Kitchen 出菜</code></pre>
+  <p>连着三行「查完库存」分别是谁的?出错时你根本没法回答「这一行属于哪个请求」。</p>
+  <p>最直接的办法是给每个请求一个编号(requestId),每打一行日志都带上它。可是编号要怎么送到 Service 深处?Day 11 的 <code>@RequestId()</code> 能把它交给 Controller,但从 Controller 到 Service 再到仓储,<b>每一层都加一个 <code>requestId</code> 参数</b>太难看了,而且第三方库的回调里你根本加不了参数。</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    客人一进门,门口就发一张<b>桌号牌</b>。后厨每道工序都在小票上写桌号,出了问题拿着桌号一查,这桌的所有小票都能找出来。但如果桌号要靠「前台喊给后厨、后厨喊给配菜、配菜喊给打荷」口口相传,迟早会传错。今天的 <b>AsyncLocalStorage</b> 像一张<b>隐形的桌号牌</b>:它跟着这桌客人的单子走,谁经手这张单子,抬头就能看到桌号,不用任何人喊。
+  </div>
+  <p>今天的另一件事:Day 10 的全局计时 interceptor 和异常 filter 是用 <code>app.useGlobalXxx(new X())</code> 挂的,它们<b>在 DI 容器外面</b>,拿不到桌号牌服务。今天把它们搬进容器(<code>APP_INTERCEPTOR</code> / <code>APP_FILTER</code>)。最后把 Week 2 的能力串成一张表,给 Day 14 复盘铺路。</p>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+npm test             # 单元测试:RequestContextService 跨 await、并发不干扰
+npm run test:e2e     # e2e:x-request-id 沿用 / 生成 / 回写、并发不串号、单例字段串号反例
+npm run day13        # 观察脚本:5 个并发请求的日志归组 + 自动校验
+
+# 手动试:带上自己的 requestId,看响应头、错误体、服务端日志
+curl -i -H 'x-request-id: my-trace-1' localhost:3000/tasks/999</code></pre>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用(餐厅版)</th></tr>
+    <tr><td><code>src/common/request-context/request-context.ts</code></td><td>新增</td><td>隐形桌号牌本体:一个 <code>AsyncLocalStorage</code> 实例 + <code>currentRequestId()</code> + <code>ctxLog()</code>(打印时自动加 <code>[桌号前 8 位]</code>)</td></tr>
+    <tr><td><code>src/common/request-context/request-context.service.ts</code></td><td>新增</td><td>DI 版门面 <code>RequestContextService</code>:<code>run()</code>、<code>requestId</code>、<code>elapsedMs()</code></td></tr>
+    <tr><td><code>src/common/request-context/request-context.middleware.ts</code></td><td>新增</td><td>门口发牌:读取或生成 <code>x-request-id</code>,回写响应头,用 <code>run()</code> 包住整条管线</td></tr>
+    <tr><td><code>src/common/request-context/request-context.module.ts</code></td><td>新增</td><td><code>@Global()</code> 模块,导出 <code>RequestContextService</code></td></tr>
+    <tr><td><code>src/app.module.ts</code></td><td>修改</td><td>导入 <code>RequestContextModule</code>;<code>APP_INTERCEPTOR</code> / <code>APP_FILTER</code>;<code>configure()</code> 里按顺序注册「发牌」和「登记员」两个 middleware</td></tr>
+    <tr><td><code>src/app.setup.ts</code></td><td>修改</td><td><code>configureApp</code> 变成空壳(全局店规都进了 AppModule,注释写明原因)</td></tr>
+    <tr><td><code>src/common/timing.interceptor.ts</code></td><td>修改</td><td>注入 <code>RequestContextService</code>,额外报「从进门算起」的总耗时</td></tr>
+    <tr><td><code>src/common/all-exceptions.filter.ts</code></td><td>修改</td><td>注入 <code>RequestContextService</code>,错误体加 <code>requestId</code> 字段</td></tr>
+    <tr><td><code>src/common/decorators/request-id.decorator.ts</code></td><td>修改</td><td><code>@RequestId()</code> 不再自己读头 / 生成 UUID,改读 ALS(整个请求只有一个来源)</td></tr>
+    <tr><td>各站点(guard、pipe、interceptor、middleware、controller、service)</td><td>修改</td><td><code>console.log(...)</code> 统一换成 <code>ctxLog(...)</code></td></tr>
+    <tr><td><code>src/request-context-demo/</code>(3 个文件)</td><td>新增</td><td>实验厨房:<code>KitchenService</code>(不收 requestId 参数,await 两次)+ 故意写坏的 <code>BadKitchenService</code>(单例字段存 requestId)。不挂进 AppModule</td></tr>
+    <tr><td><code>src/common/request-context/request-context.service.spec.ts</code>、<code>test/request-context.e2e-spec.ts</code></td><td>新增</td><td>ALS 与并发不串号的测试</td></tr>
+    <tr><td><code>test/tasks.e2e-spec.ts</code>、<code>test/decorator-demo.e2e-spec.ts</code></td><td>修改</td><td>错误体断言加 <code>requestId</code>;实验模块的测试也挂上发牌 middleware</td></tr>
+    <tr><td><code>scripts/day13-try.mjs</code> + <code>package.json</code> 的 <code>day13</code>、<code>README.md</code></td><td>新增 / 修改</td><td>观察脚本、成长日志</td></tr>
+  </table>
+  <p>(<code>npm run day08</code>–<code>day12</code> 都照样能跑,只是每行日志前面多了 <code>[桌号]</code>,错误体多了 <code>requestId</code>;而且因为全局切面搬进了 AppModule,day08 现在也有计时和统一错误格式了。)</p>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:请求 ID —— 每桌一张桌号牌</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    给每个请求发一个唯一编号,这个请求产生的<b>每一行日志都带上它</b>;并发时日志再乱,按编号一筛就能把同一个请求的日志全找出来。
+  </div>
+
+  <h3>② 生活类比:桌号牌 + 小票上写桌号</h3>
+  <p>门口发牌:客人自己带了会员卡号(上游传来的 <code>x-request-id</code>)就沿用,没带就现发一张;结账时把桌号印在收据上(回写响应头),客人投诉时报桌号,店长就能调出这桌从进门到出门的所有记录。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>nest-lab 里</th></tr>
+    <tr><td>桌号</td><td><b>request ID / correlation ID</b></td><td>UUID,或客户端给的值</td></tr>
+    <tr><td>门口发牌</td><td>管线最前面的 middleware</td><td><code>RequestContextMiddleware</code></td></tr>
+    <tr><td>客人自带的会员卡号</td><td>请求头 <code>x-request-id</code>(网关、上游服务、前端传来)</td><td>有就沿用</td></tr>
+    <tr><td>收据上印桌号</td><td>响应头 <code>x-request-id</code> + 错误体里的 <code>requestId</code></td><td>中间件回写、filter 写进错误体</td></tr>
+    <tr><td>每张小票都写桌号</td><td>日志的统一前缀 / 字段</td><td><code>ctxLog()</code> 自动加 <code>[桌号前 8 位]</code></td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「发了桌号牌,各桌就互不干扰了」——桌号牌只是标签。</b>它不会让请求变成排队执行,也不隔离任何数据。并发问题(两个请求同时改同一条任务)照样存在,那是 Week 7 事务和锁要解决的事。</li>
+      <li><b>「客人报的会员卡号一定是真的」——<code>x-request-id</code> 谁都能伪造。</b>它只用来<b>串日志</b>,不能用来做任何权限判断。生产环境还应该限制它的长度和字符(否则有人塞一段换行符进来,就能在你的日志里伪造假记录,叫 log injection)。今天为了简单没做,Week 20 安全周会补上。</li>
+      <li><b>「所有小票都会自动写上桌号」——只有用 <code>ctxLog</code> 打印的才会。</b>第三方库自己 <code>console.log</code> 的内容不会带前缀;要做到「所有日志都带」,需要换成支持上下文的结构化 logger(pino、Nest 的 Logger 接口),Week 15 可观测性会讲。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>request ID / correlation ID</b>(关联 ID):把一次请求在一个服务里、甚至跨多个服务的所有日志关联起来;常见请求头 <code>X-Request-ID</code> / <code>X-Correlation-ID</code>;分布式追踪(OpenTelemetry)里更完整的版本叫 <b>trace ID</b>,标准请求头是 W3C 的 <code>traceparent</code>(Week 15)。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:观察脚本同时发 5 个请求(<code>req-1</code>~<code>req-5</code>),各自在 Service 里 await 120 / 20 / 80 / 40 / 60 ms。去掉桌号后的日志里,第一个「出门」的是哪个请求?按桌号归组后,每个请求能凑齐 9 行吗?</p>
+  <pre><code>cd nest-lab
+npm run day13</code></pre>
+  <p>真实运行结果(第 1 幕-B 是带桌号的原始日志,第 1 幕-A 就是把每行开头的 <code>[req-N   ]</code> 去掉;耗时和个别行的先后每次略有不同,结论不变):</p>
+  <pre><code>========== 第 1 幕-B:带桌号的原始日志 ==========
+[req-1   ] → ① Middleware 进门:GET /kitchen/cook?ms=120
+[req-1   ]   ②-1 Guard 保安 → KitchenController.cook:贴了 @Public(),免检放行
+[req-1   ]   ②-2 Interceptor(前) 计时开始 → KitchenController.cook
+[req-1   ]   ③ Controller 前台接单:GET /kitchen/cook
+[req-1   ]    ④ Kitchen 开始做菜(要等 120 ms)
+[req-2   ] → ① Middleware 进门:GET /kitchen/cook?ms=20
+[req-2   ]   ②-1 Guard 保安 → KitchenController.cook:贴了 @Public(),免检放行
+[req-2   ]   ②-2 Interceptor(前) 计时开始 → KitchenController.cook
+[req-2   ]   ③ Controller 前台接单:GET /kitchen/cook
+[req-2   ]    ④ Kitchen 开始做菜(要等 20 ms)
+[req-3   ] → ① Middleware 进门:GET /kitchen/cook?ms=80
+[req-3   ]   ②-1 Guard 保安 → KitchenController.cook:贴了 @Public(),免检放行
+[req-3   ]   ②-2 Interceptor(前) 计时开始 → KitchenController.cook
+[req-3   ]   ③ Controller 前台接单:GET /kitchen/cook
+[req-3   ]    ④ Kitchen 开始做菜(要等 80 ms)
+[req-4   ] → ① Middleware 进门:GET /kitchen/cook?ms=40
+[req-4   ]   ②-1 Guard 保安 → KitchenController.cook:贴了 @Public(),免检放行
+[req-4   ]   ②-2 Interceptor(前) 计时开始 → KitchenController.cook
+[req-4   ]   ③ Controller 前台接单:GET /kitchen/cook
+[req-4   ]    ④ Kitchen 开始做菜(要等 40 ms)
+[req-5   ] → ① Middleware 进门:GET /kitchen/cook?ms=60
+[req-5   ]   ②-1 Guard 保安 → KitchenController.cook:贴了 @Public(),免检放行
+[req-5   ]   ②-2 Interceptor(前) 计时开始 → KitchenController.cook
+[req-5   ]   ③ Controller 前台接单:GET /kitchen/cook
+[req-5   ]    ④ Kitchen 开始做菜(要等 60 ms)
+[req-2   ]    ④ Kitchen 查完库存
+[req-2   ]    ④ Kitchen 出菜
+[req-2   ]   ⑤-1 Interceptor(后) 计时结束:正常返回(handler 21.6 ms,从进门算起 22.3 ms)
+[req-2   ] ← ⑥ Middleware 出门:200(25.6 ms)
+[req-4   ]    ④ Kitchen 查完库存
+[req-5   ]    ④ Kitchen 查完库存
+[req-3   ]    ④ Kitchen 查完库存
+[req-4   ]    ④ Kitchen 出菜
+[req-4   ]   ⑤-1 Interceptor(后) 计时结束:正常返回(handler 44.5 ms,从进门算起 44.8 ms)
+[req-4   ] ← ⑥ Middleware 出门:200(45.7 ms)
+[req-1   ]    ④ Kitchen 查完库存
+[req-5   ]    ④ Kitchen 出菜
+[req-5   ]   ⑤-1 Interceptor(后) 计时结束:正常返回(handler 60.8 ms,从进门算起 61.1 ms)
+[req-5   ] ← ⑥ Middleware 出门:200(61.8 ms)
+[req-3   ]    ④ Kitchen 出菜
+[req-3   ]   ⑤-1 Interceptor(后) 计时结束:正常返回(handler 81.5 ms,从进门算起 81.8 ms)
+[req-3   ] ← ⑥ Middleware 出门:200(82.5 ms)
+[req-1   ]    ④ Kitchen 出菜
+[req-1   ]   ⑤-1 Interceptor(后) 计时结束:正常返回(handler 120.9 ms,从进门算起 124.1 ms)
+[req-1   ] ← ⑥ Middleware 出门:200(124.2 ms)
+
+========== 第 1 幕-C:按桌号归组 + 自动校验 ==========
+req-1(等 120 ms):9 行日志,顺序✅ 完整 | 响应头 x-request-id=req-1 | Service 深处拿到 requestId=req-1 ✅
+req-2(等  20 ms):9 行日志,顺序✅ 完整 | 响应头 x-request-id=req-2 | Service 深处拿到 requestId=req-2 ✅
+req-3(等  80 ms):9 行日志,顺序✅ 完整 | 响应头 x-request-id=req-3 | Service 深处拿到 requestId=req-3 ✅
+req-4(等  40 ms):9 行日志,顺序✅ 完整 | 响应头 x-request-id=req-4 | Service 深处拿到 requestId=req-4 ✅
+req-5(等  60 ms):9 行日志,顺序✅ 完整 | 响应头 x-request-id=req-5 | Service 深处拿到 requestId=req-5 ✅
+没有桌号的日志行:0
+结论:✅ 5 个并发请求的 45 行日志全部归组正确,Service 没有接收任何 requestId 参数</code></pre>
+  <p>这就是 Day 1–2 的 event loop 在真实服务里的样子:5 个请求<b>同时</b>在店里,服务员在每个 <code>await</code> 处切换;最先出门的是等得最短的 <code>req-2</code>,不是最先进门的 <code>req-1</code>。脚本按桌号把 45 行日志分成 5 组,逐组核对「进门 → 保安 → 计时 → 前台 → 开始做菜 → 查完库存 → 出菜 → 计时结束 → 出门」9 步顺序完整,再核对响应头和 Service 返回的 requestId。</p>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:AsyncLocalStorage —— 跟着这桌客人走的隐形桌号牌</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <code>als.run(store, fn)</code> 开一条「异步链」,<code>fn</code> 里面的代码,以及它<b>衍生出来的所有异步操作</b>(await 之后的部分、setTimeout、Promise 回调、流事件),调用 <code>als.getStore()</code> 都拿到这一份 store。不同的 run 之间互不干扰。
+  </div>
+
+  <h3>② 生活类比:隐形桌号牌</h3>
+  <p>桌号牌不挂在服务员身上(服务员只有一个,一会儿招呼这桌、一会儿招呼那桌),而是<b>挂在这桌的单子上</b>。单子被拆成几张小单交给不同工位(异步操作),每张小单都自动带着同一张隐形桌号牌。服务员拿起哪张单子,就看到哪个桌号。</p>
+  <pre><code>// src/common/request-context/request-context.middleware.ts(核心一行)
+this.context.run({ requestId, startedAt: performance.now() }, () =&gt; next());
+// next() 之后的整条管线 —— guard、interceptor、pipe、controller、service、filter,
+// 以及它们里面所有的 await —— 都在这条链上
+
+// src/request-context-demo/kitchen.service.ts —— 方法签名里没有 requestId
+async cook(ms: number) {
+  ctxLog(`④ Kitchen 开始做菜(要等 ${ms} ms)`);  // ctxLog 自己去 ALS 里拿桌号
+  await sleep(ms / 2);
+  ctxLog('④ Kitchen 查完库存');                 // await 回来,还是同一个桌号
+  ...
+  return { requestId: this.context.requestId, ms };
+}</code></pre>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th></tr>
+    <tr><td>隐形桌号牌这套制度</td><td><code>new AsyncLocalStorage&lt;RequestStore&gt;()</code>(全进程一个实例)</td></tr>
+    <tr><td>给这桌的单子挂上牌</td><td><code>als.run(store, fn)</code></td></tr>
+    <tr><td>拆成小单后都带着牌</td><td>Node 在创建每个异步资源(Promise、定时器、socket 回调)时,把<b>当前的 store</b> 一起记下来;回调执行时再恢复它</td></tr>
+    <tr><td>抬头看牌</td><td><code>als.getStore()</code>(不在任何 run 里时返回 <code>undefined</code>)</td></tr>
+    <tr><td>Day 2 的巡场路线</td><td>event loop 每次取出一个回调执行前,Node 都会切换到「这个回调所属的那条链」的 store</td></tr>
+  </table>
+
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    <b>React Context</b> 解决的是同一个痛点 ——「不用一层层传 props(prop drilling)」:<code>&lt;Provider value&gt;</code> 下面的任何组件都能 <code>useContext</code> 拿到值。区别是:React Context 沿着<b>组件树</b>(空间结构)传,ALS 沿着<b>异步调用链</b>(时间先后)传。写过 Angular 的话,<b>Zone.js</b> 更像 ALS:它也是追踪「从这里衍生出来的所有异步操作」,Angular 靠它知道什么时候该刷新视图。
+  </div>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「店里任何人都能看到这桌的牌」——只有从这桌单子衍生出来的工作才看得到。</b>开店时(任何请求之外)注册的定时器、在别处订阅的事件总线、Day 5 的 worker_threads(另一个线程)、消息队列另一头的消费者(另一个进程、另一台机器),都<b>不在这条链上</b>,拿到的是 <code>undefined</code>。跨线程、跨进程、跨服务要传 ID,只能把它<b>显式放进消息里</b>(消息头、HTTP 头)。</li>
+      <li><b>「它就是一个全局变量」——ALS 实例是全局的,但它装的值不是。</b><code>getStore()</code> 返回的是「当前这条异步链」的 store,每个请求各一份。真正的全局变量(或者<b>单例 Service 的字段</b>,Day 9 警告过)存 requestId 会串号:今天的 <code>BadKitchenService</code> 就是活教材(见下方第 2 幕)。</li>
+      <li><b>「牌子挂上就免费」——有开销。</b>ALS 建立在 <code>async_hooks</code> 之上,Node 要在每个异步资源上多记一份上下文,有少量 CPU 开销(新版 Node 已经优化了很多,通常可以接受)。store 里只放小东西(ID、用户、租户),别塞大对象:它会跟着链上每个还没执行的回调一起活着,晚一点才能被回收。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b><code>AsyncLocalStorage</code></b>(<code>node:async_hooks</code>):<code>run(store, fn)</code> / <code>getStore()</code>;<b>async context propagation</b>(异步上下文传播);底层的 <b>async_hooks</b> 在每个异步资源创建 / 执行前后触发钩子;TC39 有一个让 JS 语言原生支持这件事的提案 <b>AsyncContext</b>。<br>
+    现成方案:<b><code>nestjs-cls</code></b>(continuation-local storage)把今天手写的这套封装成了模块、装饰器和插件。Week 7 讲事务传播时会用到它的 <code>@Transactional()</code>(<code>@nestjs-cls/transactional</code>):事务对象也是靠 ALS「跟着请求走」,不用把 <code>tx</code> 一层层传进每个仓储方法。OpenTelemetry 的 Node SDK 也是用 ALS 传 trace 上下文的。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>先不用框架。✍️ <b>预测(先写再运行)</b>:三个「请求」A / B / C 同时进来,分别 await 30 / 10 / 20 ms。用全局变量存 requestId,最后各自读到的是谁?换成 ALS 呢?开店时注册的定时器、请求里注册但请求返回后才触发的定时器,各读到什么?</p>
+  <pre><code>npx tsx src/13-request-context/ex1-global-vs-als.ts</code></pre>
+  <p>真实运行结果:</p>
+  <pre><code>========== 第 1 幕:全局变量存 requestId ==========
+  A:后厨出菜时看到的桌号 = C ❌ 串号
+  B:后厨出菜时看到的桌号 = C ❌ 串号
+  C:后厨出菜时看到的桌号 = C ✅
+
+========== 第 2 幕:AsyncLocalStorage ==========
+  A:后厨出菜时看到的桌号 = A ✅
+  B:后厨出菜时看到的桌号 = B ✅
+  C:后厨出菜时看到的桌号 = C ✅
+
+========== 第 3 幕:哪些东西拿不到桌号牌 ==========
+  开店时注册的定时器在请求进行中触发,读到: undefined
+  请求 D 返回前,读到: D
+  run 外面(请求 D 已返回),读到: undefined
+  请求 D 里注册的定时器,在 D 返回之后触发,读到: D</code></pre>
+  <p>第 1 幕:三个请求在 await 之前都写了一遍全局变量,最后写的是 C,于是 A、B 醒来后读到的都是 C。第 3 幕最后一行值得多看一眼:ALS 跟的是「<b>谁注册了这个回调</b>」,不是「请求是否还在进行」。在请求里随手 <code>setTimeout</code> 一个后台任务,它会一直带着那个请求的 store,可能在请求结束后才执行。</p>
+  <p>再看 Nest 里的同一个坑:<code>BadKitchenService</code> 是单例,它把 requestId 存在字段 <code>this.currentRequestId</code> 上(<code>npm run day13</code> 第 2 幕,连跑 3 次结果相同):</p>
+  <pre><code>========== 第 2 幕:BadKitchenService 把 requestId 存在单例字段上(3 个并发请求) ==========
+bad-1(等 90 ms):字段里读到 bad-3 ❌ 串号了 | ALS 读到 bad-1 ✅
+bad-2(等 30 ms):字段里读到 bad-3 ❌ 串号了 | ALS 读到 bad-2 ✅
+bad-3(等 60 ms):字段里读到 bad-3 ✅ | ALS 读到 bad-3 ✅</code></pre>
+  <p>同一个对象、同一个方法里,字段错了两次,ALS 一次都没错。e2e 里也把这件事写成了断言(慢请求的字段被快请求覆盖)。</p>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:全局切面的 DI 版 —— 外包临时工 vs 编制内员工</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <code>app.useGlobalInterceptors(new X())</code> 是你自己 <code>new</code> 出来的对象,在 DI 容器外,<b>拿不到任何注入的依赖</b>;改成在模块里写 <code>{ provide: APP_INTERCEPTOR, useClass: X }</code>,它就由容器创建,能注入 <code>ConfigService</code>、<code>RequestContextService</code> 等,而且只要 imports 这个模块就自动生效。
+  </div>
+
+  <h3>② 生活类比:外包临时工 vs 编制内员工</h3>
+  <p>Day 10 的计时员和投诉台是<b>外包临时工</b>:店长在门口直接拉进来上岗,他们只能用自己带来的工具,领不到总部配发的东西(桌号牌查询机、配置手册)。今天把他们转成<b>编制内员工</b>:写进总部编制表(<code>AppModule</code> 的 <code>providers</code>),由人事部(Day 9 的容器)派来,入职时就配齐了需要的设备。而且编制表跟着总部走,在测试店、演示店(e2e、观察脚本)开张时也会自动到岗。</p>
+  <pre><code>// src/app.module.ts
+providers: [
+  { provide: APP_GUARD, useClass: DemoKeyGuard },            // Day 11 就是这么做的
+  { provide: APP_INTERCEPTOR, useClass: TimingInterceptor },  // Day 13:搬进容器
+  { provide: APP_FILTER, useClass: AllExceptionsFilter },     // Day 13:搬进容器
+],
+configure(consumer: MiddlewareConsumer) {                     // 模块级 middleware:按 apply 顺序执行
+  consumer.apply(RequestContextMiddleware).forRoutes('*');    // 先发桌号牌
+  if (this.config.get('LOG_REQUESTS', { infer: true })) consumer.apply(requestLogger).forRoutes('*');  // 再登记
+}
+
+// src/common/all-exceptions.filter.ts
+@Injectable()
+@Catch()
+export class AllExceptionsFilter implements ExceptionFilter {
+  constructor(private readonly context: RequestContextService) {}   // ← 外包临时工版做不到
+  catch(exception, host) { /* ... */ body.requestId = this.context.requestId ?? null; }
+}</code></pre>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>写法</th><th>能注入依赖吗</th><th>e2e / 脚本里自动生效吗</th></tr>
+    <tr><td>门口直接拉进来的临时工</td><td><code>app.useGlobalInterceptors(new X())</code> / <code>useGlobalFilters</code> / <code>useGlobalGuards</code> / <code>useGlobalPipes</code></td><td>❌(只能手动传构造参数)</td><td>❌ 要在每个创建 app 的地方再调一次</td></tr>
+    <tr><td>写进总部编制表的员工</td><td><code>{ provide: APP_INTERCEPTOR / APP_FILTER / APP_GUARD / APP_PIPE, useClass: X }</code></td><td>✅</td><td>✅ imports 这个模块就有</td></tr>
+    <tr><td>门口临时站个人</td><td><code>app.use(fn)</code></td><td>❌</td><td>❌</td></tr>
+    <tr><td>编制内的门口岗位</td><td><code>NestModule.configure(consumer)</code> + <code>consumer.apply(ClassMiddleware)</code></td><td>✅(类 middleware)</td><td>✅</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「写在哪个部门的编制表上,就只在那个部门上岗」——不是。</b><code>APP_INTERCEPTOR</code> 这些不管写在哪个模块里,都是<b>全局生效</b>的,写在 <code>TasksModule</code> 里也会作用到 <code>AppController</code>。所以惯例是统一写在根模块(或者一个专门的 CoreModule)里,别散落各处让人找不到。</li>
+      <li><b>「临时工版已经没用了」——它还有自己的位置。</b>不需要依赖的简单切面、只在某个脚本里临时加一层、或者需要用到「只有 bootstrap 时才拿得到的对象」时,<code>useGlobalXxx(new X())</code> 依然最简单直接。今天 <code>configureApp</code> 留成空壳,就是给 Week 3 的 swagger 这类「只能在 app 实例上做的事」留位置。</li>
+      <li><b>「换了注册方式,顺序不变」——middleware 的顺序变了。</b><code>app.use()</code> 挂的 middleware 比模块里 <code>configure()</code> 注册的<b>先执行</b>。如果登记员还用 <code>app.use</code> 挂,它就会跑在发牌员之前,「进门」那一行就没有桌号。所以今天把两者都放进 <code>configure()</code>,并按 <code>apply</code> 的先后排好。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b><code>APP_GUARD</code> / <code>APP_INTERCEPTOR</code> / <code>APP_PIPE</code> / <code>APP_FILTER</code></b>(<code>@nestjs/core</code> 导出的特殊 token,本质就是 Day 9 的 <code>useClass</code> provider);<b>functional vs class middleware</b>;<code>NestModule.configure()</code> + <code>MiddlewareConsumer.apply().forRoutes()</code>(还可以 <code>.exclude()</code> 排除某些路由)。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:不带 <code>x-request-id</code> 请求 <code>GET /tasks/999</code>,响应头里会有 <code>x-request-id</code> 吗?错误体里的 <code>requestId</code> 和它一样吗?(如果 filter 还是 Day 10 的临时工版,这个字段根本写不出来)</p>
+  <p><code>npm run day13</code> 第 3 幕的真实输出(UUID 每次不同):</p>
+  <pre><code>========== 第 3 幕:不带 x-request-id 的 404(APP_FILTER 注入了 RequestContextService) ==========
+响应头 x-request-id: 4f76033a-e948-4cb5-bb24-498a390f2060
+错误体: {"statusCode":404,"error":"NOT_FOUND","message":"没有 id 为 999 的任务","path":"/tasks/999","requestId":"4f76033a-e948-4cb5-bb24-498a390f2060"}
+错误体里的 requestId 和响应头一致吗? ✅ 一致
+[4f76033a] → ① Middleware 进门:GET /tasks/999
+[4f76033a]   ②-1 Guard 保安 → TasksController.findOne:贴了 @Public(),免检放行
+[4f76033a]   ②-2 Interceptor(前) 计时开始 → TasksController.findOne
+[4f76033a]   ②-3 Pipe 核单:'999' → 999
+[4f76033a]   ③ Controller 前台接单:GET /tasks/999
+[4f76033a]    ④ Service    后厨做菜:findOne(999)
+[4f76033a]   ⑤-1 Interceptor(后) 计时结束:抛出了 NotFoundException(handler 0.8 ms,从进门算起 1.5 ms)
+[4f76033a]   ⑤-2 Filter 投诉处理台:NotFoundException → 404
+[4f76033a] ← ⑥ Middleware 出门:404(2.6 ms)</code></pre>
+  <p>两个依赖注入的证据:filter 把 <code>requestId</code> 写进了错误体;计时 interceptor 报出了「从进门算起」的耗时(它从 <code>RequestContextService</code> 里读到了 middleware 记下的 <code>startedAt</code>)。而且这个脚本<b>一行 <code>configureApp</code> 都没调用</b>,全局切面照样全部到岗。</p>
+  <p>测试的真实结果:<code>npm test</code> 24 个通过,<code>npm run test:e2e</code> 23 个通过,其中今天新增的:</p>
+  <pre><code> ✓ src/common/request-context/request-context.service.spec.ts &gt; RequestContextService &gt; run 外面拿不到 requestId 1ms
+ ✓ src/common/request-context/request-context.service.spec.ts &gt; RequestContextService &gt; run 里面,跨过 await 也能拿到同一个 requestId 7ms
+ ✓ src/common/request-context/request-context.service.spec.ts &gt; RequestContextService &gt; 两个并发的 run 互不干扰 22ms
+ ✓ test/request-context.e2e-spec.ts &gt; 请求上下文 (e2e) &gt; 带了 x-request-id 就沿用,并回写到响应头 28ms
+ ✓ test/request-context.e2e-spec.ts &gt; 请求上下文 (e2e) &gt; 没带就生成一个 UUID 回写 15ms
+ ✓ test/request-context.e2e-spec.ts &gt; 请求上下文 (e2e) &gt; 并发 5 个请求:Service 深处(不传参)拿到的都是自己的 requestId 59ms
+ ✓ test/request-context.e2e-spec.ts &gt; 请求上下文 (e2e) &gt; 反面教材:单例字段存 requestId 会串号,ALS 不会 74ms</code></pre>
+</section>
+
+<section id="sec6">
+  <h2>🗺️ Week 2 串一串:nest-lab 现在会什么</h2>
+  <p>六天下来,nest-lab 从一个「Hello World」长成了下面这样。明天复盘时,试着<b>不看这张表</b>,自己画出来。</p>
+  <table>
+    <tr><th>Day</th><th>能力</th><th>nest-lab 里的代表文件</th><th>一句话原理</th><th>.NET / Java 对应</th></tr>
+    <tr><td>8</td><td>Module / Controller / Provider 三件套</td><td><code>src/tasks/tasks.module.ts</code>、<code>tasks.controller.ts</code>、<code>tasks.service.ts</code></td><td>装饰器贴标签,启动时框架读标签组装(编制表、前台、后厨)</td><td>Controller + Service;<code>@RestController</code> + <code>@Service</code></td></tr>
+    <tr><td>9</td><td>DI / IoC、token、作用域</td><td><code>tasks.repository.ts</code>(<code>TASKS_REPOSITORY</code>)、<code>common/clock.ts</code>、<code>src/scope-demo/</code></td><td>人事部按登记簿造对象、注入构造函数;默认单例</td><td><code>AddSingleton/Scoped/Transient</code>;Spring IoC</td></tr>
+    <tr><td>10</td><td>AOP 管线五件套</td><td><code>common/timing.interceptor.ts</code>、<code>wrap-response.interceptor.ts</code>、<code>traced-parse-int.pipe.ts</code>、<code>all-exceptions.filter.ts</code></td><td>函数包函数;middleware → guard → interceptor → pipe → handler,出错走 filter</td><td>Middleware + Filters;Spring AOP <code>@Around</code></td></tr>
+    <tr><td>11</td><td>自定义装饰器 + 默认上锁</td><td><code>common/decorators/</code>、<code>demo-key.guard.ts</code>(<code>APP_GUARD</code>)、<code>roles.guard.ts</code></td><td>贴标签 + 切面里用 Reflector 读标签</td><td><code>[Authorize]</code> / <code>[AllowAnonymous]</code>;<code>@PreAuthorize</code></td></tr>
+    <tr><td>12</td><td>类型安全配置</td><td><code>src/config/env.schema.ts</code>、<code>common/typed-token.ts</code>、<code>.env.example</code></td><td>类型 ≠ 校验;zod 一份定义两用;启动时 fail fast</td><td>Options + <code>ValidateOnStart</code>;<code>@ConfigurationProperties</code></td></tr>
+    <tr><td>13</td><td>请求上下文 + 全局切面 DI 化</td><td><code>common/request-context/</code>、<code>app.module.ts</code>(<code>APP_INTERCEPTOR</code> / <code>APP_FILTER</code>)</td><td>ALS 让同一请求衍生的异步操作共享上下文</td><td><code>IHttpContextAccessor</code>(<code>AsyncLocal</code>);MDC(<code>ThreadLocal</code>)</td></tr>
+  </table>
+  <p>现在一个 <code>POST /tasks</code> 请求在 nest-lab 里的完整旅程:</p>
+  <pre><code>RequestContextMiddleware   发桌号牌(ALS.run),回写 x-request-id          ← Day 13
+requestLogger              「进门」日志(带桌号)                           ← Day 8 / 12(LOG_REQUESTS)
+DemoKeyGuard (APP_GUARD)   读 @Public();读配置里的 DEMO_KEY              ← Day 11 / 12
+TimingInterceptor          (APP_INTERCEPTOR)计时开始                      ← Day 10 / 13
+WrapResponseInterceptor    (Controller 级)                               ← Day 10
+@Body() / @RequestId()     参数装饰器取值(@RequestId 读 ALS)             ← Day 11 / 13
+TasksController.create     前台                                           ← Day 8
+TasksService.create        后厨:注入的仓储 + 注入的时钟                    ← Day 9 / 12
+  ↩ 包装 { data, timestamp } → 计时结束 + X-Response-Time
+  ↩ 出错时:AllExceptionsFilter (APP_FILTER) 统一错误体 + requestId       ← Day 10 / 13
+requestLogger              「出门」日志(带桌号)</code></pre>
+  <p>两大支柱在这里都看得见:<b>IoC</b>(谁来创建、谁来接线:人事部)和 <b>AOP</b>(横切的事放在哪一站:店规)。今天的请求上下文是一个典型的「两者合作」:切面(middleware)负责发牌,DI(<code>RequestContextService</code>)负责把读牌的能力送到任何需要它的地方。</p>
+</section>
+
+<section id="sec7">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p>「请求范围的隐式上下文」每个生态都有,区别在于它挂在哪:线程、异步链,还是干脆不隐式,显式传参。</p>
+  <table>
+    <tr><th>命题</th><th>Node / NestJS(教具)</th><th>C# / ASP.NET Core</th><th>Java / Spring</th><th>Go</th></tr>
+    <tr>
+      <td>上下文挂在哪</td>
+      <td><b>异步调用链</b>:<code>AsyncLocalStorage</code></td>
+      <td><b>异步流</b>:<code>AsyncLocal&lt;T&gt;</code>(跟着 <code>await</code> 走,和 ALS 是一个思路)</td>
+      <td><b>线程</b>:<code>ThreadLocal</code>(一个请求一个线程的模型下成立)</td>
+      <td><b>不隐式</b>:<code>context.Context</code> 作为第一个参数显式往下传</td>
+    </tr>
+    <tr>
+      <td>拿当前请求</td>
+      <td>自己封装的 <code>RequestContextService</code> / <code>nestjs-cls</code></td>
+      <td><code>IHttpContextAccessor.HttpContext</code>(底层就是 <code>AsyncLocal</code>);<code>HttpContext.TraceIdentifier</code></td>
+      <td><code>RequestContextHolder</code>(底层 <code>ThreadLocal</code>);请求作用域 Bean</td>
+      <td><code>r.Context()</code>,<code>ctx.Value(key)</code></td>
+    </tr>
+    <tr>
+      <td>日志带上 requestId</td>
+      <td><code>ctxLog</code> / pino + ALS(Week 15)</td>
+      <td>Serilog <code>LogContext.PushProperty("RequestId", id)</code> / <code>ILogger.BeginScope</code></td>
+      <td>SLF4J <b>MDC</b>:<code>MDC.put("requestId", id)</code>,日志格式里写 <code>%X{requestId}</code></td>
+      <td><code>slog</code> 的 logger 里 <code>With("requestId", id)</code>,随 ctx 传下去</td>
+    </tr>
+    <tr>
+      <td>典型的坑</td>
+      <td>请求外注册的回调、worker_threads、消息队列拿不到</td>
+      <td>在 <code>Task.Run</code> 之外的后台线程里用 <code>HttpContext</code>,请求结束后它已失效</td>
+      <td>线程池 / <code>@Async</code> / CompletableFuture 换了线程,<b>MDC 丢失</b>,要手动拷贝;虚拟线程(Java 21+)下推荐 <b>ScopedValue</b></td>
+      <td>忘了传 ctx,或者用 <code>context.Background()</code> 断了链</td>
+    </tr>
+  </table>
+  <p>📌 <b>Go 为什么偏要显式传?</b>取舍是「可见性 vs 便利」。隐式上下文(ALS、ThreadLocal、AsyncLocal)让函数签名干净,但依赖是<b>看不见</b>的:读代码看不出这个函数需要 requestId,测试时也要记得先「开一条链」。Go 选择让每个函数都把 <code>ctx</code> 写在参数里:啰嗦,但一眼能看出谁需要上下文,跨 goroutine 也不会丢,还顺便承担了超时和取消的传递(<code>ctx.Done()</code>)。Node 生态里,超时 / 取消用的是 <code>AbortSignal</code>,它也是<b>显式</b>传的。</p>
+  <p>📌 roadmap 顶部对照表建议你在 Day 14 复盘时补一行<b>「请求上下文 / 关联 ID」</b>(ALS ↔ <code>AsyncLocal</code> / <code>IHttpContextAccessor</code> ↔ <code>ThreadLocal</code> + MDC / ScopedValue ↔ <code>context.Context</code>)。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"How do you correlate logs for a single request in a Node.js service that handles many requests concurrently?"</b>(或者 Java 面试:「MDC 是什么?用线程池时有什么坑?」)你可以答:<br>
+    <b>"Node 是单线程 event loop,并发请求会在 await 处交错执行,所以日志天然是混在一起的。我会在最前面的 middleware 里读取或生成一个 request ID,沿用上游传来的 X-Request-ID,并回写到响应头,然后用 AsyncLocalStorage 的 run 把后续整条处理链包起来。这样同一个请求衍生出来的所有异步操作都能通过 getStore 拿到这个 ID,不用一层层传参;logger 自动把它加进每一行日志,错误响应里也带上它,用户报错时可以直接按 ID 查日志。要注意 ALS 只跟着这条异步链走,worker 线程、消息队列这些边界要把 ID 显式放进消息;也绝不能把请求级数据存在单例的字段上,会串号。这和 Java 的 MDC 基于 ThreadLocal、.NET 的 AsyncLocal 是同一个思路,而 Go 选择用 context.Context 显式传递。"</b><br>
+    自己练一遍:合上文档 45 秒说完。
+  </div>
+</section>
+
+<section id="sec8">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+  <p>预测都写进 <code>src/13-request-context/notes.md</code> 的预测区,先写,再运行,再批改。</p>
+
+  <div class="task">
+    <h3>习题 1:全局变量 vs ALS(动手,约 7 min)</h3>
+    <p>文件:<code>src/13-request-context/ex1-global-vs-als.ts</code>,顶部有 4 道 ✍️ 预测题。</p>
+    <pre><code>npx tsx src/13-request-context/ex1-global-vs-als.ts</code></pre>
+    <p>对完答案后改一处再预测:把第 1 幕三个请求的等待时间改成一样(都是 10 ms),全局变量版还会串号吗?为什么?(提示:三个请求都是在第一次 <code>await</code> 之前写的全局变量。)</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:并发日志归组(动手,约 8 min)</h3>
+    <p>✍️ <b>预测(先写再运行)</b>:第 3 节「⑤」的问题,外加第 2 幕三个 <code>bad-N</code> 请求各自从字段读到什么。然后:</p>
+    <pre><code>cd nest-lab
+npm run day13</code></pre>
+    <p>逐条批改。再想一想:为什么 <code>bad-3</code> 是唯一一个「字段读对了」的?如果把它的等待时间从 60 改成 10,它还会对吗?(改 <code>scripts/day13-try.mjs</code> 里的 <code>[90, 30, 60]</code> 验证,改完改回来。)</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:让后厨自己看桌号(动手,约 10 min)</h3>
+    <p>(a)把 <code>TasksController.create</code> 的 <code>@RequestId() requestId</code> 参数删掉,改成在 <code>TasksService.create</code> 里注入 <code>RequestContextService</code>,打印 <code>this.context.requestId</code>。✍️ <b>预测</b>:<code>tasks.service.spec.ts</code> 里那些直接 <code>moduleRef.get(TasksService).create(...)</code> 的单元测试,打印出来的 requestId 会是什么?(提示:测试里有没有人调用 <code>run()</code>?)跑 <code>npm test</code> 和 <code>npm run test:e2e</code> 验证。</p>
+    <p>(b)思考题(不用写代码):如果在 <code>TasksModule</code> 里加一个 <code>setInterval</code>,每 10 秒打印一次任务总数,它的日志前缀会是什么?如果 <code>create</code> 里把「发欢迎邮件」交给消息队列的消费者去做,消费者的日志怎么才能带上同一个 requestId?</p>
+    <p>(c)用 curl 验证:<code>curl -i -H 'x-request-id: my-trace-1' localhost:3000/tasks/999</code>(先 <code>npm run start:dev</code>),找出响应头、错误体、服务端日志三处的 <code>my-trace-1</code>。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/13-request-context/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「AsyncLocalStorage 是什么?和 React Context『不用一层层传 props』是一回事吗?」用餐厅比喻讲清楚,并说出比喻在哪里会骗人。</li>
+      <li>为什么并发请求的日志会交错?为什么用全局变量或单例 Service 的字段存 requestId 会串号,而 ALS 不会?哪些地方拿不到 ALS 里的值?</li>
+      <li><code>app.useGlobalInterceptors(new X())</code> 和 <code>{ provide: APP_INTERCEPTOR, useClass: X }</code> 有什么区别?各适合什么场景?为什么今天要把登记员 middleware 从 <code>app.use</code> 挪进 <code>configure()</code>?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:对照第 6 节那张表,在 <code>nest-lab/README.md</code> 的成长日志里补上你自己做的改动;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec9">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>并发请求的日志天然交错</b>(event loop 在 await 处切换),所以每个请求要有一张桌号牌(request ID):沿用上游的 <code>x-request-id</code> 或现生成,回写响应头,写进每行日志和错误体。</li>
+    <li><b>AsyncLocalStorage = 跟着异步链走的隐形桌号牌</b>:<code>run</code> 里衍生出来的所有异步操作都能 <code>getStore()</code>,不用传参;请求外注册的回调、worker 线程、消息队列拿不到,跨边界要显式传。</li>
+    <li><b>ALS 实例是全局的,值不是</b>;全局变量、单例 Service 的字段存请求级数据一定会串号。</li>
+    <li><b>全局切面优先用 <code>APP_*</code> 注册</b>:在容器里能注入依赖,imports 模块就自动生效;<code>useGlobalXxx(new X())</code> 适合无依赖、临时的场景。middleware 注册在哪里决定执行顺序。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>画出 <code>req-2</code>(等 20 ms)为什么比 <code>req-1</code>(等 120 ms)先出门:服务员在哪几个时刻切换了请求?</li>
+    <li>ex1 第 3 幕最后一行:请求 D 已经返回了,为什么它注册的定时器还能读到 D?这在生产里可能带来什么问题?</li>
+    <li><code>RequestContextService</code> 也是单例,为什么它不会串号,而 <code>BadKitchenService</code> 会?</li>
+    <li>不看代码,说出今天 <code>AppModule</code> 里五个全局的东西(两个 middleware、<code>APP_GUARD</code>、<code>APP_INTERCEPTOR</code>、<code>APP_FILTER</code>)各自注入了什么依赖</li>
+    <li>把「请求 ID 贯穿日志」翻译成 Java(MDC)和 Go(context.Context)的做法,说出各自的坑</li>
+  </ul>
+  <p>🔮 明天 Day 14:Week 2 复盘日,不学新内容。把第 6 节那张表闭卷画一遍,把 IoC 和 AOP 两大支柱各写成一张概念卡,并补齐 roadmap 顶部对照表这周的几行。</p>
+</section>
+
+<footer>
+  Day 13 · Phase 1 / Week 2 · 产出:<code>docs/13-request-context/</code> 本文档 + <code>nest-lab/</code>(<code>common/request-context/</code>:ALS + <code>RequestContextService</code> + 发牌 middleware + <code>ctxLog</code>;<code>APP_INTERCEPTOR</code> / <code>APP_FILTER</code>;<code>npm run day13</code>)+ <code>src/13-request-context/</code> 全局变量 vs ALS 实验与 notes 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

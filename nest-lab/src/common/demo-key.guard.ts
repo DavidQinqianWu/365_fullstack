@@ -4,6 +4,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import type { Env } from '../config/env.schema.js';
 import { IS_PUBLIC_KEY } from './decorators/public.decorator.js';
+import { ctxLog } from './request-context/request-context.js';
 
 // 门口保安:全局默认要钥匙,贴了 @Public() 的接口免检(Day 11)。
 // Day 12:钥匙不再写死在代码里,从配置 DEMO_KEY 读(开发 / 测试默认 'let-me-in',生产必须自己设)。
@@ -31,12 +32,12 @@ export class DemoKeyGuard implements CanActivate {
       context.getClass(),
     ]);
     if (isPublic) {
-      console.log(`  ②-1 Guard 保安 → ${where}:贴了 @Public(),免检放行`);
+      ctxLog(`  ②-1 Guard 保安 → ${where}:贴了 @Public(),免检放行`);
       return true;
     }
     const req = context.switchToHttp().getRequest<Request>();
     const ok = req.headers[DEMO_KEY_HEADER] === this.demoKey;
-    console.log(`  ②-1 Guard 保安查 ${DEMO_KEY_HEADER} → ${where}:${ok ? '放行' : '拦下'}`);
+    ctxLog(`  ②-1 Guard 保安查 ${DEMO_KEY_HEADER} → ${where}:${ok ? '放行' : '拦下'}`);
     return ok;
   }
 }

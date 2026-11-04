@@ -37,6 +37,7 @@
 | 依赖注入(DI) | NestJS IoC 容器 | 内置 DI(Microsoft.Extensions.DI) | Spring IoC | 手动注入 / wire |
 | Provider 作用域 / 生命周期 | Nest `DEFAULT`(单例)/ `REQUEST` / `TRANSIENT`,request 作用域会向上「传染」 | `AddSingleton` / `AddScoped` / `AddTransient`(单例依赖 scoped 时直接报错) | `singleton` / `request` / `prototype`(注入代理对象) | 无容器,手动构造;或 wire / fx |
 | 声明式鉴权(默认上锁 + 白名单) | `APP_GUARD` 全局 guard + `@Public()`、`@Roles()` + RolesGuard | `FallbackPolicy` + `[AllowAnonymous]`、`[Authorize(Roles = "...")]` | Spring Security `anyRequest().authenticated()` + `permitAll()`、`@PreAuthorize` | 路由分组 + middleware |
+| 请求上下文 / 关联 ID | AsyncLocalStorage(手写或 `nestjs-cls`)+ `x-request-id` | `AsyncLocal<T>`、`IHttpContextAccessor`、`TraceIdentifier`、Serilog `LogContext` | `ThreadLocal` + SLF4J MDC(线程池下会丢)/ `ScopedValue` | `context.Context` 显式传参 |
 | AOP / 横切关注点 | Interceptor + Guard + Pipe + Filter,自定义装饰器 + `Reflector` 读元数据 | Action Filter / Middleware、Castle DynamicProxy | Spring AOP(`@Aspect` / `@Around`) | middleware 装饰 handler |
 | 声明式事务 / 事务传播 | Prisma `$transaction`、`nestjs-cls` + `@Transactional()`(AsyncLocalStorage) | EF Core `DbContext` 工作单元、`TransactionScope` | Spring `@Transactional`(传播行为 REQUIRED / REQUIRES_NEW) | `sql.Tx` 显式传递 |
 | ORM / 数据访问 | Prisma / Drizzle | EF Core(LINQ) | Hibernate / JPA | GORM / sqlx |

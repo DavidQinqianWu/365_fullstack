@@ -1,6 +1,7 @@
 import { type CallHandler, type ExecutionContext, Inject, Injectable, type NestInterceptor } from '@nestjs/common';
 import { map, type Observable } from 'rxjs';
 import { CLOCK, type Clock } from './clock.js';
+import { ctxLog } from './request-context/request-context.js';
 
 // 切面 #2:统一响应包装。handler 返回什么,都包成 { data, timestamp }。
 // 只改「成功」的返回值 —— 抛异常时 map 根本不会执行,错误体由 exception filter 负责。
@@ -18,7 +19,7 @@ export class WrapResponseInterceptor<T> implements NestInterceptor<T, Wrapped<T>
   intercept(_context: ExecutionContext, next: CallHandler<T>): Observable<Wrapped<T>> {
     return next.handle().pipe(
       map((data) => {
-        console.log('  ⑤-1 Interceptor(后) 包装成 { data, timestamp }');
+        ctxLog('  ⑤-1 Interceptor(后) 包装成 { data, timestamp }');
         return { data, timestamp: this.clock.now().toISOString() };
       }),
     );
