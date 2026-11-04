@@ -1,0 +1,1378 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/v2/tasks": {
+      "get": {
+        "operationId": "Tasks_findAll_v2",
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "description": "可选的请求 ID;不带则由服务器生成,响应头里原样返回",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "done",
+            "required": false,
+            "in": "query",
+            "description": "只看已完成 / 未完成;只接受 true 或 false",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "标题包含这个关键字(不区分大小写)",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "description": "逗号分隔,前缀 - 表示倒序,最多 3 个;可选字段:id -id createdAt -createdAt title -title。默认按 id 升序,总会追加 id 作为唯一排序键",
+            "schema": {
+              "example": "-createdAt,title",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "超过上限回 422,不会悄悄截断",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "上一页响应里的 nextCursor,原样传回;不要解析或拼接。坏了或排序 / 过滤条件变了回 400 invalid-cursor",
+            "schema": {
+              "maxLength": 500,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求格式错误(JSON 语法错、路径参数不是整数、cursor 无效)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "无法提供 Accept 要求的格式",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "请求内容未通过校验,见 errors",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "列出任务(cursor 分页、过滤、排序)",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "post": {
+        "description": "不幂等:同一个请求发两次会建两条。成功时 Location 头指向新资源。",
+        "operationId": "Tasks_create_v2",
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "description": "可选的请求 ID;不带则由服务器生成,响应头里原样返回",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "headers": {
+              "Location": {
+                "description": "新任务的地址,如 /tasks/3",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求格式错误(JSON 语法错、路径参数不是整数、cursor 无效)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "没有权限(缺少或错误的 x-demo-key / 角色不够)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "无法提供 Accept 要求的格式",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "请求体不是 application/json",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "请求内容未通过校验,见 errors",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "demo-key": []
+          }
+        ],
+        "summary": "新建任务",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/v2/tasks/{id}": {
+      "get": {
+        "operationId": "Tasks_findOne_v2",
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "description": "可选的请求 ID;不带则由服务器生成,响应头里原样返回",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求格式错误(JSON 语法错、路径参数不是整数、cursor 无效)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "无法提供 Accept 要求的格式",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "查看一个任务",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "put": {
+        "description": "幂等。checklist 不给 = 清空为 []。",
+        "operationId": "Tasks_replace_v2",
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "description": "可选的请求 ID;不带则由服务器生成,响应头里原样返回",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceTaskDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求格式错误(JSON 语法错、路径参数不是整数、cursor 无效)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "没有权限(缺少或错误的 x-demo-key / 角色不够)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "无法提供 Accept 要求的格式",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "与资源当前状态冲突(如已完成的任务改标题)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "请求体不是 application/json",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "请求内容未通过校验,见 errors",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "demo-key": []
+          }
+        ],
+        "summary": "整体替换一个任务",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "patch": {
+        "description": "只改给了的字段,至少给一个。",
+        "operationId": "Tasks_update_v2",
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "description": "可选的请求 ID;不带则由服务器生成,响应头里原样返回",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTaskDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求格式错误(JSON 语法错、路径参数不是整数、cursor 无效)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "没有权限(缺少或错误的 x-demo-key / 角色不够)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "无法提供 Accept 要求的格式",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "与资源当前状态冲突(如已完成的任务改标题)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "请求体不是 application/json",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "请求内容未通过校验,见 errors",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "demo-key": []
+          }
+        ],
+        "summary": "部分更新一个任务",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "delete": {
+        "operationId": "Tasks_remove_v2",
+        "parameters": [
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "description": "可选的请求 ID;不带则由服务器生成,响应头里原样返回",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "description": "必须是 admin(演示用,可伪造;Week 10 换成 JWT)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "删除成功,没有响应体"
+          },
+          "400": {
+            "description": "请求格式错误(JSON 语法错、路径参数不是整数、cursor 无效)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "没有权限(缺少或错误的 x-demo-key / 角色不够)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "无法提供 Accept 要求的格式",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "demo-key": []
+          }
+        ],
+        "summary": "删除一个任务(仅管理员)",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/v1/tasks": {
+      "get": {
+        "deprecated": true,
+        "operationId": "TasksV1_findAll_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "headers": {
+              "Deprecation": {
+                "description": "RFC 9745:弃用时间",
+                "schema": {
+                  "type": "string",
+                  "example": "@1793750400"
+                }
+              },
+              "Sunset": {
+                "description": "RFC 8594:计划下线时间",
+                "schema": {
+                  "type": "string",
+                  "example": "Sat, 01 May 2027 00:00:00 GMT"
+                }
+              },
+              "Link": {
+                "description": "rel=\"deprecation\" 迁移说明 / rel=\"successor-version\" 新版本",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskListV1Envelope"
+                }
+              }
+            }
+          }
+        },
+        "summary": "【已弃用】列出全部任务(不分页)",
+        "tags": [
+          "tasks-v1 (deprecated)"
+        ]
+      }
+    },
+    "/v1/tasks/{id}": {
+      "get": {
+        "deprecated": true,
+        "operationId": "TasksV1_findOne_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "headers": {
+              "Deprecation": {
+                "description": "RFC 9745:弃用时间",
+                "schema": {
+                  "type": "string",
+                  "example": "@1793750400"
+                }
+              },
+              "Sunset": {
+                "description": "RFC 8594:计划下线时间",
+                "schema": {
+                  "type": "string",
+                  "example": "Sat, 01 May 2027 00:00:00 GMT"
+                }
+              },
+              "Link": {
+                "description": "rel=\"deprecation\" 迁移说明 / rel=\"successor-version\" 新版本",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskV1Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求格式错误(JSON 语法错、路径参数不是整数、cursor 无效)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "【已弃用】查看一个任务",
+        "tags": [
+          "tasks-v1 (deprecated)"
+        ]
+      }
+    },
+    "/users": {
+      "get": {
+        "operationId": "Users_findAll",
+        "parameters": [
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "description": "admin 时返回管理员视图(完整 email + internalNote);演示用,可伪造",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserResponse"
+                  }
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "无法提供 Accept 要求的格式",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "列出用户",
+        "tags": [
+          "users"
+        ]
+      },
+      "post": {
+        "description": "请求里是明文 password;响应里永远没有 password / passwordHash。",
+        "operationId": "Users_create",
+        "parameters": [
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "description": "admin 时返回管理员视图(完整 email + internalNote);演示用,可伪造",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求格式错误(JSON 语法错、路径参数不是整数、cursor 无效)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "没有权限(缺少或错误的 x-demo-key / 角色不够)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "无法提供 Accept 要求的格式",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "请求体不是 application/json",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "请求内容未通过校验,见 errors",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "demo-key": []
+          }
+        ],
+        "summary": "新建用户",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "operationId": "Users_findOne",
+        "parameters": [
+          {
+            "name": "x-demo-role",
+            "in": "header",
+            "description": "admin 时返回管理员视图(完整 email + internalNote);演示用,可伪造",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "x-demo-role",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求格式错误(JSON 语法错、路径参数不是整数、cursor 无效)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "无法提供 Accept 要求的格式",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "查看一个用户",
+        "tags": [
+          "users"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "nest-lab 任务管理 API",
+    "description": "365 计划 Week 3 的任务管理 REST API。\n\n- 设计约定:`docs/api-design.md`(语言无关)\n- 错误格式:RFC 9457 `application/problem+json`,错误类型目录见 `docs/problems.md`\n- 版本:`/v2/...` 为当前版本,不带版本号的路径等同 v2;`/v1/...` 已弃用,计划 2027-05-01 下线",
+    "version": "2.0.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "demo-key": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-demo-key",
+        "description": "演示用的钥匙,开发环境默认 let-me-in"
+      }
+    },
+    "schemas": {
+      "ProblemDetailsDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "错误类别的 URI,程序判断请看它。目录见 docs/problems.md",
+            "example": "https://nest-lab.example/problems/not-found"
+          },
+          "title": {
+            "type": "string",
+            "description": "同一类别永远相同的简短标题",
+            "example": "资源不存在"
+          },
+          "status": {
+            "type": "number",
+            "description": "HTTP 状态码,与响应行一致",
+            "example": 404
+          },
+          "detail": {
+            "type": "string",
+            "description": "这一次具体发生了什么(给人看的)",
+            "example": "没有 id 为 999 的任务"
+          },
+          "instance": {
+            "type": "string",
+            "description": "这一次出错的请求路径",
+            "example": "/v2/tasks/999"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "扩展字段:请求 ID,与响应头 x-request-id 相同;报错时请附上",
+            "example": "7c1e2f0a-…"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "detail",
+          "instance",
+          "requestId"
+        ]
+      },
+      "FieldErrorDto": {
+        "type": "object",
+        "properties": {
+          "pointer": {
+            "type": "string",
+            "description": "JSON Pointer(RFC 6901),指向出错的字段;查询参数也用这个写法",
+            "example": "#/checklist/1/text"
+          },
+          "detail": {
+            "type": "string",
+            "example": "text 不能为空或全是空白"
+          }
+        },
+        "required": [
+          "pointer",
+          "detail"
+        ]
+      },
+      "ValidationProblemDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "错误类别的 URI,程序判断请看它。目录见 docs/problems.md",
+            "example": "https://nest-lab.example/problems/not-found"
+          },
+          "title": {
+            "type": "string",
+            "description": "同一类别永远相同的简短标题",
+            "example": "资源不存在"
+          },
+          "status": {
+            "type": "number",
+            "description": "HTTP 状态码,与响应行一致",
+            "example": 404
+          },
+          "detail": {
+            "type": "string",
+            "description": "这一次具体发生了什么(给人看的)",
+            "example": "没有 id 为 999 的任务"
+          },
+          "instance": {
+            "type": "string",
+            "description": "这一次出错的请求路径",
+            "example": "/v2/tasks/999"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "扩展字段:请求 ID,与响应头 x-request-id 相同;报错时请附上",
+            "example": "7c1e2f0a-…"
+          },
+          "errors": {
+            "description": "字段级错误列表(type 为 validation-error 时)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldErrorDto"
+            }
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "detail",
+          "instance",
+          "requestId"
+        ]
+      },
+      "ChecklistItemResponse": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "example": "买菜"
+          },
+          "done": {
+            "type": "boolean",
+            "example": false
+          }
+        },
+        "required": [
+          "text",
+          "done"
+        ]
+      },
+      "TaskResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "title": {
+            "type": "string",
+            "example": "学 OpenAPI"
+          },
+          "done": {
+            "type": "boolean",
+            "example": false
+          },
+          "checklist": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItemResponse"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-01-01T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "done",
+          "checklist",
+          "createdAt"
+        ]
+      },
+      "TaskPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskResponse"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "下一页的 cursor;null 表示已经是最后一页。不透明,原样传回 ?cursor=",
+            "example": "eyJ2IjoxLCJzIjoiaWQiLCJmIjp7fSwiayI6WzIwXSwiaWQiOjIwfQ"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "ChecklistItemDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "买菜"
+          },
+          "done": {
+            "type": "boolean",
+            "example": false
+          }
+        },
+        "required": [
+          "text",
+          "done"
+        ]
+      },
+      "CreateTaskDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "标题,首尾空格会被去掉,不能全是空白",
+            "maxLength": 100,
+            "example": "学 OpenAPI"
+          },
+          "checklist": {
+            "maxItems": 20,
+            "description": "PUT 时不给 = 清空为 []",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItemDto"
+            }
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "ReplaceTaskDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "标题,首尾空格会被去掉,不能全是空白",
+            "maxLength": 100,
+            "example": "学 OpenAPI"
+          },
+          "done": {
+            "type": "boolean",
+            "description": "是否已完成",
+            "example": false
+          },
+          "checklist": {
+            "maxItems": 20,
+            "description": "PUT 时不给 = 清空为 []",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItemDto"
+            }
+          }
+        },
+        "required": [
+          "title",
+          "done"
+        ]
+      },
+      "UpdateTaskDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "标题,首尾空格会被去掉,不能全是空白",
+            "maxLength": 100,
+            "example": "学 OpenAPI"
+          },
+          "done": {
+            "type": "boolean",
+            "description": "是否已完成",
+            "example": false
+          },
+          "checklist": {
+            "maxItems": 20,
+            "description": "PUT 时不给 = 清空为 []",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItemDto"
+            }
+          }
+        }
+      },
+      "TaskListV1Envelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskResponse"
+            }
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "data",
+          "timestamp"
+        ]
+      },
+      "TaskV1Envelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TaskResponse"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "data",
+          "timestamp"
+        ]
+      },
+      "UserResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "email": {
+            "type": "string",
+            "description": "非管理员视图会打码,如 a***@example.com",
+            "example": "a***@example.com"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Alice"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "admin"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "internalNote": {
+            "type": "string",
+            "description": "内部备注,只有管理员视图(x-demo-role: admin)才有"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "displayName",
+          "role",
+          "createdAt"
+        ]
+      },
+      "CreateUserDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "会被去掉首尾空格并转成小写",
+            "example": "carol@example.com"
+          },
+          "displayName": {
+            "type": "string",
+            "maxLength": 50,
+            "example": "Carol"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "description": "明文密码,只进不出(服务器存 scrypt 哈希)",
+            "example": "carol-secret-1"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "admin"
+            ],
+            "default": "user"
+          }
+        },
+        "required": [
+          "email",
+          "displayName",
+          "password"
+        ]
+      }
+    }
+  }
+}

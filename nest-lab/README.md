@@ -27,7 +27,18 @@ npm run day16          # Day 16 观察脚本:DTO 校验的合法 / 非法请求�
 npm run day17          # Day 17 观察脚本:12 种错误统一成 problem+json,自动校验结构
 npm run day18          # Day 18 观察脚本:内部对象 / 黑名单 / 白名单 / 显式映射,新增敏感字段后谁泄露
 npm run day19          # Day 19 观察脚本:offset vs cursor 翻页、过滤排序与非法参数、v1 vs v2、忘了 configureApp
+npm run day20          # Day 20 观察脚本:拉取 OpenAPI、列接口清单、自动检查契约、生成前端 TS 类型、生产环境不开放文档
+npm run openapi:generate  # 改了接口后重新生成 openapi.json(和代码一起提交)
+npm run openapi:check     # openapi.json 是否和代码一致(过期 → 退出码 1,给 CI 用)
 ```
+
+## API 文档(Day 20)
+
+- 设计约定(语言无关):[`docs/api-design.md`](docs/api-design.md)
+- 机器可读契约:[`openapi.json`](openapi.json)(OpenAPI 3.0,code-first,由代码生成,不要手改)
+- 启动后打开 `http://localhost:3000/docs`(Swagger UI)或 `/docs-json`(JSON)
+- 开关:环境变量 `SWAGGER_ENABLED`;不设时 `NODE_ENV=production` 默认关闭,其他环境默认打开
+- 前端生成类型:`npx openapi-typescript openapi.json -o api.d.ts`
 
 ## 响应格式
 
@@ -56,3 +67,4 @@ npm run day19          # Day 19 观察脚本:offset vs cursor 翻页、过滤排
 | Day 17 | `src/common/problems/`(错误类型目录 `ProblemTypes`、`ProblemException`、ValidationPipe 的 `exceptionFactory` 输出 JSON Pointer 字段级 `errors`);`AllExceptionsFilter` 改写为 `application/problem+json`(500 不泄露细节,真实原因进日志);JSON 语法错误时 filter 兜底补发 requestId;409 改用 `ProblemTypes.taskCompleted`;zod 对照 pipe 同步输出 problem;`docs/problems.md` 错误目录;`src/problem-demo/`(500 演示);`test/problem.e2e-spec.ts`;`scripts/day17-try.mjs` | `docs/17-problem-json/` |
 | Day 18 | 新增 `src/users/`(内存仓储 + token,`passwordHash` 用 scrypt,`CreateUserDto`,显式映射 `toUserResponse`:email 打码、admin 视图多 `internalNote`);任务也改为 `toTaskResponse` 映射;删除 `WrapResponseInterceptor`,成功响应不再包装;`src/serialization-demo/`(`ClassSerializerInterceptor` 黑名单 / 白名单 / groups / 普通对象失效对照);`test/users.e2e-spec.ts`;`scripts/day18-try.mjs` | `docs/18-response-dto/` |
 | Day 19 | 任务列表改为 cursor 分页 `{ items, nextCursor }`(`ListTasksQueryDto`:limit 1–100、`done` / `q` 过滤、`sort` 白名单;`cursor.ts` 不透明书签;仓储 `findPage()` 对应 WHERE / ORDER BY / LIMIT / keyset);offset 分页只在仓储层实现做对比;URI 版本化(`configureApp` 里 `enableVersioning`,`src/app.factory.ts` 的 `createApp()` 统一入口,所有 e2e 调用 `configureApp`);`TasksV1Controller`(旧格式 + `@DeprecatedApi` 的 Deprecation / Sunset / Link 头);新增 `invalid-cursor` 错误类型;`test/pagination.e2e-spec.ts`;`scripts/day19-try.mjs` | `docs/19-pagination-versioning/` |
+| Day 20 | 依赖 `@nestjs/swagger`(去掉直接依赖 `@nestjs/mapped-types`,`PickType` / `PartialType` 改从 swagger 导入)、dev 依赖 `openapi-typescript`;`src/openapi.ts`(`DocumentBuilder` + `SwaggerModule`,只收录 tasks / users,operationId 规则,无版本别名路径不重复登记);`configureApp` 按 `SWAGGER_ENABLED` 挂 `/docs` 与 `/docs-json`(env schema 新增该项,生产默认关);DTO 全部显式 `@ApiProperty`(不用 CLI 插件:vitest 下插件不生效);响应 `interface` 改为 class(`TaskResponse` / `UserResponse` / `TaskPage`,既是映射函数返回类型又是 schema);`src/common/problems/problem.schema.ts`(`ProblemDetailsDto` / `ValidationProblemDto` + `@ApiProblemResponses()`);各控制器 `@ApiTags` / `@ApiOperation` / `@ApiResponse` / `@ApiSecurity` / `@ApiHeader`,v1 标 `deprecated`;`openapi.json` + `scripts/openapi.mjs`(generate / check);`docs/api-design.md`;`test/openapi.e2e-spec.ts`;`scripts/day20-try.mjs` | `docs/20-openapi/` |

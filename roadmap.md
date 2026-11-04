@@ -50,7 +50,7 @@
 | 分页 / API 版本化 | cursor 分页 `{items, nextCursor}` 手写;`enableVersioning` + `@Version()` / `VERSION_NEUTRAL` | `Asp.Versioning`(`[ApiVersion]`);分页手写或 OData `$top/$skip` | Spring Data `Pageable` / `Slice` / `ScrollPosition`;Spring Framework 7 内置 `@RequestMapping(version = ...)` + `ApiVersionConfigurer` | 手写;路由分组 `/v1`、`/v2` |
 | 结构化日志 | pino / winston | Serilog / ILogger | SLF4J + Logback | slog / zap |
 | 测试 | Vitest / Jest / supertest | xUnit + WebApplicationFactory | JUnit + MockMvc | testing + httptest |
-| API 文档 | OpenAPI/Swagger(语言无关标准) | Swashbuckle / Scalar | springdoc | swag |
+| API 文档 | OpenAPI(语言无关标准):`@nestjs/swagger` 代码优先,提交 `openapi.json` 防过期 | .NET 9 起内置 `Microsoft.AspNetCore.OpenApi`(`AddOpenApi` / `MapOpenApi`)+ Scalar UI;Swashbuckle 已不在默认模板 | springdoc-openapi(`/v3/api-docs`) | swaggo/swag(注释生成)/ oapi-codegen(契约优先) |
 | 后台任务 / 定时 | BullMQ / node-cron | Hangfire / BackgroundService | Quartz / @Scheduled | cron / asynq |
 | 缓存客户端 | ioredis | StackExchange.Redis | Lettuce / Redisson | go-redis |
 | 消息队列 | amqplib / kafkajs | MassTransit / NServiceBus | Spring AMQP / Kafka | sarama / amqp |

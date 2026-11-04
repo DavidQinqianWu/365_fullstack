@@ -8,7 +8,14 @@ describe('envSchema / validateEnv', () => {
       PORT: 3000,
       DEMO_KEY: 'let-me-in',
       LOG_REQUESTS: true,
+      SWAGGER_ENABLED: true, // Day 20:非生产环境默认打开
     });
+  });
+
+  it('Day 20:SWAGGER_ENABLED 不写时生产环境默认关闭;显式写了以显式为准', () => {
+    expect(validateEnv({ NODE_ENV: 'production', DEMO_KEY: 'a-real-secret-key' }).SWAGGER_ENABLED).toBe(false);
+    expect(validateEnv({ NODE_ENV: 'production', DEMO_KEY: 'a-real-secret-key', SWAGGER_ENABLED: 'true' }).SWAGGER_ENABLED).toBe(true);
+    expect(validateEnv({ SWAGGER_ENABLED: 'false' }).SWAGGER_ENABLED).toBe(false);
   });
 
   it('z.coerce.number():字符串 "8080" → 数字 8080', () => {

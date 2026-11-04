@@ -17,15 +17,19 @@ export const envSchema = z
     // 'true' / 'false' / '1' / '0' / 'yes' / 'no' → boolean。
     // ⚠️ 不要用 z.coerce.boolean():它等于 Boolean('false'),非空字符串全是 true
     LOG_REQUESTS: z.stringbool().default(true),
+    // Day 20:是否开放 Swagger UI(/docs)和 OpenAPI JSON(/docs-json)。不写时:生产环境关闭,其他环境打开
+    SWAGGER_ENABLED: z.stringbool().optional(),
   })
   .superRefine((env, ctx) => {
     // 按 NODE_ENV 分支的规则:生产环境不许用演示钥匙
     if (env.NODE_ENV === 'production' && env.DEMO_KEY === DEFAULT_DEMO_KEY) {
       ctx.addIssue({ code: 'custom', path: ['DEMO_KEY'], message: '生产环境必须设置自己的 DEMO_KEY,不能用默认值' });
     }
-  });
+  })
+  // 依赖其他字段的默认值:放在 transform 里算(z.infer 出来的 SWAGGER_ENABLED 因此是 boolean,不是 boolean | undefined)
+  .transform((env) => ({ ...env, SWAGGER_ENABLED: env.SWAGGER_ENABLED ?? env.NODE_ENV !== 'production' }));
 
-// 从 schema 推导出来的类型:{ NODE_ENV: 'development' | 'test' | 'production'; PORT: number; DEMO_KEY: string; LOG_REQUESTS: boolean }
+// 从 schema 推导出来的类型:{ NODE_ENV: 'development' | 'test' | 'production'; PORT: number; DEMO_KEY: string; LOG_REQUESTS: boolean; SWAGGER_ENABLED: boolean }
 export type Env = z.infer<typeof envSchema>;
 
 // 给 ConfigModule.forRoot({ validate }) 用:不合格就抛错,Nest 启动直接失败(fail fast)
