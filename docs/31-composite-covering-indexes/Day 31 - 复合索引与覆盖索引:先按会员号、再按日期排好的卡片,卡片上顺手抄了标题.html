@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 31 - 复合索引与覆盖索引:先按会员号、再按日期排好的卡片,卡片上顺手抄了标题</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 5</div>
+  <h1>Day 31 - 复合索引与覆盖索引:先按会员号、再按日期排好的卡片,卡片上顺手抄了标题</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>复合索引 · 最左前缀 · 列的顺序(等值在前、范围在后)· 复合 vs 两个单列(BitmapAnd)· WHERE + ORDER BY + LIMIT · 排序方向 · keyset 分页的行值比较 vs OR 展开 · INCLUDE 覆盖索引 · Index Only Scan · visibility map 与 VACUUM</b> ·
+    项目:<code>nest-lab/</code> 新增 <code>sql/day31/</code>(schema <code>day31</code>)、<code>npm run day31</code>;应用代码今天不改,nest-lab 需要的索引清单写在讲义里(Day 34 落地)·
+    今天没有新依赖;所有输出来自 PostgreSQL 16.15 的真实运行,耗时类数字跑 3 遍、每遍 3 次,写区间
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:nest-lab 的列表查询,单列索引帮不了</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:复合索引与最左前缀 —— 先按会员号、再按日期排好的卡片</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:一个索引同时管 WHERE、ORDER BY、LIMIT —— keyset 分页要的索引</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:覆盖索引与 visibility map —— 卡片上顺手抄了标题,账页角上贴着「已核对」</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:nest-lab 的列表查询,单列索引帮不了</h2>
+  <p>Day 29 的索引都只有一列:按 <code>id</code>、按 <code>owner_id</code>、按 <code>title</code>。可是真实的查询很少只有一个条件。nest-lab 的任务列表(Day 19 / 27)长这样:</p>
+  <pre><code>SELECT … FROM tasks t
+WHERE t.done = $1                               -- ?done=false(可选)
+  AND (keyset 条件:排在书签之后)                 -- ?cursor=…
+ORDER BY t.created_at DESC, t.id ASC            -- ?sort=-createdAt(id 是自动补上的 tie-breaker)
+LIMIT 21</code></pre>
+  <p>一个过滤条件、一个排序、一个 LIMIT,还有一个书签条件。Day 30 的习题 2 你应该已经诊断过:只靠单列索引,数据库要么把满足条件的行全找出来再排序,要么按顺序读、边读边扔。今天学<b>几列一起建的索引</b>:它们怎么排序、能服务哪些查询、列的顺序怎么定,以及怎么让查询连表都不用回。最后会发现 Day 27 写的 keyset SQL 有一个在深分页时才会暴露的性能问题。</p>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你一定写过 <code>tasks.sort((a, b) =&gt; a.ownerId - b.ownerId || a.createdAt - b.createdAt)</code>:先按 ownerId 排,ownerId 相同的再按 createdAt 排。排好以后,你可以二分查找「ownerId = 5000」,甚至「ownerId = 5000 且 createdAt 在某个范围」;但你<b>没法</b>只按 createdAt 二分查找,因为整个数组里 createdAt 不是有序的,它只在每个 ownerId 的小段里有序。复合索引就是这个排好序的数组。
+  </div>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    电话簿先按<b>姓</b>排,同姓的再按<b>名</b>排。知道「姓王」可以很快翻到王姓那几页;知道「姓王、名小明」更快;但只知道「名叫小明」,电话簿帮不上忙,只能从头翻到尾。账房的卡片盒也可以这样做:先按会员号、再按日期排好;每张卡片上还可以顺手抄上订单标题和状态,很多问题看卡片就能回答,不用去翻账本。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+docker compose up -d     # 或本机的 PostgreSQL 已在运行(Day 22)
+npm run day31            # 造 100 万任务(本机约 3 秒)→ 7 个实验 → 关键对比各跑 3 次
+
+psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab
+nest_lab=&gt; SET search_path = day31;</code></pre>
+  <p>今天的数据在独立的 schema <code>day31</code> 里,<code>tasks</code> 和 Day 29 / 30 一模一样(100 万行,setseed 可重复;1 号用户约 10 万个任务,2 号约 1.9 万个,5000 号 50 个;90% 已完成),一开始<b>只有主键</b>。每个实验文件自己建需要的索引、最后删掉,所以可以单独重跑;观察脚本计时时也是临时建索引、测 3 次、再删掉。</p>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用</th></tr>
+    <tr><td><code>sql/day31/01-setup.sql</code></td><td>新增</td><td>建 schema <code>day31</code>,100 万行 <code>tasks</code>,只有主键</td></tr>
+    <tr><td><code>sql/day31/02-leftmost-prefix.sql</code></td><td>新增</td><td><code>(owner_id, created_at)</code> 能服务的四种查询和不能服务的一种</td></tr>
+    <tr><td><code>sql/day31/03-column-order.sql</code></td><td>新增</td><td><code>(owner_id, created_at)</code> vs <code>(created_at, owner_id)</code></td></tr>
+    <tr><td><code>sql/day31/04-composite-vs-two.sql</code></td><td>新增</td><td>两个单列索引(BitmapAnd)vs 一个复合索引</td></tr>
+    <tr><td><code>sql/day31/05-where-order-limit.sql</code></td><td>新增</td><td>「某人最新 20 条」:有没有 Sort 节点;排序方向与 Incremental Sort</td></tr>
+    <tr><td><code>sql/day31/06-keyset.sql</code></td><td>新增</td><td>keyset 分页:行值比较 vs OR 展开 vs OR + 冗余范围条件</td></tr>
+    <tr><td><code>sql/day31/07-covering.sql</code></td><td>新增</td><td><code>INCLUDE</code> 覆盖索引、Index Only Scan、UPDATE 后的 Heap Fetches 与 VACUUM</td></tr>
+    <tr><td><code>scripts/day31-try.mjs</code> + <code>package.json</code> 的 <code>day31</code></td><td>新增</td><td>观察脚本:跑 7 个文件,关键对比各测 3 次</td></tr>
+    <tr><td><code>README.md</code></td><td>修改</td><td>命令、成长日志 Day 31</td></tr>
+  </table>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:复合索引与最左前缀 —— 先按会员号、再按日期排好的卡片</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>复合索引</b>(多列索引)<code>(a, b)</code> 先按 a 排,a 相同的再按 b 排。它能高效服务「从最左边开始、连续」的条件:只有 a;a 等值 + b 的条件或排序。<b>跳过 a 只用 b</b> 时,b 在整个索引里是乱的,数据库最多只能把整个索引从头读到尾。这叫<b>最左前缀规则</b>。列的顺序按<b>查询怎么用</b>来定:<b>等值条件的列放前面,范围条件 / 排序的列放后面</b>。
+  </div>
+
+  <h3>② 生活类比:电话簿与卡片盒</h3>
+  <p>卡片盒里的卡片先按会员号、再按日期排好。问「5000 号会员的卡片」:翻到 5000 号那一段。问「5000 号会员 2025 年以后的卡片」:翻到 5000 号那一段里 2025 年开始的地方,往后读。问「5000 号最近的 20 张」:翻到 5000 号那一段的末尾,往前读 20 张。问「所有人 6 月 1 日的卡片」:每个会员那一段里都可能有,只能把整盒卡片一张张看过去。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th><code>(owner_id, created_at)</code> 上的实测</th></tr>
+    <tr><td>先按会员号、再按日期排</td><td><b>复合索引</b> <code>CREATE INDEX … ON tasks (owner_id, created_at)</code></td><td>—</td></tr>
+    <tr><td>只知道会员号</td><td>最左前缀 <code>owner_id = ?</code></td><td>Index Cond 用上,读 6 个索引页</td></tr>
+    <tr><td>会员号 + 日期范围</td><td><code>owner_id = ? AND created_at &gt;= ?</code></td><td>两个条件都进了 Index Cond,读 3 个索引页</td></tr>
+    <tr><td>会员号 + 按日期取最近几张</td><td><code>owner_id = ? ORDER BY created_at DESC LIMIT 20</code></td><td><code>Index Scan Backward</code>,没有 Sort</td></tr>
+    <tr><td>只知道日期</td><td>跳过了最左列</td><td>优化器选全表扫描;强行用索引只能读完整个索引(3834 页)</td></tr>
+    <tr><td>同一时间先翻会员号再翻日期</td><td><b>等值在前、范围在后</b></td><td><code>(owner_id, created_at)</code> 比 <code>(created_at, owner_id)</code> 少读一大段</td></tr>
+    <tr><td>两盒单列卡片对着找交集</td><td>两个单列索引 + <b>BitmapAnd</b></td><td>能用,但要读两份索引、做位图交集</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:最左前缀。</b>✍️ <b>预测(先写再运行)</b>:只建 <code>(owner_id, created_at)</code> 一个索引,下面四个查询各会不会用它?第四个如果强行用,要读多少个索引页?真实结果(<code>02-leftmost-prefix.sql</code>,<code>EXPLAIN (ANALYZE, BUFFERS, TIMING OFF)</code>,只保留关键行):</p>
+  <pre><code>-- ① owner_id = 5000
+ Bitmap Heap Scan on tasks  (… rows=84 …) (actual rows=50 loops=1)
+   -&gt;  Bitmap Index Scan on tasks_owner_created_idx  (…)
+         Index Cond: (owner_id = 5000)
+         Buffers: shared hit=3 read=3
+-- ② owner_id = 5000 AND created_at &gt;= '2025-01-01'
+         Index Cond: ((owner_id = 5000) AND (created_at &gt;= '2025-01-01 00:00:00+00'::timestamp with time zone))
+         Buffers: shared hit=3
+ Execution Time: 0.078 ms
+-- ③ owner_id = 5000 ORDER BY created_at DESC LIMIT 20
+   -&gt;  Index Scan Backward using tasks_owner_created_idx on tasks  (…) (actual rows=20 loops=1)
+         Index Cond: (owner_id = 5000)
+ Execution Time: 0.036 ms
+-- ④ 只有 created_at(某一天)
+ Seq Scan on tasks  (cost=0.00..23334.00 rows=1382 width=38) (actual rows=1440 loops=1)
+   Rows Removed by Filter: 998560
+   Buffers: shared hit=8334
+ Execution Time: 51.047 ms
+-- ④ 强行用这个索引(enable_seqscan = off,只为学习)
+   -&gt;  Bitmap Index Scan on tasks_owner_created_idx  (cost=0.00..25412.42 …) (actual rows=1440 loops=1)
+         Index Cond: ((created_at &gt;= '2025-06-01 …') AND (created_at &lt; '2025-06-02 …'))
+         Buffers: shared hit=2 read=3832
+ 这个索引一共几页
+-------------------
+              3834</code></pre>
+  <p>①②③ 都只碰了几个索引页。④ 的 Index Cond 里明明写着 <code>created_at</code>,但它是靠<b>把整个索引 3834 页读一遍</b>、逐条检查得出来的:<code>created_at</code> 只在每个 <code>owner_id</code> 内部有序,没法跳到「6 月 1 日」那一处。各跑 3 次、脚本跑 3 遍的耗时:① <b>0.045 – 0.60 ms</b>;④ 全表扫描 <b>45.6 – 85.0 ms</b>,强行读整个索引 <b>12.3 – 40.4 ms</b>。在本机,读完一个 30 MB 的索引反而比读完 65 MB 的表快一些(优化器按「可能要读磁盘」估代价,所以选了全表扫描,和 Day 29 / 30 看到的一样);但它和真正走最左前缀的 ① 相比慢了<b>两三个数量级</b>。这就是「(a, b) 索引帮不了 <code>WHERE b = ?</code>」的准确含义:<b>不是完全用不了,而是失去了「直接跳到那里」的能力</b>。</p>
+  <p>🔎 PostgreSQL 18 引入了 B-tree 的 <b>skip scan</b>:当最左列不同的值不多时,可以对每个值各跳一次,从而用上后面列的条件(计划里不会出现新的节点名,只是 Index Scan 里多了几次「重新查找」)。本课程用的 PostgreSQL 16 没有这个功能,上面 ④ 的结果就是 16 的真实行为;升级到 18 以后,对最左列只有少数几种值的索引(比如 <code>(done, created_at)</code>)情况会不同。</p>
+
+  <p><b>⑤ 动手验证 B:列的顺序。</b>查询「1 号用户(约 10 万个任务)在 2025 年 6 月建的任务」。<code>created_at</code> 几乎每行都不同,选择性远比 <code>owner_id</code> 高,很多人会说「选择性高的放前面」。✍️ <b>预测</b>:<code>(owner_id, created_at)</code> 和 <code>(created_at, owner_id)</code> 哪个读的索引页更少?真实结果(<code>03-column-order.sql</code>):</p>
+  <pre><code>-- (owner_id, created_at)
+ Bitmap Heap Scan on tasks  (… rows=4251 …) (actual rows=4340 loops=1)
+   -&gt;  Bitmap Index Scan on tasks_owner_created_idx  (…)
+         Buffers: shared hit=3 read=20
+ Execution Time: 1.376 ms
+-- (created_at, owner_id)
+ Index Scan using tasks_created_owner_idx on tasks  (…) (actual rows=4340 loops=1)
+   Index Cond: ((created_at &gt;= …) AND (created_at &lt; …) AND (owner_id = 1))
+   Buffers: shared hit=360 read=168
+ Execution Time: 3.141 ms</code></pre>
+  <p>同样返回 4340 行。<code>(owner_id, created_at)</code> 只在索引里读了 23 页:1 号用户 6 月的那一小段是连续的。<code>(created_at, owner_id)</code> 要把 6 月份<b>所有人</b>的约 4.3 万个条目都读一遍,再从里面挑出 1 号用户的(索引条件里虽然有 <code>owner_id = 1</code>,但它是在 6 月那一大段里逐条比较的)。各跑 3 次、脚本跑 3 遍:<b>0.82 – 2.1 ms</b> 对 <b>1.5 – 5.6 ms</b>。范围越宽(一年而不是一个月),差距越大。规则:<b>等值条件的列在前,范围条件的列在后</b>;「选择性高的放前面」只在多个列都是等值条件时才有一点道理,首先要看查询怎么用。</p>
+
+  <p><b>⑤ 动手验证 C:一个复合索引 vs 两个单列索引。</b>「2 号用户里还没完成的」。✍️ <b>预测</b>:只有 <code>(owner_id)</code> 和 <code>(done)</code> 两个单列索引时,数据库能不能同时用上两个?真实结果(<code>04-composite-vs-two.sql</code>):</p>
+  <pre><code>-- 两个单列索引
+ Bitmap Heap Scan on tasks  (…) (actual rows=1922 loops=1)
+   Heap Blocks: exact=1706
+   -&gt;  BitmapAnd  (…)
+         Buffers: shared read=106
+         -&gt;  Bitmap Index Scan on tasks_owner_idx  (…) (actual rows=18833 loops=1)
+               Index Cond: (owner_id = 2)
+         -&gt;  Bitmap Index Scan on tasks_done_idx  (…) (actual rows=100325 loops=1)
+               Index Cond: (done = false)
+ Execution Time: 7.093 ms
+-- 加上复合索引 (owner_id, done)
+ Bitmap Heap Scan on tasks  (…) (actual rows=1922 loops=1)
+   Heap Blocks: exact=1706
+   -&gt;  Bitmap Index Scan on tasks_owner_done_idx  (…) (actual rows=1922 loops=1)
+         Index Cond: ((owner_id = 2) AND (done = false))
+         Buffers: shared read=5
+ Execution Time: 3.250 ms</code></pre>
+  <p>两个单列索引<b>能</b>一起用:各自查出一张位图(1.9 万行、10 万行),再<b>按位与</b>得到交集。但它读了两份索引共 106 页,其中 <code>done = false</code> 那一份要读出 10 万个条目,只为了和另一份求交集。复合索引一次定位到「2 号 + 未完成」那一段,只读 5 页。各跑 3 次、脚本跑 3 遍:<b>6.5 – 11.6 ms</b> 对 <b>1.4 – 6.2 ms</b>(两边都要去表里取 1706 页,所以差距没有索引页数那么夸张)。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「按会员号和日期排的卡片盒 = 一盒按会员号的 + 一盒按日期的」——复合索引不是两个单列索引相加。</b><code>(owner_id, created_at)</code> 能代替 <code>(owner_id)</code>(最左前缀),但代替不了 <code>(created_at)</code>;反过来,两个单列索引也做不到「按会员号定位后,直接按日期顺序读出最近 20 条」。建索引要从查询出发,而不是从列出发。</li>
+      <li><b>「卡片上多写几栏没关系」——列越多,索引越大、写入越贵。</b>今天的 <code>(owner_id, created_at DESC, id DESC)</code> 有 39 MB,是表本身(65 MB)的六成;每次插入、每次改到这几列,都要维护它。Day 32 会实测写放大。</li>
+      <li><b>「卡片盒能用,账房就会用」——「索引能用」和「优化器愿意用」仍是两回事。</b>④ 就是例子:技术上能用,优化器估算后选了全表扫描。复合索引同样受 Day 29 选择性规则的约束:条件筛出的行占比太大时,它照样不用。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>composite / multicolumn index</b>;<b>leftmost prefix rule</b>;<b>equality columns first, range columns last</b>;<b>index condition vs filter</b>(Index Cond 里的条件也可能需要逐条比较,要看 Buffers);<b>BitmapAnd / BitmapOr</b>;<b>skip scan</b>(PostgreSQL 18 起);<b>column selectivity</b>(不是决定列顺序的首要因素)。
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:一个索引同时管 WHERE、ORDER BY、LIMIT —— keyset 分页要的索引</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    如果索引的列顺序是「<b>先等值过滤的列,再排序的列</b>」,并且排序方向对得上,那么索引里满足条件的那一段<b>本来就是按要求排好的</b>:数据库直接按顺序读,读够 LIMIT 条就停,计划里<b>没有 Sort 节点</b>。B-tree 可以倒着读,所以全部反向也行;方向混合时(一列降序、一列升序),要在建索引时就声明对应的方向。keyset 分页的「书签之后」条件,要能被写成索引能直接跳过去的形式。
+  </div>
+
+  <h3>② 生活类比:按顺序读卡片,读够就停</h3>
+  <p>卡片先按会员号、再按日期从新到旧排好。「2 号会员最新的 20 张」:翻到 2 号那一段的开头,拿 20 张就走,不用把他的 1.9 万张都拿出来再排。「从上次那张之后接着拿 20 张」:翻到上次那张卡片的位置,继续往后拿。前提是你能<b>直接翻到</b>「上次那张」的位置;如果你的说法是「日期比它早的,或者日期一样但编号比它大的」,而卡片盒只认「日期」这一种翻法,账房就只能从头翻、一张张核对。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测</th></tr>
+    <tr><td>拿 20 张就走</td><td>索引顺序 = ORDER BY 顺序,<code>Limit</code> 直接在 <code>Index Scan</code> 上面</td><td>没有 Sort 节点</td></tr>
+    <tr><td>倒着翻</td><td><code>Index Scan Backward</code></td><td>同一个索引服务全反向的排序</td></tr>
+    <tr><td>一半按顺序、一半要再排</td><td><b>Incremental Sort</b>(<code>Presorted Key</code>)</td><td>混合方向但索引方向不对时</td></tr>
+    <tr><td>直接翻到上次那张</td><td>行值比较 <code>(created_at, id) &lt; ($1, $2)</code> 成为 <b>Index Cond</b></td><td>深分页也只读几页</td></tr>
+    <tr><td>只能从头翻、一张张核对</td><td>OR 条件只能当 <b>Filter</b></td><td>深分页时扔掉 98.7 万行</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:「2 号用户最新的 20 个任务」。</b>✍️ <b>预测</b>:只有 <code>(owner_id)</code> 单列索引时计划里有没有 Sort?换成 <code>(owner_id, created_at DESC, id DESC)</code> 呢?排序全部反过来、或者一列升序一列降序时呢?真实结果(<code>05-where-order-limit.sql</code>):</p>
+  <pre><code>-- 只有 (owner_id)
+ Limit  (…) (actual rows=20 loops=1)
+   -&gt;  Sort  (…) (actual rows=20 loops=1)
+         Sort Key: created_at DESC, id DESC
+         Sort Method: top-N heapsort  Memory: 27kB
+         -&gt;  Bitmap Heap Scan on tasks  (…) (actual rows=18833 loops=1)
+               Heap Blocks: exact=7453
+ Execution Time: 16.050 ms
+
+-- (owner_id, created_at DESC, id DESC)
+ Limit  (…) (actual rows=20 loops=1)
+   Buffers: shared hit=9 read=3
+   -&gt;  Index Scan using tasks_owner_created_id_idx on tasks  (…) (actual rows=20 loops=1)
+         Index Cond: (owner_id = 2)
+ Execution Time: 0.064 ms
+
+-- 同一个索引,ORDER BY created_at ASC, id ASC
+   -&gt;  Index Scan Backward using tasks_owner_created_id_idx on tasks  (…)
+
+-- 同一个索引,ORDER BY created_at DESC, id ASC(方向混合)
+   -&gt;  Incremental Sort  (…) (actual rows=20 loops=1)
+         Sort Key: created_at DESC, id
+         Presorted Key: created_at
+         -&gt;  Index Scan using tasks_owner_created_id_idx on tasks  (…) (actual rows=21 loops=1)
+
+-- 索引声明为 (owner_id, created_at DESC, id ASC)
+   -&gt;  Index Scan using tasks_owner_created_desc_id_asc_idx on tasks  (…)</code></pre>
+  <p>只有单列索引时,要先把 2 号的 18833 行从 7453 个表页里全取出来,再挑最新的 20 个;有了复合索引,读 12 页、拿 20 行就停。各跑 3 次、脚本跑 3 遍:<b>12.65 – 19.57 ms</b> 对 <b>0.006 – 0.105 ms</b>,差两个数量级以上,而且<b>和这个用户有多少任务无关</b>(换成 10 万个任务的 1 号用户,复合索引仍然只读几页)。方向混合时,索引只能保证 <code>created_at</code> 的顺序,同一个时间的几行要再排一次(Incremental Sort,这里数据里时间几乎不重复,所以代价很小);索引按同样的混合方向声明后,Sort 节点就消失了。</p>
+
+  <p><b>⑤ 动手验证 B:keyset 分页(Day 19 / 27)。</b>场景:按创建时间倒序翻页,已经翻到很后面(书签停在 2024-01-10、id 12960;越早的任务越在后面,前面大约有 98.7 万行)。✍️ <b>预测</b>:三种写法各读多少页、要多久?真实结果(<code>06-keyset.sql</code>):</p>
+  <pre><code>-- A. 两列同方向(DESC, DESC),索引 (created_at, id),行值比较
+ Limit  (…) (actual rows=21 loops=1)
+   -&gt;  Index Scan Backward using tasks_created_id_idx on tasks  (…) (actual rows=21 loops=1)
+         Index Cond: (ROW(created_at, id) &lt; ROW('2024-01-10 00:00:00+00'::timestamp with time zone, 12960))
+         Buffers: shared hit=1 read=3
+ Execution Time: 0.066 ms
+
+-- B1. 方向混合(DESC, ASC),索引 (created_at DESC, id ASC),Day 27 的写法:只有 OR
+ Limit  (…) (actual rows=21 loops=1)
+   Buffers: shared hit=8227 read=3784
+   -&gt;  Index Scan using tasks_created_desc_id_asc_idx on tasks  (…) (actual rows=21 loops=1)
+         Filter: ((created_at &lt; '2024-01-10 …') OR ((created_at = '2024-01-10 …') AND (id &gt; 12960)))
+         Rows Removed by Filter: 987041
+ Execution Time: 126.962 ms
+
+-- B2. 同样的 OR,前面再加一个冗余的范围条件 created_at &lt;= 书签
+   -&gt;  Index Scan using tasks_created_desc_id_asc_idx on tasks  (…) (actual rows=21 loops=1)
+         Index Cond: (created_at &lt;= '2024-01-10 00:00:00+00'::timestamp with time zone)
+         Filter: ((created_at &lt; '2024-01-10 …') OR (…))
+         Buffers: shared hit=3 read=1
+ Execution Time: 0.061 ms
+ 两种写法结果相同
+------------------
+ t</code></pre>
+  <p>各跑 3 次、脚本跑 3 遍:A <b>0.010 – 0.127 ms</b>;B1 <b>87.6 – 144.0 ms</b>;B2 <b>0.010 – 0.081 ms</b>。</p>
+  <ul>
+    <li><b>A</b>:行值比较 <code>(created_at, id) &lt; (…)</code> 本身就是「在索引顺序里排在书签之前」,能直接成为 <code>Index Cond</code>,索引跳到书签处、往前读 21 条。</li>
+    <li><b>B1</b>:OR 条件<b>不能</b>成为索引条件,只能当 <code>Filter</code>:数据库从索引的开头(最新的任务)按顺序读,每读一条检查一次,扔掉了 98.7 万行才凑够 21 条。第一页很快(前面没有要扔的),<b>越往后翻越慢</b>,最后几页要读整个索引和大半张表。</li>
+    <li><b>B2</b>:多加一个 <code>created_at &lt;= 书签</code>。它是 OR 条件的必要条件(两个分支都满足它),所以结果完全一样(上面的 <code>t</code>);但它是一个简单的范围,可以成为 <code>Index Cond</code>,索引直接跳到书签那个时间,只读 4 页。</li>
+  </ul>
+  <p>⚠️ <b>这正是 nest-lab 现在的问题。</b>Day 19 的 <code>withTieBreaker()</code> 在排序没写 <code>id</code> 时会自动补一个 <b><code>id</code> 升序</b>,所以 <code>?sort=-createdAt</code> 实际是 <code>created_at DESC, id ASC</code>,方向混合;Day 27 的 <code>keysetCondition()</code> 对混合方向生成的就是 B1 那样「只有 OR」的条件。现在表里只有几十行,看不出来;任务一多,越往后翻越慢。修法就是 B2:在 OR 前面加上第一列的冗余范围条件,再配上方向对应的索引。这两件事都在 Day 34 落地。</p>
+
+  <h3>nest-lab 各排序组合需要的索引(Day 34 落地,今天不改 <code>schema.sql</code>)</h3>
+  <p>nest-lab 允许的排序字段是 <code>id</code>、<code>createdAt</code>、<code>title</code>(Day 19 白名单),排序最后总会补 <code>id</code>;<code>title</code> 在 SQL 里是 <code>COLLATE "C"</code>(Day 27),索引也必须用同样的排序规则才能被用上。</p>
+  <table>
+    <tr><th><code>?sort=</code></th><th>实际排序(补上 tie-breaker 后)</th><th>能服务它的索引</th><th>keyset 条件</th></tr>
+    <tr><td>(不写)/ <code>id</code></td><td><code>id ASC</code></td><td>主键 <code>tasks_pkey</code></td><td><code>id &gt; $1</code></td></tr>
+    <tr><td><code>-id</code></td><td><code>id DESC</code></td><td>主键(倒着读)</td><td><code>id &lt; $1</code></td></tr>
+    <tr><td><code>createdAt</code></td><td><code>created_at ASC, id ASC</code></td><td><code>(created_at, id)</code></td><td>行值比较 <code>&gt;</code></td></tr>
+    <tr><td><code>-createdAt</code></td><td><code>created_at DESC, id ASC</code></td><td><code>(created_at DESC, id ASC)</code></td><td>OR 展开 <b>+ 冗余范围</b> <code>created_at &lt;= $1</code></td></tr>
+    <tr><td><code>title</code></td><td><code>title ASC, id ASC</code></td><td><code>(title COLLATE "C", id)</code></td><td>行值比较 <code>&gt;</code></td></tr>
+    <tr><td><code>-title</code></td><td><code>title DESC, id ASC</code></td><td><code>(title COLLATE "C" DESC, id ASC)</code></td><td>OR 展开 + 冗余范围 <code>title &lt;= $1</code></td></tr>
+    <tr><td>带 <code>?done=…</code></td><td>同上</td><td>在上面的索引最前面加 <code>done</code>(等值在前),或者只为 <code>done = false</code> 建部分索引(Day 32)</td><td>同上</td></tr>
+    <tr><td>多个排序字段(如 <code>-createdAt,title</code>)</td><td>三列以上</td><td>不为每种组合建索引;依赖 LIMIT,必要时限制允许的组合</td><td>OR 展开 + 冗余范围</td></tr>
+  </table>
+  <p>这张表已经有 6 个索引候选了,而每个索引都有写入代价。Day 34 会用真实的访问情况(哪些排序真的有人用)来决定建哪几个,而不是全建。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「能翻到书签,就一定会翻」——写法决定了能不能用上索引。</b>B1 和 B2 的结果完全一样,索引也一样,只因为条件的写法不同,一个读 1.2 万页、一个读 4 页。优化器不会替你把 OR 改写成范围条件;要看 <code>EXPLAIN</code> 里条件是在 <code>Index Cond</code> 还是 <code>Filter</code>。</li>
+      <li><b>「倒着翻就能应付所有排序」——倒着读只能整体反向。</b><code>(a DESC, b DESC)</code> 倒着读是 <code>(a ASC, b ASC)</code>,永远得不到 <code>(a DESC, b ASC)</code>。方向混合的排序要单独建方向对应的索引。</li>
+      <li><b>「第一页快,就说明分页没问题」——深分页的问题只有翻到后面才会暴露。</b>B1 的第一页几乎一样快。测分页性能时,要专门测「书签在很后面」的情况,这也是 Day 19 讲 offset 时说过的。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>index-ordered scan</b>(用索引顺序代替 Sort);<b>Index Scan Backward</b>;<b><code>ASC</code> / <code>DESC</code> / <code>NULLS FIRST|LAST</code></b> in index definition;<b>Incremental Sort</b>(<code>Presorted Key</code>,PostgreSQL 13 起);<b>keyset / seek pagination</b>;<b>row value comparison</b>(<code>(a, b) &lt; (x, y)</code>);<b>sargable predicate</b>(能被索引利用的条件写法);<b>redundant predicate</b>。
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:覆盖索引与 visibility map —— 卡片上顺手抄了标题,账页角上贴着「已核对」</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    如果一个查询要的<b>所有列</b>索引里都有,数据库可以只读索引、不回表,这叫 <b>Index Only Scan</b>。<b>覆盖索引</b>用 <code>INCLUDE (…)</code> 把一些列「顺手抄进」索引的叶子里,它们不参与排序和查找,只为了让查询不用回表。但 PostgreSQL 有一个附加条件:它要确认这一行对当前查询是可见的(行可能刚被改过、删过),这个信息在表里,不在索引里;只有当那一页被 <b>visibility map</b> 标记为「全部可见」时,才敢不回表。标记由 <b>VACUUM</b> 打上,页里的行一被修改就会清掉。
+  </div>
+
+  <h3>② 生活类比:卡片上抄的标题,账页角上的贴纸</h3>
+  <p>卡片上除了「会员号、日期 → 第几页第几行」,还顺手抄了订单标题和完成状态。问「2 号会员最新 20 单的标题和状态」,看卡片就够了,不用去翻账本。但账房有个规矩:账本里的记录可能刚被涂改过,卡片上抄的可能是旧的。所以只有当那一页账的角上贴着「<b>本页已全部核对</b>」的贴纸时,才敢只看卡片;没贴纸的,还是要翻到那一页去确认一下。谁改了这一页的任何一条,贴纸就撕掉;夜班的清洁工(VACUUM)巡视时,再把核对过的页重新贴上。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>实测</th></tr>
+    <tr><td>卡片上顺手抄标题和状态</td><td><code>CREATE INDEX … (owner_id, created_at DESC, id DESC) INCLUDE (title, done)</code></td><td>39 MB → 56 MB</td></tr>
+    <tr><td>只看卡片就回答</td><td><b>Index Only Scan</b></td><td>读 4 页,不碰表</td></tr>
+    <tr><td>只看卡片前先看贴纸</td><td><b>visibility map</b>:每个表页一个「全部可见」标记</td><td><code>pg_class.relallvisible</code></td></tr>
+    <tr><td>没贴纸,还得翻账本</td><td><b>Heap Fetches</b></td><td>UPDATE 之后 37666</td></tr>
+    <tr><td>夜班清洁工重新贴贴纸</td><td><b>VACUUM</b>(平时由 autovacuum 自动做,Week 6)</td><td>VACUUM 之后回到 0</td></tr>
+    <tr><td>抄上去的标题不能用来排序查找</td><td><code>INCLUDE</code> 列只能出现在 <code>Filter</code>,不能出现在 <code>Index Cond</code></td><td><code>Filter: (NOT done)</code></td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:覆盖索引。</b>列表页只要 <code>id</code>、<code>title</code>、<code>done</code>。✍️ <b>预测</b>:普通复合索引和覆盖索引的计划节点各是什么?覆盖索引大多少?真实结果(<code>07-covering.sql</code>):</p>
+  <pre><code>-- 普通复合索引 (owner_id, created_at DESC, id DESC):要回表取 title、done
+   -&gt;  Index Scan using tasks_owner_created_id_idx on tasks  (…) (actual rows=20 loops=1)
+         Buffers: shared hit=12 read=3
+-- 覆盖索引 … INCLUDE (title, done)
+   -&gt;  Index Only Scan using tasks_owner_created_id_cov_idx on tasks  (…) (actual rows=20 loops=1)
+         Index Cond: (owner_id = 2)
+         Heap Fetches: 0
+         Buffers: shared hit=1 read=3
+
+              索引              | 大小
+--------------------------------+-------
+ tasks_owner_created_id_cov_idx | 56 MB
+ tasks_owner_created_id_idx     | 39 MB</code></pre>
+  <p>取 20 行时,回表也就多读十几页,两者都在 0.1 ms 以内,差别不大。覆盖索引真正有用的场景是<b>要扫很多索引条目、但每条只要几列</b>的查询,比如统计;代价是索引大了 44%。</p>
+
+  <p><b>⑤ 动手验证 B:visibility map。</b>统计「2 号用户的未完成任务数」,覆盖索引要扫 2 号的全部 18833 个条目。然后把 2 号用户的每一行都 UPDATE 一次(值不变,但每次 UPDATE 都会写一个新版本,Day 29 的 ctid 变化),再 VACUUM。✍️ <b>预测</b>:UPDATE 之后 Heap Fetches 是多少?VACUUM 之后呢?真实结果:</p>
+  <pre><code>-- VACUUM 过的表
+ Aggregate  (…) (actual rows=1 loops=1)
+   -&gt;  Index Only Scan using tasks_owner_created_id_cov_idx on tasks  (…) (actual rows=1922 loops=1)
+         Index Cond: (owner_id = 2)
+         Filter: (NOT done)
+         Rows Removed by Filter: 16911
+         Heap Fetches: 0
+         Buffers: shared hit=4 read=135
+
+UPDATE 18833
+ Aggregate  (…) (actual rows=1 loops=1)
+   Buffers: shared hit=37939
+   -&gt;  Index Only Scan using tasks_owner_created_id_cov_idx on tasks  (…) (actual rows=1922 loops=1)
+         Heap Fetches: 37666
+ Execution Time: 33.919 ms
+
+VACUUM
+   -&gt;  Index Only Scan using tasks_owner_created_id_cov_idx on tasks  (…) (actual rows=1922 loops=1)
+         Heap Fetches: 0
+         Buffers: shared hit=273
+ Execution Time: 2.209 ms
+ 表的页数 | 其中全部可见的页数
+----------+--------------------
+     8491 |               8491</code></pre>
+  <ul>
+    <li>计划节点<b>一直都是</b> Index Only Scan,但 UPDATE 之后 <code>Heap Fetches: 37666</code>:每一行旧版本和新版本在索引里各有一个条目(18833 × 2),它们所在的页的「全部可见」标记都被清掉了,只好逐条回表确认哪个版本对当前查询可见,碰了 3.8 万次页。</li>
+    <li><code>VACUUM</code> 清理掉旧版本,把页重新标记为全部可见(8491 页全部可见;表从 8334 页长到 8491 页,是新版本占的位置),Heap Fetches 回到 0,只读 273 页。</li>
+    <li>各跑 3 次、脚本跑 3 遍:VACUUM 之后 <b>1.3 – 3.0 ms</b>;UPDATE 之后、VACUUM 之前 <b>6.8 – 22.0 ms</b>(每组第一次约 20 ms,后两次 7 – 11 ms;第一次慢在今天所有计时里都出现,是缓存还没热,但后两次仍比 VACUUM 之后慢好几倍)。</li>
+    <li><code>Filter: (NOT done)</code>:<code>done</code> 是 INCLUDE 进来的列,只能在读到条目以后逐条过滤,不能用来在索引里定位(要定位,它得是键列,比如 <code>(owner_id, done)</code>)。</li>
+  </ul>
+  <p>回头看 Day 30 的统计过期实验:<code>Index Only Scan … Heap Fetches: 500001</code>,原因一样:50 万行刚导入,还没有 VACUUM,visibility map 是空的,所谓「只读索引」其实每一行都回了表。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「卡片上抄了就不用翻账本」——Index Only Scan 只在 visibility map 新鲜时才真正不回表。</b>计划里写着 Index Only Scan,不代表没有回表,要看 <code>Heap Fetches</code>。频繁更新的表,刚改过的页总是没有「全部可见」标记;autovacuum 跟不上时,覆盖索引的好处就会缩水。VACUUM 的机制(为什么会有旧版本、什么时候能清理)是 Week 6 MVCC 的内容。</li>
+      <li><b>「多抄几栏,查询都能免翻账本」——INCLUDE 列让索引变大,每次改到它们都要更新索引。</b>今天抄了 <code>title</code>,索引大了 17 MB;而且 UPDATE <code>title</code> 本来可以是只改表的「HOT 更新」,现在因为索引里有这一列,每次都要同时改索引(Day 32 讲写放大时会看到)。只为高频、对延迟敏感、要的列很少的查询建覆盖索引。</li>
+      <li><b>「抄上去的栏目也能用来找」——INCLUDE 列不参与排序和查找。</b>它们只在叶子里,不在上层目录里。<code>WHERE done = false</code> 只能在扫过的条目里过滤,不能像键列那样直接定位。MySQL 没有 <code>INCLUDE</code> 语法,覆盖索引是靠把列放进键里实现的(下一节)。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>covering index</b>;<b><code>INCLUDE</code> columns</b>(non-key / payload columns,PostgreSQL 11 起);<b>Index Only Scan</b>;<b>Heap Fetches</b>;<b>visibility map</b>(all-visible bit,<code>pg_class.relallvisible</code>);<b>VACUUM</b> / autovacuum;<b>tuple version</b>(MVCC,Week 6);<b>HOT update</b>(heap-only tuple,Day 32);<b>dead index entry</b>(扫描时被标记为 killed)。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p><b>ORM 里声明复合索引和覆盖索引</b>(🔎 下面三条我联网核对过官方文档):</p>
+  <table>
+    <tr><th>工具</th><th>复合索引(带方向)</th><th>覆盖索引(INCLUDE)</th></tr>
+    <tr><td>Prisma</td><td><code>@@index([ownerId, createdAt(sort: Desc)])</code>(<code>sort</code> 参数 4.0 起正式可用)</td><td>Prisma schema 没有对应语法,要在迁移 SQL 里手写</td></tr>
+    <tr><td>EF Core</td><td><code>HasIndex(t =&gt; new { t.OwnerId, t.CreatedAt })</code>,方向用 <code>.IsDescending(…)</code>(EF Core 7 起)</td><td><code>.IncludeProperties(t =&gt; new { t.Title, t.Done })</code>:这是<b>数据库提供程序的扩展方法</b>,Npgsql(PostgreSQL)和 SQL Server 提供程序各有一个,不是 EF Core 核心 API</td></tr>
+    <tr><td>JPA / Hibernate</td><td><code>@Table(indexes = @Index(name = "…", columnList = "owner_id, created_at DESC"))</code></td><td>标准注解没有;写在 Flyway / Liquibase 的 SQL 里</td></tr>
+    <tr><td>Go</td><td>迁移文件里手写 <code>CREATE INDEX … (owner_id, created_at DESC, id DESC)</code></td><td>同左,加 <code>INCLUDE (…)</code></td></tr>
+  </table>
+
+  <p><b>面试高频:「回表」和「覆盖索引」在 MySQL 里是什么意思?</b></p>
+  <table>
+    <tr><th></th><th>PostgreSQL</th><th>MySQL(InnoDB)</th><th>SQL Server</th></tr>
+    <tr><td>二级索引叶子里有什么</td><td>键列 + ctid(+ INCLUDE 列)</td><td>键列 + <b>主键值</b>(天然带着主键)</td><td>键列 + 聚簇键(+ INCLUDE 列)</td></tr>
+    <tr><td>「回表」</td><td>按 ctid 去 heap 取行</td><td>拿主键再去聚簇索引(主键 B+tree)查一次</td><td>Key Lookup(按聚簇键)/ RID Lookup(堆表)</td></tr>
+    <tr><td>覆盖索引怎么做</td><td><code>INCLUDE (…)</code>,或把列放进键里</td><td>没有 <code>INCLUDE</code>;把要的列放进复合索引的键里;因为天然带主键,<code>SELECT id …</code> 常常自动被覆盖</td><td><code>INCLUDE (…)</code></td></tr>
+    <tr><td>计划里怎么看出来</td><td><code>Index Only Scan</code> + <code>Heap Fetches</code></td><td><code>EXPLAIN</code> 的 <code>Extra</code> 列出现 <code>Using index</code></td><td>没有 Key Lookup 算子</td></tr>
+    <tr><td>可见性检查</td><td>靠 visibility map,不新鲜就回表</td><td>二级索引页记录了最大事务 ID,必要时回聚簇索引检查</td><td>—</td></tr>
+  </table>
+  <p>最左前缀规则在三个数据库里都成立(MySQL 8.0.13 起也有 skip scan,条件和 PostgreSQL 18 的类似)。🔎 核实说明:本表 MySQL / SQL Server 的内部细节、<code>Using index</code>、Key Lookup、MySQL 8.0.13 的 skip scan,以及 EF Core 7 的 <code>IsDescending</code>,是公认事实或我的记忆,<b>没有在本机实测</b>(本课程环境只有 PostgreSQL);PostgreSQL 18 的 skip scan 我查过官方文档。</p>
+  <p>📌 Day 35 补「索引 / 执行计划」那一行时,可以把「复合索引最左前缀 + 覆盖索引:PG <code>INCLUDE</code> ↔ InnoDB 键里带主键 / <code>Using index</code> ↔ SQL Server <code>INCLUDE</code> / Key Lookup」一起写进去,内容自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"What is the leftmost prefix rule for composite indexes? Can an index on (a, b) be used for WHERE b = ?. What is a covering index, and what does 'going back to the table' mean?"</b>(或者:「联合索引的最左前缀原则是什么?(a, b) 索引能用于 WHERE b = ? 吗?什么是覆盖索引、回表?」)你可以答:<br>
+    <b>"复合索引 (a, b) 先按 a 排序,a 相同时再按 b 排序,所以它能高效服务从最左列开始的条件:只有 a,或者 a 等值再加 b 的条件或排序。只有 b 的时候,b 在整个索引里不是有序的,没法直接定位,最多只能把整个索引扫一遍,优化器通常宁可全表扫描;有些数据库版本有 skip scan,在 a 的取值很少时能部分缓解。列顺序按查询来定:等值条件的列放前面,范围条件和排序的列放后面,而不是简单地把选择性高的放前面。设计得好的复合索引可以同时服务 WHERE、ORDER BY 和 LIMIT,计划里没有排序,读够行数就停,这也是 keyset 分页需要的,注意条件要写成索引能用的形式,比如行值比较,或者给 OR 展开加一个冗余的范围条件。回表是指在索引里找到条目后,再去表里取其他列;覆盖索引是查询需要的列全在索引里,不用回表,PostgreSQL 和 SQL Server 可以用 INCLUDE 把非键列放进叶子,MySQL 是把列放进键里,EXPLAIN 里显示 Using index。在 PostgreSQL 里还要看 Heap Fetches,因为只有 visibility map 标记为全部可见的页才能真正不回表,这依赖 VACUUM。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:跟着跑一遍(动手,约 8 min)</h3>
+    <ol>
+      <li>先把第 3、4、5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day31</code> 批改。你那边的耗时会不同,看量级和谁快谁慢。</li>
+      <li>psql 连进去,<code>SET search_path = day31;</code>,建 <code>(owner_id, created_at)</code>。✍️ <b>预测</b>:<code>WHERE owner_id IN (2, 5000) ORDER BY created_at DESC LIMIT 20</code> 会不会有 Sort 节点?为什么?(提示:两个 owner 各自的那一段是有序的,合在一起呢?)</li>
+      <li>✍️ <b>预测</b>:<code>WHERE owner_id &gt; 9990 AND created_at &gt;= '2025-01-01'</code> 时,<code>created_at</code> 的条件会出现在 <code>Index Cond</code> 里吗?它能帮忙「跳过」吗?跑一下,看 Buffers。</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:给三个查询设计索引(动笔 + 动手,约 12 min)</h3>
+    <p>每个查询先写出你要的索引和理由(列顺序、方向、要不要 INCLUDE),再在 <code>day31</code> 里建出来,<code>EXPLAIN (ANALYZE, BUFFERS)</code> 验证:没有 Sort 节点?读了几页?</p>
+    <ol>
+      <li>「某个用户未完成的任务,最新的在前,每页 20 条」:<code>WHERE owner_id = $1 AND NOT done ORDER BY created_at DESC, id DESC LIMIT 20</code></li>
+      <li>「最近 7 天每个用户建了几个任务」:<code>WHERE created_at &gt;= now() - interval '7 days' GROUP BY owner_id</code>(数据里的时间从 2024 年开始,自己换一个日期)</li>
+      <li>nest-lab 的 <code>?done=false&amp;sort=-createdAt</code>,翻到很后面:写出带冗余范围条件的 keyset SQL 和它需要的索引。</li>
+    </ol>
+    <p>✍️ 第 1 题:<code>(owner_id, done, created_at DESC, id DESC)</code> 和 <code>(owner_id, created_at DESC, id DESC)</code> 哪个更好?如果用户经常也要看「全部任务(不分完成与否)」呢?</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:visibility map 的代价(思考,约 5 min)</h3>
+    <ol>
+      <li>nest-lab 的任务经常被 PATCH(改 <code>done</code>)。如果给列表查询建了 <code>INCLUDE (title, done)</code> 的覆盖索引,在一个高频更新的系统里,它的效果会怎样?</li>
+      <li>UPDATE 之后、VACUUM 之前,后两次查询(7 – 11 ms)仍比 VACUUM 之后(1.3 – 3.0 ms)慢好几倍,慢在哪里?(提示:看 Heap Fetches 和 Buffers。)</li>
+      <li>你会怎么判断一个覆盖索引「值不值」?(提示:Day 34 的 <code>pg_stat_statements</code> 和 Day 32 的写入实测。)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/31-composite-covering-indexes/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「我把数组先按 a、再按 b 排好序,用二分查找找 a 很快;为什么只按 b 二分查找就不行?数据库的联合索引也是这样吗?」用电话簿 / 卡片盒的比喻讲清楚最左前缀,并说出这个比喻在哪里会骗人。</li>
+      <li>复合索引的列顺序怎么定?为什么 <code>(owner_id, created_at)</code> 能让「某人最新 20 条」没有 Sort 节点?keyset 分页的 OR 展开为什么在深分页时很慢,怎么修?</li>
+      <li>什么是覆盖索引、Index Only Scan?为什么计划里写着 Index Only Scan 还可能回表?VACUUM 和它有什么关系?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:把习题 2 的索引设计记进 <code>notes.md</code>(Day 34 给 nest-lab 加索引时要用);在 <code>nest-lab/README.md</code> 的成长日志里记一笔;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>复合索引 <code>(a, b)</code> 先按 a、再按 b 排</b>,服务「从最左列开始」的条件;只有 b 时只能把整个索引读完(实测读 3834 页、12.3–40.4 ms,而最左前缀命中只要 0.045–0.60 ms)。PostgreSQL 18 才有 skip scan,16 没有。</li>
+    <li><b>列顺序看查询:等值在前,范围 / 排序在后</b>,不是「选择性高的在前」(同一个查询,<code>(owner_id, created_at)</code> 在索引里读 23 页,<code>(created_at, owner_id)</code> 读 528 页,其中约 360 页是表页,索引部分约 168 页)。一个对的复合索引胜过两个单列索引的 BitmapAnd。</li>
+    <li><b>索引顺序 = ORDER BY 顺序时,没有 Sort,读够 LIMIT 就停</b>(「某人最新 20 条」从 12.7–19.6 ms 到 0.1 ms 左右);全反向可以倒着读,方向混合要在索引里声明。keyset 分页:同方向用行值比较;混合方向的 OR 展开只能当 Filter,深分页 87.6–144.0 ms,加一个冗余范围条件后 0.081 ms 以内。<b>nest-lab 的 <code>?sort=-createdAt</code> 正是混合方向,Day 34 修。</b></li>
+    <li><b>覆盖索引(<code>INCLUDE</code>)让查询不回表</b>,但 INCLUDE 列不能用来定位,索引会变大(39 → 56 MB);Index Only Scan 只在 visibility map 新鲜时才真正不回表:UPDATE 后 Heap Fetches 37666,VACUUM 后归零。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li><code>(owner_id, created_at)</code> 能服务哪几种条件?为什么只有 <code>created_at</code> 时强行用它要读整个索引?</li>
+    <li>为什么 <code>(created_at, owner_id)</code> 查「1 号用户 6 月的任务」要读那么多页?</li>
+    <li>BitmapAnd 是怎么工作的?为什么复合索引更省?</li>
+    <li>同一个 <code>(owner_id, created_at DESC, id DESC)</code>,哪些 ORDER BY 能直接用、哪些需要 Incremental Sort?</li>
+    <li>B1 和 B2 结果相同,为什么一个读 1.2 万页、一个读 4 页?nest-lab 的哪个排序会踩到 B1?</li>
+    <li>INCLUDE 列和键列有什么区别?</li>
+    <li>UPDATE 之后为什么 Heap Fetches 是 37666 而不是 18833?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 32</b>:部分索引、表达式索引与外键索引,以及索引的代价。<code>done</code> 只有两个值、而且 90% 都是 true,与其给整列建索引,不如只为 <code>done = false</code> 那 10% 建一个「部分索引」;Day 24 的 <code>lower(email)</code> 唯一索引就是一个表达式索引;Day 24 说「外键不会自动建索引」,明天实测删除一个用户时的全表扫描。最后算一笔账:每多一个索引,插入慢多少、多占多少空间,怎么找出从来没被用过的索引。</p>
+</section>
+
+<footer>
+  Day 31 · Phase 2 / Week 5 · 产出:<code>docs/31-composite-covering-indexes/</code> 本文档 + <code>nest-lab/</code>(<code>sql/day31/</code> 七个实验文件、<code>npm run day31</code>)+ <code>src/31-composite-covering-indexes/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

@@ -34,6 +34,7 @@
     "day27": "nest build && node scripts/day27-try.mjs",
     "day29": "node scripts/day29-try.mjs",
     "day30": "node scripts/day30-try.mjs",
+    "day31": "node scripts/day31-try.mjs",
     "db:reset": "node scripts/db-reset.mjs",
     "openapi:generate": "nest build && node scripts/openapi.mjs",
     "openapi:check": "nest build && node scripts/openapi.mjs --check",
