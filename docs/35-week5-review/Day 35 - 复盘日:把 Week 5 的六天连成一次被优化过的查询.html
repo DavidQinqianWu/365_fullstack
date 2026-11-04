@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="day" content="28">
+<meta name="phase" content="Phase 2 / Week 4">
+<meta name="summary" content="复盘日,不学新内容。画出「一个带 checklist 的 POST /v2/tasks 从 HTTP 到写进 PostgreSQL 的一生」把 Day 22–27 串起来,默写六张概念卡,做一次 SQL 与仓储 review,自测 12 题。">
+<title>Day 35 - 复盘日:把 Week 5 的六天连成一次被优化过的查询</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 5 · 复盘日</div>
+  <h1>Day 35 - 复盘日:把 Week 5 的六天连成一次被优化过的查询</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(画图 25 min + 默写 25 min + 索引 review 15 min + 对照表与自测 25 min)·
+    <b>今天不学新内容。</b>复盘日只有一个任务:把 Day 29–34 从「跟着讲义跑出了 EXPLAIN」变成「合上讲义说得出、画得出、查得出问题」·
+    产出:<code>src/35-week5-review/</code> 下的一张全景图、六张概念卡、一次索引 review 和一份自测答卷
+  </div>
+</header>
+
+<div class="warn">
+  <span class="tag">⚠️ 复盘日的规矩</span>
+  <p><b>不许翻 Day 29–34 的讲义,也不许打开 nest-lab 的代码、<code>sql/</code> 目录和 <code>docs/query-tuning.md</code>。</b>先凭记忆写,写完再对照订正。订正的地方用红色或加粗标出来,<b>那些就是你真正的知识缺口</b>,Week 6 会再考。</p>
+  <p>如果某一题完全写不出来,不要跳过。写下「我不会」,然后去看讲义,再用自己的话重写一遍。</p>
+  <p>第三件事(索引 review)是唯一的例外:它本来就要求你读 <code>schema.sql</code> 和优化报告、连进 psql 验证。但<b>前两件事做完之前不要打开</b>。</p>
+  <p>今天<b>不改 nest-lab</b>。review 里发现的问题先记下来,写清楚改法和「计划在哪一周改 / 为什么现在接受」。</p>
+</div>
+
+<nav class="toc">
+  <h2>📖 今天的四件事</h2>
+  <ol>
+    <li><a href="#sec1">🗺️ 第一件事:画出「一次带搜索、排序和 cursor 的列表请求在 PostgreSQL 里的一生」(约 25 min)</a></li>
+    <li><a href="#sec2">✍️ 第二件事:六张概念卡默写(约 25 min)</a></li>
+    <li><a href="#sec3">🔍 第三件事:给 nest-lab 的索引做一次 review(约 15 min)</a></li>
+    <li><a href="#sec4">📊 第四件事:新增对照表 + 自测 12 题(约 25 min)</a></li>
+    <li><a href="#sec5">🎯 Week 5 结算、遗留清单与 Week 6 预告</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🗺️ 第一件事:画出「一次带搜索、排序和 cursor 的列表请求在 PostgreSQL 里的一生」(约 25 min)</h2>
+  <p>Week 4 复盘画到了「SQL 被参数化、借一个连接、在事务里执行」为止。那张图里,PostgreSQL 是一个黑盒子:SQL 进去,行出来。Week 5 把这个盒子打开了:SQL 进去以后,优化器要先读统计信息、估一估每一步会有多少行,在好几种执行办法里挑一个它认为最便宜的,再一个节点一个节点地执行,最后还要在 pg_stat_statements 的账本上记一笔。今天把这一段画出来。</p>
+
+  <h3>任务</h3>
+  <p>在 <code>src/35-week5-review/query-lifecycle.md</code> 里,用文字或 mermaid 画出下面这个过程。Nest 管线可以简写成两三行,<b>重点画 SQL 到达 PostgreSQL 之后的部分</b>。每一站标注两个编号:它是 Week 5 哪一天学的(Day 29–34),以及它建在 Week 1–4 的哪个机制上。</p>
+  <div class="task">
+    <h3>场景(主线)</h3>
+    <pre><code># npm run db:seed:big 之后(30 万任务,Day 34 的三个索引都在),TASKS_STORAGE=postgres,npm run start:dev
+curl -s 'localhost:3000/v2/tasks?q=invoice&amp;sort=-createdAt&amp;limit=20'                    # 第一页,拿到 nextCursor
+curl -s 'localhost:3000/v2/tasks?q=invoice&amp;sort=-createdAt&amp;limit=20&amp;cursor=&lt;nextCursor&gt;'   # 第二页</code></pre>
+    <p>要覆盖这些环节(顺序你自己排):</p>
+    <ul>
+      <li>cursor 和 <code>sort=-createdAt</code> 最后变成了 SQL 里的哪几个条件(凭记忆写出 WHERE / ORDER BY / LIMIT,尤其是 Day 34 加上的那个条件)</li>
+      <li>优化器做计划之前读了哪些统计信息,它们是谁、在什么时候收集的</li>
+      <li>至少三个候选计划(倒着扫 <code>(created_at, id)</code> 边扫边过滤 / GIN 位图找出全部匹配行再排序 / 全表扫描 + 排序),它们各自什么时候赢,优化器靠什么比较</li>
+      <li>最终计划的每一个节点(<code>Limit</code>、<code>Incremental Sort</code>、<code>Index Scan Backward</code>、<code>Nested Loop</code>、取清单项的那个子查询……)谁先谁后、谁把行交给谁</li>
+      <li>执行时碰了哪些页:<code>shared hit</code> 和 <code>read</code> 各是什么,本机为什么几乎全是 hit</li>
+      <li>结果返回之后,pg_stat_statements 记下了什么、和别的关键词是不是同一行</li>
+    </ul>
+    <p>再写四条支线(模板里已列好):统计信息估错了;<code>q</code> 只有 2 个字;翻到第 1 万页(keyset vs offset,以及 Day 31 的 bug 没修时);同一个请求在内存模式下从哪一站开始走不同的路。</p>
+  </div>
+
+  <h3>写完之后自查:每一站你标出 Day 编号了吗?</h3>
+  <p>参考答案的<b>对应关系</b>(只给 Day 编号,不是完整答案;每一站具体做什么、顺序如何,要你自己写):</p>
+  <table>
+    <tr><th>环节</th><th>Week 5</th><th>建在 Week 1–4 的</th></tr>
+    <tr><td>DTO 校验、cursor 解码、Service → 仓储拼 SQL(简写成一行)</td><td>—</td><td>Day 16、19、27</td></tr>
+    <tr><td>keyset 条件:行值比较 / OR 展开 / 冗余范围条件</td><td>Day 31、Day 34</td><td>Day 19、Day 27</td></tr>
+    <tr><td>参数化查询带着实际值做计划(定制计划 vs 通用计划)</td><td>Day 32</td><td>Day 27</td></tr>
+    <tr><td>统计信息、行数估算、<code>ANALYZE</code> 抽样与统计目标</td><td>Day 30、Day 34</td><td>—</td></tr>
+    <tr><td>候选计划与 cost:B-tree 倒着扫 / GIN 位图 / 全表扫描</td><td>Day 29、30、31、33</td><td>Day 24</td></tr>
+    <tr><td>执行节点:<code>Limit</code>、<code>Incremental Sort</code>、<code>Index Scan Backward</code>、<code>Filter</code></td><td>Day 30、Day 31、Day 34</td><td>—</td></tr>
+    <tr><td>LATERAL 子查询取清单项、它用的是哪个索引</td><td>Day 30、Day 32</td><td>Day 26、Day 27</td></tr>
+    <tr><td>BUFFERS:<code>shared hit</code> / <code>read</code>,缓存与磁盘</td><td>Day 30</td><td>—</td></tr>
+    <tr><td>pg_stat_statements 记账、规范化</td><td>Day 34</td><td>—</td></tr>
+    <tr><td>支线:估错 → 选错计划 → 回退</td><td>Day 30、Day 34</td><td>—</td></tr>
+    <tr><td>支线:2 个字抽不出三元组</td><td>Day 33、Day 34</td><td>—</td></tr>
+    <tr><td>支线:第 1 万页,keyset vs offset</td><td>Day 31、Day 34</td><td>Day 19</td></tr>
+  </table>
+
+  <div class="concept">
+    <span class="tag">为什么这张图值 25 分钟</span>
+    <p>前几周的图回答「请求经过哪些站」「数据怎么可靠地写进去」;今天这张图回答<b>「同一条 SQL 为什么有时快、有时慢,快慢由谁决定」</b>。面试里问「这个接口为什么慢」,能从「优化器估了多少行、选了哪个计划、计划里哪个节点扔掉了多少行」讲到「统计信息为什么会估错、怎么修、修了有什么代价」的人,说明他调过真实的慢查询,而不是只背过「加索引」。</p>
+    <p>这张图在 MySQL 和 SQL Server 里大体一样:解析 → 优化器读统计信息 → 基于成本选计划 → 执行 → 记进统计(Performance Schema / Query Store)。差别在细节:InnoDB 的二级索引存的是主键而不是行位置,SQL Server 会缓存计划并用参数嗅探。<b>你画的是「一个基于成本的优化器怎么工作」,不是「PostgreSQL 的实现细节」。</b></p>
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>✍️ 第二件事:六张概念卡默写(约 25 min)</h2>
+  <p>写在 <code>src/35-week5-review/concept-cards.md</code>。<b>每张卡片必须包含三部分</b>:通用定义(不绑定数据库)、PostgreSQL 里的样子、MySQL(InnoDB)/ SQL Server 里的样子。第三部分大多没在本机实测,订正时标「未实测」。</p>
+
+  <div class="task">
+    <h3>卡片 1:B-tree 与选择性(Day 29)</h3>
+    <ul>
+      <li>B-tree 为什么能做等值、范围、排序;树为什么「矮」</li>
+      <li>索引条目里存了什么;「回表」是什么</li>
+      <li>选择性;为什么查 90% 的行时优化器宁可全表扫描</li>
+      <li>页分裂</li>
+    </ul>
+  </div>
+  <div class="task">
+    <h3>卡片 2:执行计划、BUFFERS、JOIN 算法与统计信息(Day 30)</h3>
+    <ul>
+      <li>计划树怎么读;cost vs actual time;<code>loops</code></li>
+      <li><code>shared hit</code> / <code>read</code></li>
+      <li>三种 JOIN 算法各适合什么;为什么不该用 <code>enable_*</code> 修生产</li>
+      <li>统计信息从哪来;过期或估错时会怎样</li>
+    </ul>
+  </div>
+  <div class="task">
+    <h3>卡片 3:复合索引、覆盖索引与 visibility map(Day 31)</h3>
+    <ul>
+      <li>最左前缀;列顺序怎么定</li>
+      <li>一个索引同时服务 WHERE + ORDER BY + LIMIT;方向混合时怎么办(加上 Day 34 的补充)</li>
+      <li><code>INCLUDE</code> 列 vs 键列;Index Only Scan 为什么还会 Heap Fetches;VACUUM 做了什么</li>
+    </ul>
+  </div>
+  <div class="task">
+    <h3>卡片 4:部分、表达式、外键索引与索引的代价(Day 32)</h3>
+    <ul>
+      <li>部分索引什么时候能被用上;通用计划里的 <code>done = $1</code></li>
+      <li>表达式索引与 IMMUTABLE;<code>created_at::date</code> 的正确写法</li>
+      <li>外键列为什么要索引;没有时删父行的计划</li>
+      <li>写放大与 WAL;HOT 的两个条件;<code>idx_scan = 0</code> 删之前要确认什么</li>
+    </ul>
+  </div>
+  <div class="task">
+    <h3>卡片 5:GIN、pg_trgm、全文搜索与 BRIN(Day 33)</h3>
+    <ul>
+      <li>倒排索引;GIN 为什么不能排序</li>
+      <li>三元组怎么切;中文 2 个字为什么帮不上、括号为什么又行了</li>
+      <li>trigram vs 全文搜索;为什么 PostgreSQL 默认不分中文词</li>
+      <li>BRIN 存了什么、为什么小、什么时候失效</li>
+    </ul>
+  </div>
+  <div class="task">
+    <h3>卡片 6:pg_stat_statements 与「先测量后优化」(Day 34)</h3>
+    <ul>
+      <li>开启要哪几步;为什么要重启、为什么要超级用户</li>
+      <li>为什么按总耗时排序;规范化会藏住什么</li>
+      <li>优化循环的四步;那一次回退怎么发生、怎么修、修完的副作用</li>
+      <li>「一个查询一个索引」vs「少数索引服务多数查询」</li>
+    </ul>
+  </div>
+
+  <div class="concept">
+    <span class="tag">写完六张卡,再用一句话收尾</span>
+    <p><b>「索引是取舍,不是越多越好」对你意味着什么?</b>写在 <code>concept-cards.md</code> 末尾,再写下这一周最让你意外的一次实测结果,以及不看 <code>schema.sql</code> 写出 nest-lab 现在每个索引各服务哪条查询。Week 4 的题眼是「存进去的东西要比代码活得久,而且不能坏」,Week 5 的题眼是<b>「数据多了以后还要快,而快是用写入、空间和复杂度换来的,要拿数据去换」</b>。</p>
+  </div>
+</section>
+
+<section id="sec3">
+  <h2>🔍 第三件事:给 nest-lab 的索引做一次 review(约 15 min)</h2>
+  <p>这次 review 的对象是 <code>nest-lab/sql/schema.sql</code>(Day 34 加的扩展、三个索引和统计目标)、<code>nest-lab/docs/query-tuning.md</code>(优化报告),以及 <code>src/tasks/pg-tasks.repository.ts</code> 实际发出的 SQL。用「第一次接手这个库的人」的眼光看,必要时 <code>npm run db:seed:big</code> 之后连进 psql 用 <code>EXPLAIN</code> 验证,也可以用 Day 32 的「没有索引的外键」「重复的索引」查询工具。把发现写在 <code>src/35-week5-review/index-review.md</code>。</p>
+
+  <h3>Review 清单(逐条检查)</h3>
+  <table>
+    <tr><th>检查项</th><th>为什么重要</th><th>对应 Day</th></tr>
+    <tr><td>每一个索引都能指出它服务哪条查询吗?反过来,每条热点查询都能指出它用哪个索引吗</td><td>说不出用途的索引只是写入成本</td><td>Day 34</td></tr>
+    <tr><td>有没有前缀重复的索引</td><td>重复的那个白占空间、白吃写入</td><td>Day 32</td></tr>
+    <tr><td>每一个外键列都有以它打头的索引吗</td><td>删父行时子表全表扫描</td><td>Day 32</td></tr>
+    <tr><td>写得最多的那几列被哪些索引覆盖了?这些更新还能 HOT 吗</td><td>写放大、WAL、表膨胀</td><td>Day 32</td></tr>
+    <tr><td><code>SET STATISTICS 1000</code> 解决了什么、又让哪种查询变差了?代价被记录了吗</td><td>一处优化可能让别处变慢</td><td>Day 30 / 34</td></tr>
+    <tr><td>有没有接口会一次读出整张表?数据再大十倍时会怎样</td><td>没有上限的查询迟早出事</td><td>Day 19 / 34</td></tr>
+    <tr><td><code>?q=</code> 的最坏情况是什么样的关键词?现在要多久?能不能知道生产上这种请求占多少</td><td>平均值会藏住最坏情况</td><td>Day 33 / 34</td></tr>
+    <tr><td>这些索引是怎么建出来的?在一张有数据、正在被读写的生产表上,同样的 <code>CREATE INDEX</code> 会发生什么</td><td>建索引本身也会锁表</td><td>Day 34 / Week 9</td></tr>
+  </table>
+
+  <div class="story">
+    <span class="tag">🔦 找不到问题时的提示(不是答案)</span>
+    <ul>
+      <li>第 1 条:把 <code>schema.sql</code> 里的每个索引和 <code>scripts/load-tasks.mjs</code> 里的每个场景连线。有没有一个索引只连着一个很少被调用的场景?报告里是怎么说它的?</li>
+      <li>第 2 条:主键是 <code>(id)</code>,<code>(created_at, id)</code> 的第二列也是 <code>id</code>。这算不算重复?Day 32 的工具查询比较的是哪几列?</li>
+      <li>第 4 条:PATCH 最常改的是 <code>done</code>,PUT 会改 <code>title</code>。<code>title</code> 出现在几个索引里?表的 fillfactor 是多少?可以用 Day 32 的 <code>pg_stat_xact_user_tables</code> 在一个事务里试一下。</li>
+      <li>第 5 条:报告里有一个「少见词 + 按时间排序」的例子。它在统计目标调高前后各是多少毫秒?</li>
+      <li>第 6 条:v1 的控制器里 <code>findAll()</code> 调的是仓储的哪个方法?那条 SQL 有 <code>LIMIT</code> 吗?</li>
+      <li>第 7 条:一个 2 个字、而且<b>一条结果都没有</b>的关键词,按主键扫要扫多少行才知道「凑不够一页」?负载脚本里有没有这种场景?</li>
+      <li>第 8 条:<code>schema.sql</code> 每次都是 <code>DROP SCHEMA … CASCADE</code> 再重建,所以从来没有在有数据的表上建过索引。普通的 <code>CREATE INDEX</code> 会拿什么锁?Week 9 的「零停机迁移」会讲另一种写法。</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>产出要求</h3>
+    <p>每发现一个问题,写成这个格式:</p>
+    <pre><code>## 文件 / 位置:nest-lab/sql/schema.sql 的 xxx
+**对应清单第几条:** ……
+**问题:** ……
+**证据(EXPLAIN / pg_stat_statements / 报告里的哪一段):** ……
+**后果(对用户 / 对数据库 / 对运维):** ……
+**改法:** ……
+**计划在哪一周改 / 为什么现在接受:** ……</code></pre>
+    <p><b>最后一行最重要。</b>这一周的很多「问题」是有意的取舍:为了不在没有生产数据时过早优化,为了不改 API 契约,或者因为正确的做法要等 Week 6、9、19 的知识。把理由写出来,你才能分清<b>「有意接受的代价」</b>(记账、排期、设复查条件)和<b>「没想到的坑」</b>(补测试、补监控)。</p>
+    <p><b>至少找出 2 个问题。</b>选做:读一遍 <code>docs/query-tuning.md</code>,找一个你不同意的结论,写出理由和你会用什么实验来验证。</p>
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📊 第四件事:新增对照表 + 自测 12 题(约 25 min)</h2>
+
+  <h3>4.1 改写和新增跨语言对照表(约 5 min)</h3>
+  <p>打开 <code>roadmap.md</code> 顶部的「后端概念跨语言对照表」。和这周有关的已有行:</p>
+  <ul>
+    <li><b>ORM / 数据访问</b>:Day 31–33 的跨语言对照里,各 ORM 怎么声明复合索引、部分索引、GIN 索引</li>
+    <li><b>分页 / API 版本化</b>:Day 34 实测的 offset vs keyset</li>
+    <li><b>DB 迁移</b>:Day 34 的 <code>schema.sql</code> 加索引,以及生产上建索引要注意什么</li>
+  </ul>
+  <p><b>任务一(选做):挑其中 1–2 行,用你亲手验证过的理解补一句。</b>比如「我实测第 10001 页 offset 要 20 ms、keyset 不到 0.1 ms」。<b>补充的内容必须是你亲手验证过的</b>,不是抄讲义。</p>
+  <p><b>任务二(必做):新增三行</b>。这三行前几天的讲义都提过,<b>五列都要你自己填</b>(Node / TS 生态那一列可以写「PostgreSQL」,其余列写对应数据库或语言生态里的做法)。提示(只是方向):</p>
+  <ul>
+    <li><b>索引 / 执行计划</b>:PostgreSQL 的表是「堆表」,二级索引里存的是什么?InnoDB 的表本身就是按主键组织的「聚簇索引」,二级索引里存的又是什么?这对「回表」和「覆盖索引」意味着什么?SQL Server 的聚簇 / 非聚簇索引更像哪一个?三家看执行计划的命令各是什么?部分索引、<code>INCLUDE</code>、表达式索引在三家各有没有?</li>
+    <li><b>子串与全文搜索</b>:PostgreSQL 里 <code>LIKE '%…%'</code> 和全文搜索各用什么?MySQL 的 FULLTEXT 索引对中文怎么办(Day 33 核实过的那个解析器叫什么、默认切几个字)?SQL Server 呢?什么情况下应该上 Elasticsearch / Meilisearch?</li>
+    <li><b>慢查询统计</b>:pg_stat_statements 在 MySQL 和 SQL Server 里对应什么?哪一个能保存计划的历史、甚至强制使用某个计划?应用层(.NET、Java、Go 的 APM / OpenTelemetry)怎么把一次慢请求和一条 SQL 连起来?</li>
+  </ul>
+  <p>填完后想一想:这三行里,哪些格子是你<b>实测过</b>的,哪些只是<b>读来</b>的?读来的那些,在旁边标一个「未实测」。Week 5 的讲义里,MySQL / SQL Server 的内容几乎全是「未实测」或「已联网核实、未实测」。</p>
+
+  <h3>4.2 自测 12 题(闭卷,约 20 min,写在 <code>src/35-week5-review/self-test.md</code>)</h3>
+  <div class="task">
+    <h3>基础题(每题 1 分)</h3>
+    <ol>
+      <li>B-tree 为什么能同时做等值查询、范围查询和排序?「选择性」是什么?为什么 <code>WHERE done = true</code>(90% 的行)时,优化器宁可全表扫描?</li>
+      <li>读一棵执行计划树,从哪里开始读?<code>cost</code> 和 <code>actual time</code> 有什么区别?<code>shared hit=…</code> 和 <code>read=…</code> 各表示什么?</li>
+      <li><code>(owner_id, created_at)</code> 能服务 <code>WHERE owner_id = ?</code>、<code>WHERE created_at &gt; ?</code>、<code>WHERE owner_id = ? ORDER BY created_at DESC LIMIT 20</code> 中的哪几个?<code>INCLUDE</code> 进来的列和键列有什么区别?</li>
+      <li>部分索引 <code>WHERE done = false</code> 在什么条件下能被查询用上?为什么 <code>CREATE INDEX … ((created_at::date))</code> 会报错?PostgreSQL 会自动给外键列建索引吗?</li>
+      <li>GIN 是什么样的索引?<code>LIKE '%加急%'</code> 为什么用不上 trigram GIN?BRIN 里存的是什么?</li>
+      <li>开启 <code>pg_stat_statements</code> 要哪几步?找优化对象时按哪一列排序?它为什么会把 <code>q=urgent</code> 和 <code>q=加急</code> 记成同一行?</li>
+    </ol>
+  </div>
+  <div class="task">
+    <h3>理解题(每题 2 分)</h3>
+    <ol start="7">
+      <li>nest-lab 的 <code>?sort=-createdAt</code> 实际排序是什么?Day 31 时 <code>keysetCondition()</code> 为它生成的条件为什么在深分页时慢?Day 34 加的那个条件为什么不改变结果?offset 翻页为什么越往后越慢?</li>
+      <li>同一张表上,<code>UPDATE tasks SET done = …</code> 和 <code>UPDATE tasks SET title = …</code> 哪个有可能是 HOT 更新?在 nest-lab 现在的索引下呢?fillfactor 和 HOT 有什么关系?为什么 Day 31 的覆盖索引 <code>INCLUDE (title, done)</code> 会让 PATCH 变慢?</li>
+      <li>「统计信息估错,计划就选错」:分别说 Day 30 的 imports 实验和 Day 34 的 <code>q=invoice</code> 回退里,估算和实际各是多少、选错了什么计划、怎么修的。<code>SET STATISTICS 1000</code> 有什么副作用?</li>
+      <li>trigram 和全文搜索各自擅长什么?搜 <code>voice</code> 和搜 <code>exports</code> 时两者的结果为什么正好相反?nest-lab 的 <code>?q=</code> 为什么选 trigram?</li>
+    </ol>
+  </div>
+  <div class="task">
+    <h3>综合题(每题 5 分)</h3>
+    <ol start="11">
+      <li><b>场景题:</b>产品说任务列表「越往后翻越慢」,同时运营说「搜索『加急』两个字很慢」。<b>请分别给出定位步骤(先看什么、再看什么)、你期望看到的证据(pg_stat_statements 里的哪一行、EXPLAIN 里的哪个节点和哪个数字),以及修法。</b>说明两个问题里哪个可以彻底修好、哪个只能缓解,为什么。如果用户反映的是「翻页时偶尔看到重复的任务」,原因又会是什么?</li>
+      <li><b>场景题:</b>DBA 发现 tasks 表的索引加起来比表本身大 3 倍,写入的 p95 也变差了,要求你删掉一些索引。<b>请说明你怎么决定删哪些:要看哪些统计、怎么判断一个索引「没用」或「重复」、删之前必须确认哪几件事(至少四件),以及删的时候怎么做才不影响线上。</b>如果某个索引 <code>idx_scan</code> 很高但你仍然想删,你要拿出什么证据?</li>
+    </ol>
+  </div>
+  <p><b>评分:</b>基础题 1 分 × 6 + 理解题 2 分 × 4 + 综合题 5 分 × 2,满分 24。<b>低于 17 分,开始 Week 6 前先把错题对应的那天重看一遍。</b>另外 8 道题在 <code>self-test.md</code> 末尾,留给下周碎片时间选做:</p>
+  <ul>
+    <li>为什么最后建的是 <code>(created_at, id)</code> 而不是 <code>(created_at DESC, id)</code></li>
+    <li>三种 JOIN 算法与外键列索引</li>
+    <li><code>Heap Fetches: 37666</code> 是怎么回事</li>
+    <li>定制计划 / 通用计划与部分索引</li>
+    <li>BRIN 失效的证据</li>
+    <li><code>jsonb_ops</code> vs <code>jsonb_path_ops</code></li>
+    <li><code>C.UTF-8</code> 下的前缀 LIKE</li>
+    <li>换成 MySQL / SQL Server 时 <code>schema.sql</code> 要改写哪些地方</li>
+  </ul>
+</section>
+
+<section id="sec5">
+  <h2>🎯 Week 5 结算、遗留清单与 Week 6 预告</h2>
+
+  <h3>这周你从「不知道」到「能讲清楚」的东西</h3>
+  <table>
+    <tr><th>Day</th><th>主题</th><th>核心收获(账房版)</th></tr>
+    <tr><td>29</td><td>索引与 B-tree</td><td>按号码排好的卡片盒,几次翻页就找到;但要的单子太多时,不如直接把账本从头翻到尾</td></tr>
+    <tr><td>30</td><td>读执行计划</td><td>账房先生的取货路线单,从最里面那一步往外读;他估错了要取多少货,就会选错路线</td></tr>
+    <tr><td>31</td><td>复合与覆盖索引</td><td>先按会员号、再按日期排的卡片;卡片上顺手抄了标题,但还要看账页角上「已核对」的贴纸</td></tr>
+    <tr><td>32</td><td>部分 / 表达式 / 外键索引与代价</td><td>只给少数派建卡片,卡片上写加工过的值;注销会员别翻遍整本订单本;每多一个卡片盒,每笔账都要多抄一张</td></tr>
+    <tr><td>33</td><td>GIN 与 BRIN</td><td>书末的关键词索引,和书架上的日期标签</td></tr>
+    <tr><td>34</td><td>实战调优</td><td>先翻每日工作量统计表,再决定加哪个卡片盒;改完一件事,再翻一次表</td></tr>
+  </table>
+
+  <div class="concept">
+    <span class="tag">一句话总结 Week 5</span>
+    <p><b>你现在知道索引在磁盘上长什么样、优化器怎么在几种执行办法里挑一个、怎么从执行计划里读出时间花在哪,以及各种索引(复合、覆盖、部分、表达式、GIN、BRIN)各解决什么问题、各收什么代价。你还用 pg_stat_statements 和负载脚本,给 nest-lab 找出并修好了最费时的几条查询:三个索引 + 一处 SQL 修复 + 一个统计目标,吞吐从 84–91 个/秒到 619–686 个/秒,其中还经历了一次「优化之后变慢」的回退。</b></p>
+    <p>Week 4 回答「存进去的东西怎么保证不坏、拿得回来」,Week 5 回答「数据多了以后怎么还快」。Week 6 回答最后一个数据库问题:<b>很多人同时改的时候,怎么还对</b>。Week 5 好几次碰到但没讲的东西(VACUUM、旧版本、Heap Fetches、HOT 留下的旧行、事务里 DROP INDEX 会锁整张表),下周都会讲清楚。</p>
+  </div>
+
+  <h3>Week 5 遗留清单(有意接受的代价,已排期)</h3>
+  <p>这些问题在 Day 29–34 里都出现过,不是遗漏,而是「正确的做法要等后面的知识或生产数据」。review 时你可能已经遇到了其中几条。</p>
+  <table>
+    <tr><th>#</th><th>问题</th><th>风险</th><th>计划在哪一周 / 怎么处理</th></tr>
+    <tr><td>1</td><td>Day 31 说「方向混合的排序要建同方向的索引」,Day 34 实测:按时间追加的列,<code>(created_at DESC, id)</code> 因为总插在最左边,比升序大 70%(16 MB vs 9.2 MB)</td><td>照搬 Day 31 的结论会让索引膨胀</td><td>已在 Day 34 修正(nest-lab 用升序索引 + Incremental Sort);复盘时把 Day 31 的笔记补上这条限制</td></tr>
+    <tr><td>2</td><td>统计目标与计划不稳定:<code>title</code> 调到 <code>SET STATISTICS 1000</code> 后,常见词稳定了,但「少见词 + 按时间排序」从 2.6 ms 变成 20 ms(单次)</td><td>数据分布变了,估算还会偏;优化器成本模型的局限没有根治</td><td>Week 19:监控 <code>?q=</code> 这一行的 <code>stddev</code> / <code>max</code>,出现回退时复看</td></tr>
+    <tr><td>3</td><td><code>?q=</code> 的短关键词:命中很少或没有结果的 1–2 字词要扫全表(70–100 ms);没有改 DTO</td><td>最坏情况藏在 pg_stat_statements 的平均值里</td><td>Week 19:按 <code>q</code> 的长度和结果数打指标,再决定 pg_bigm / 中文分词 / v3 加最短长度</td></tr>
+    <tr><td>4</td><td>已弃用的 <code>GET /v1/tasks</code> 一次返回全部任务:30 万行时光 SQL 就要 820 ms(单次)</td><td>数据一大就拖垮数据库和应用内存</td><td>Week 12(API 质量周):先看 v1 的调用量,按 Day 19 的下线流程限制条数或下线</td></tr>
+    <tr><td>5</td><td><code>users</code> 表落库时的索引要求:<code>tasks.owner_id</code> 外键要有以它打头的索引、<code>lower(email)</code> 唯一索引、软删除时改成部分唯一索引</td><td>忘了外键索引,删用户时全表扫描</td><td>Week 10(已写进 roadmap)</td></tr>
+    <tr><td>6</td><td>pg_stat_statements 看不到应用层耗时,也拆不开规范化后的一行</td><td>慢在网络 / 应用还是数据库,分不清</td><td>Week 19:OpenTelemetry 的数据库 span + 短词指标(已写进 roadmap)</td></tr>
+    <tr><td>7</td><td><code>PgTasksRepository.transaction()</code>:ROLLBACK 本身失败时会吞掉原来的错误;坏掉的连接会被 <code>release()</code> 还回池子(Week 4 遗留)</td><td>错误信息丢失;坏连接被下一个请求借到</td><td>Week 6</td></tr>
+    <tr><td>8</td><td>Service「先查后改」:409 规则的检查和 UPDATE 之间隔着一次往返(Week 4 遗留)</td><td>并发下丢失更新</td><td>Week 6</td></tr>
+    <tr><td>9</td><td>索引靠 <code>schema.sql</code> 整个重建来创建,从没在有数据、有读写的表上建过</td><td>生产上普通的 <code>CREATE INDEX</code> 会挡住写入</td><td>Week 9(零停机迁移、<code>CREATE INDEX CONCURRENTLY</code>)</td></tr>
+    <tr><td>10</td><td><code>(title COLLATE "C", id)</code> 有 27 MB,负载里只服务约 1/20 的请求</td><td>可能是一个不值的索引</td><td>上线后用 <code>pg_stat_user_indexes.idx_scan</code> 复核(Week 19 的监控一起做)</td></tr>
+    <tr><td>11</td><td><code>compose.yaml</code> 里开启 pg_stat_statements 的写法没有在 Docker 上实测</td><td>换到 Docker 环境时可能不生效</td><td>Week 14(Docker)时实测</td></tr>
+    <tr><td>12</td><td>本周跨语言内容大多没在本机实测(MySQL / SQL Server 的索引与统计、ORM 声明索引的 API)</td><td>记错了在面试或换栈时露馅</td><td>用到时实测;ORM 部分在 Week 7 逐条核对</td></tr>
+  </table>
+
+  <h3>Week 6 预告(Day 36–42):事务与并发控制</h3>
+  <p>以 roadmap 的 Phase 2 / Week 6 为准,大致包括(每天的具体拆分以当天讲义为准):</p>
+  <ul>
+    <li><b>ACID</b> 逐个字母拆开:Day 22 的 <code>BEGIN</code> / <code>ROLLBACK</code>、Day 27 的事务到底保证了什么、没保证什么</li>
+    <li><b>四种隔离级别与 PostgreSQL 的实际行为</b>:Read Committed(默认)、Repeatable Read(快照)、Serializable(SSI 与重试);<b>实验:两个 psql 窗口复现脏读、不可重复读、幻读、丢失更新</b></li>
+    <li><b>MVCC</b>:为什么读不阻塞写;Week 5 见过的「旧版本」「Heap Fetches」「HOT 留下的旧行」从哪来;<b><code>VACUUM</code> 与表膨胀</b></li>
+    <li><b>锁</b>:行锁 <code>SELECT … FOR UPDATE</code> / <code>SKIP LOCKED</code>(用 PostgreSQL 实现任务队列)、表锁(Day 34 在事务里 <code>DROP INDEX</code> 为什么会锁整张表)、死锁的复现与排查、advisory lock</li>
+    <li><b>乐观锁</b>(version 字段)vs <b>悲观锁</b></li>
+    <li><b>连接池原理</b>:为什么 PostgreSQL 一个连接一个进程(Day 22),PgBouncer 解决什么、事务模式下有什么限制</li>
+  </ul>
+  <p><b>会在 nest-lab 里修掉的两个已知问题</b>(都是 Week 4 review 时就记下的):</p>
+  <table>
+    <tr><th>问题</th><th>来自</th><th>Week 6 要回答的问题</th></tr>
+    <tr><td><code>transaction()</code> 的 ROLLBACK 失败与坏连接</td><td>Day 27 / Day 28 review</td><td>事务失败时连接处于什么状态?怎么在 ROLLBACK 也失败时保住原来的错误?什么时候该把连接丢掉而不是还回池子?</td></tr>
+    <tr><td>「先查后改」的丢失更新</td><td>Day 24 / Day 28 review</td><td>两个请求同时 PUT 同一个任务时,在 Read Committed 下会发生什么?用乐观锁(version 字段)和 <code>FOR UPDATE</code> 各怎么修?各自的代价是什么?(roadmap:用并发请求复现「超卖 / 丢失更新」,再分别修好)</td></tr>
+  </table>
+  <p>想一想(不用写):Day 34 的负载脚本里有 PATCH 和 POST 并发地打同一张表。如果两个 PATCH 同时改同一个任务的 <code>done</code>,最后会是谁的值?你会怎么用两个 psql 窗口去确认?</p>
+
+  <h3>提交今天的产出</h3>
+  <pre><code>git add -A
+git commit -m "docs: week 5 review"</code></pre>
+</section>
+
+<section>
+  <h2>✅ 复盘日自检</h2>
+  <ul class="check">
+    <li>画出了「一次带搜索、排序和 cursor 的列表请求在 PostgreSQL 里的一生」,每一站都标了 Week 5 的 Day 和 Week 1–4 的 Day;候选计划表填完了;四条支线也写了</li>
+    <li>六张概念卡全部默写完,每张都有「通用定义 + PostgreSQL + MySQL / SQL Server」三部分,末尾写了「索引是取舍」意味着什么,并凭记忆写出了 nest-lab 每个索引的用途</li>
+    <li>对 nest-lab 的索引做了 review,至少找出 2 个问题,写清了证据、改法、「计划在哪一周改 / 为什么现在接受」</li>
+    <li>roadmap 对照表新增了「索引 / 执行计划」「子串与全文搜索」「慢查询统计」三行,五列都是自己填的,没实测的格子标了「未实测」</li>
+    <li>自测 12 题做完并打分,低于 17 分的部分已经安排重看</li>
+    <li>看过 Week 5 遗留清单,知道每一条为什么现在不修、在哪一周修;知道 Week 6 会修 nest-lab 的哪两个问题</li>
+    <li>今天的产出已经 commit</li>
+  </ul>
+</section>
+
+<footer>
+  Day 35 · Phase 2 / Week 5 · 复盘日 · 产出:<code>src/35-week5-review/</code> 下的四份文档 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>
