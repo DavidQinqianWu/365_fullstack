@@ -16,6 +16,8 @@ import { createPool, PG_POOL } from './pg-pool.js';
           connectionString: config?.get('DATABASE_URL', { infer: true }) ?? 'postgresql://localhost/unused',
           schema: config?.get('DATABASE_SCHEMA', { infer: true }) ?? 'app',
           max: config?.get('DB_POOL_MAX', { infer: true }) ?? 10,
+          // Day 41。和 'false' 比较:测试里整个换掉 ConfigService 时(Day 12),没列出的项会退回读 process.env,拿到的是字符串
+          searchPathAtStartup: String(config?.get('DB_STARTUP_SEARCH_PATH', { infer: true }) ?? true) !== 'false',
         }),
       // optional:单元测试里只导入 TasksModule、没有 ConfigModule 时,也能造出来
       inject: [{ token: ConfigService, optional: true }],

@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 40 - 乐观锁 vs 悲观锁:看账页右上角的版本号,还是先压上镇纸再看</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 6</div>
+  <h1>Day 40 - 乐观锁 vs 悲观锁:看账页右上角的版本号,还是先压上镇纸再看</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>「先查后改」的两种翻车(丢失更新、绕过业务规则)· 乐观锁:<code>version</code> 列 + <code>UPDATE … WHERE version = $n</code> · 悲观锁:<code>SELECT … FOR NO KEY UPDATE</code> · 跨请求只能靠乐观锁 · 怎么选</b> ·
+    项目:<code>nest-lab/</code> <b>这次改了应用代码</b>:<code>tasks</code> 表加 <code>version</code>、PUT / PATCH 改成乐观锁、新增 <code>409 conflict/stale-version</code>、仓储新增悲观锁版本 <code>updateLocked</code>、<code>withRetry</code> 搬进 <code>src/database/</code>;新增 <code>test/concurrency.e2e-spec.ts</code>、<code>sql/day40/</code>、<code>npm run day40</code>(约 7 秒)·
+    所有输出来自 PostgreSQL 16.15 的真实运行,脚本跑了 3 遍以上、写区间
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:镇纸有了,Week 4 的欠账该还了</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天改了什么</a></li>
+    <li><a href="#sec3">🔥 先让它坏给你看:修之前的两种翻车</a></li>
+    <li><a href="#sec4">📇 概念卡 #1:乐观锁 —— 看账页右上角的版本号</a></li>
+    <li><a href="#sec5">📇 概念卡 #2:悲观锁 —— 先压上镇纸再看</a></li>
+    <li><a href="#sec6">📇 概念卡 #3:怎么选 —— 客人要想 5 分钟的时候</a></li>
+    <li><a href="#sec7">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec8">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec9">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:镇纸有了,Week 4 的欠账该还了</h2>
+  <p>Day 39 学了锁:行锁(镇纸)、<code>NOWAIT</code>、死锁。Day 37 学了隔离级别,还看到 Read Committed 下「读 → 算 → 写回」会<b>静默丢失更新</b>。</p>
+  <p>nest-lab 里一直留着一句注释,从 Day 27 起就在 <code>TasksService.replace</code> 里:</p>
+  <pre><code>// Day 27:先查(409 规则)再改,中间隔着一次往返 —— 两个请求同时改同一条时会有竞态,Week 6 处理</code></pre>
+  <p>今天就是 Week 6。PUT 和 PATCH 都是三步:</p>
+  <ol>
+    <li><code>await</code> 读出任务;</li>
+    <li>检查业务规则(Day 15:已完成的任务不能改标题,否则 409);</li>
+    <li><code>await</code> 写回去。</li>
+  </ol>
+  <p>第 1 步和第 3 步之间,别的请求可以插进来。今天先让它坏给你看,再用两种办法修,最后比较两种办法的代价。</p>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你在 CMS 里见过这个弹窗:「该内容已被他人修改,是否覆盖?」;你也用过 React Query 的乐观更新(<code>onMutate</code> 先改缓存,<code>onError</code> 再回滚)。前者就是今天的乐观锁在界面上的样子;后者名字很像,但是另一回事,第 6 节会说清楚。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天改了什么</h2>
+  <pre><code>cd nest-lab
+npm run day40          # 纯 SQL 演示 → nest-lab 真实代码的修之前 / 乐观锁 / 悲观锁对比(先 nest build,约 7 秒)
+npm run test:e2e:pg    # 新的并发测试 test/concurrency.e2e-spec.ts 在 PostgreSQL 上跑
+npm run test:e2e       # 同一个文件在内存仓储上跑
+npm run db:reset       # tasks 表多了一列 version,开发用的 schema app 要重建一次
+
+# 手动版:开两个 psql 窗口,按 sql/day40/01、02 里的注释做
+psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab</code></pre>
+
+  <h3>📂 今天新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>改了什么</th></tr>
+    <tr><td><code>sql/schema.sql</code></td><td><code>tasks</code> 加 <code>version integer NOT NULL DEFAULT 1</code> 和 <code>CHECK (version &gt;= 1)</code></td></tr>
+    <tr><td><code>src/tasks/task.ts</code></td><td><code>Task</code> 加 <code>version: number</code></td></tr>
+    <tr><td><code>src/tasks/tasks.repository.ts</code></td><td><code>update(id, changes, expectedVersion?)</code> 返回三种结果 <code>updated / not-found / stale</code>;新增 <code>updateLocked(id, decide)</code>;<code>insert</code> 不再接收 version</td></tr>
+    <tr><td><code>src/tasks/pg-tasks.repository.ts</code></td><td>每次 UPDATE 都 <code>version = version + 1</code>,带了期望版本就加 <code>AND version = $n</code>;0 行时再查一次,区分 404 / 409;<code>updateLocked</code> 用 <code>SELECT … FOR NO KEY UPDATE</code></td></tr>
+    <tr><td><code>src/tasks/in-memory-tasks.repository.ts</code></td><td>同样的版本检查;<b>读出去的一律是复印件</b>(<code>structuredClone</code>,原因见第 3 节)</td></tr>
+    <tr><td><code>src/tasks/tasks.service.ts</code></td><td>PUT / PATCH 共用 <code>change()</code>:读 → 判断 → 带版本号写,被抢先时整轮重做;<code>assertCanChange</code> 改成导出的函数</td></tr>
+    <tr><td><code>src/tasks/dto/replace-task.dto.ts</code></td><td>新增可选字段 <code>version</code>(<code>@IsInt @Min(1)</code>);PATCH 的 DTO 自动继承,POST 的不继承</td></tr>
+    <tr><td><code>src/tasks/dto/task-response.ts</code></td><td>响应新增 <code>version</code>(v1、v2 都有)</td></tr>
+    <tr><td><code>src/tasks/tasks.controller.ts</code></td><td>OpenAPI 描述;PATCH 只给 <code>version</code> 不算「改了字段」(422)</td></tr>
+    <tr><td><code>src/common/problems/problem-types.ts</code>、<code>docs/problems.md</code></td><td>新增 <code>conflict/stale-version</code>(只增不改)</td></tr>
+    <tr><td><code>src/database/with-retry.ts</code> + <code>.spec.ts</code></td><td>Day 37 的 <code>withRetry</code> 从仓库根目录搬进 nest-lab,补 6 个单元测试</td></tr>
+    <tr><td><code>scripts/day37-try.mjs</code>、<code>package.json</code></td><td>day37 改为引用 <code>dist/database/with-retry.js</code>,命令前面加了 <code>nest build</code>;新增 <code>day40</code></td></tr>
+    <tr><td><code>test/concurrency.e2e-spec.ts</code></td><td><b>新增</b>:7 个并发用例,内存和 PG 都跑</td></tr>
+    <tr><td><code>test/rest.e2e-spec.ts</code>、<code>test/tasks.e2e-spec.ts</code>、<code>test/openapi.e2e-spec.ts</code>、<code>src/tasks/tasks.service.spec.ts</code></td><td>期望的响应里加上 <code>version</code>;PUT 幂等的用例改为「除了 version 都相同」;新增 2 个单元测试</td></tr>
+    <tr><td><code>openapi.json</code></td><td>重新生成(见第 4 节「API 怎么变」)</td></tr>
+    <tr><td><code>sql/day40/01-lost-update.sql</code>、<code>02-pessimistic.sql</code></td><td>纯 SQL 演示(schema <code>day40</code>)</td></tr>
+    <tr><td><code>scripts/day40-try.mjs</code></td><td>观察脚本:只引用 nest-lab 里的文件(<code>dist/</code>),用 schema <code>day40</code>、<code>day40_app</code></td></tr>
+  </table>
+  <p>仓库根目录的 <code>src/37-isolation-levels/with-retry.ts</code> 原样保留,它是 Day 37 的习题记录。nest-lab 从今天起不再引用 nest-lab 之外的文件。</p>
+</section>
+
+<section id="sec3">
+  <h2>🔥 先让它坏给你看:修之前的两种翻车</h2>
+  <p>先在纯 SQL 里看最小的版本。✍️ <b>预测</b>:A、B 先后读到同一个任务(都是「未完成」),B 把它标成已完成并整份写回,A 改了标题,也把手里那份整份写回。最后 <code>done</code> 是什么?有报错吗?</p>
+  <p>真实结果(<code>npm run day40</code> 第 1 幕,每次都一样):</p>
+  <pre><code>---- 不带版本号(id = 1):A、B 都先读,B 先写,A 后写 ----
+A 读到: 写周报 , done = f
+B 读到: 写周报 , done = f
+B:把任务标成已完成(整份写回:标题照旧,done = true)
+UPDATE 1
+A:改了标题,把手里那份(done 还是 false)整份写回
+UPDATE 1
+ id |   title    | done
+----+------------+------
+  1 | A 改的标题 | f
+↑ B 的「已完成」没了,没有任何报错 —— 这就是丢失更新(lost update)</code></pre>
+  <p>这个演示只用了一个连接,两个「客户端」的读用 <code>\gset</code> 存在变量里。丢失更新<b>不需要两个事务同时开着</b>:只要读和写是两次独立的操作,中间夹着别人的写,就会发生。</p>
+
+  <h3>在 nest-lab 里:两种翻车</h3>
+  <table>
+    <tr><th></th><th>① 丢失更新</th><th>② 绕过业务规则</th></tr>
+    <tr><td>发生了什么</td><td>A、B 基于同一版修改,后写的把先写的盖掉</td><td>「改标题」读到「未完成」,判断通过;写之前,另一个请求把任务标成已完成;改标题照样写进去</td></tr>
+    <tr><td>结果</td><td>B 的修改消失,没有错误</td><td>出现了规则不允许的状态:「已完成,而且完成之后标题被改了」</td></tr>
+    <tr><td>在哪种接口上</td><td>PUT(整份替换)最明显;PATCH 改同一个字段也会</td><td>PUT 和 PATCH 都会</td></tr>
+  </table>
+  <p>今天的并发测试 <code>test/concurrency.e2e-spec.ts</code> 先写好,在<b>修之前的代码</b>上跑:</p>
+  <pre><code>npm run test:e2e:pg     # 修之前:Tests  4 failed | 1 passed (5)
+npm run test:e2e        # 修之前:Tests  3 failed | 2 passed (5)</code></pre>
+  <p>其中三个失败是「API 还没有 <code>version</code>」:响应里没有这个字段(<code>expected undefined to be 1</code>),两个带 version 的 PATCH 都 200(<code>expected [ 200, 200 ] to deeply equal [ 200, 409 ]</code>),PUT 带 version 被 <code>forbidNonWhitelisted</code> 拒成 422。最说明问题的是 ② 在 PG 上的失败:</p>
+  <pre><code>AssertionError: expected { status: 200, done: true, …(1) } to deeply equal { status: 409, done: true, …(1) }
+- Expected
++ Received
+  {
+    "done": true,
+-   "status": 409,
+-   "title": "读和写之间",
++   "status": 200,
++   "title": "偷偷改名",
+  }</code></pre>
+  <p>这种竞态靠真实的时间巧合很难稳定复现,所以用例 ② 把「另一个请求」精确地插到读和写之间:给仓储的 <code>findById</code> 包一层,第一次读完之后,先用另一个 HTTP 请求把任务标成已完成,再把读到的(已经过时的)数据交回去。这样每次都会走到最坏的时序。</p>
+
+  <h3>⚠️ 为什么 ② 在修之前的内存版上「通过」了</h3>
+  <p>修之前,内存仓储的 <code>findById</code> 交出去的是<b>数组里那个对象本身</b>。插进来的请求用 <code>Object.assign</code> 改了它,改标题的请求手里的「快照」也跟着变成了已完成,于是 409。测试通过,原因却是错的:PG 版读到的是真正的快照,结果相反。今天把内存仓储改成一律交出复印件(<code>structuredClone</code>),两边的行为一致了。</p>
+  <p>那内存版到底会不会有竞态?✍️ <b>预测</b>:Node 是单线程的,内存仓储里没有任何延迟,两个请求同一时刻发出,修之前会违规吗?<code>npm run day40</code> 第 6 幕:</p>
+  <pre><code>  修之前:违规 20 / 20
+  乐观锁:违规 0 / 20
+  悲观锁:违规 0 / 20</code></pre>
+  <p>单线程保证的是<b>同步代码中间不会被打断</b>。<code>await repo.findById()</code> 之后函数就暂停了,另一个请求的代码在这时跑完它的读;两个请求都拿着「未完成」继续往下走。插队发生在 <code>await</code> 和 <code>await</code> 之间。所以内存版 <code>update</code> 里「检查版本 + 写」这几行中间没有 await,天然是原子的;而 Service 里「读 → 判断 → 写」跨了两个 await,不是。</p>
+
+  <h3>先查后删呢?</h3>
+  <p><code>remove()</code> 没有这个问题:PG 版先 <code>findById</code>(为了返回被删的那条),但真正决定结果的是 <code>DELETE</code> 的 <code>rowCount</code>,0 行就是 404。用例 ③(两个 DELETE 同时到达)修之前就通过:一个 204、一个 404。删除没有「基于读到的内容做判断」,所以不需要版本号。</p>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #1:乐观锁 —— 看账页右上角的版本号</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    读的时候不加锁,但记下「我读到的是第几版」。写的时候说:「只有它还是第 3 版,才写,并把它变成第 4 版。」如果已经不是第 3 版,说明在我读和写之间有人改过,这次什么都不写,告诉我「被抢先了」。由我决定是重新读一遍再来,还是告诉用户。
+  </div>
+
+  <h3>② 生活类比:账页右上角的版本号</h3>
+  <p>账本每一页的右上角写着一个数字。伙计抄走一页去算账时,顺便记下这个数字(比如 3)。算完回来写账之前,先看一眼右上角:</p>
+  <ul>
+    <li>还是 3:写上去,把 3 划掉改成 4。</li>
+    <li>已经是 4:有人在你算账的时候改过这一页了。你手里的那份抄件过时了,不能照着它写。重新抄一遍再算。</li>
+  </ul>
+  <p>谁都不用等谁,也不用在账页上压东西。只有真撞上的时候,后到的那个人白算一遍。</p>
+
+  <h3>③ 类比的边界 ⚠️</h3>
+  <ul>
+    <li><b>「看一眼」和「写上去」必须是同一个动作</b>。如果先 <code>SELECT version</code> 看一眼、再 <code>UPDATE</code>,中间又能被插队,等于没做。真实写法把检查放进 UPDATE 自己的 WHERE 里:<code>UPDATE … SET …, version = version + 1 WHERE id = $1 AND version = $2</code>。数据库保证这一条语句的检查和写入之间不会被插队(两个事务同时 UPDATE 同一行,后一个会等前一个提交,再<b>用最新的行重新检查 WHERE</b>,Day 37、39),所以 Read Committed 就够,不需要提高隔离级别。</li>
+    <li><b>版本号不是时间</b>。它只能说明「变没变」,不能说明「谁先谁后、变了什么」。想合并两份修改,要自己去比较内容。</li>
+    <li><b>改了什么都要 +1</b>。nest-lab 的清单项在子表 <code>checklist_items</code> 里;只改清单的时候,<code>tasks</code> 这一行也要 UPDATE 一下把版本号 +1,不然别人察觉不到「清单被改过」。</li>
+    <li><b>0 行有两种意思</b>:版本对不上,或者这一行已经被删了。nest-lab 在 0 行时再查一次 id 在不在,在就是 409,不在就是 404。</li>
+  </ul>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>nest-lab 里</th></tr>
+    <tr><td>账页右上角的数字</td><td>版本列(version column / concurrency token)</td><td><code>tasks.version integer NOT NULL DEFAULT 1</code></td></tr>
+    <tr><td>抄账时记下数字</td><td>读的时候把 version 一起读出来</td><td><code>SELECT_TASKS</code> 加了 <code>t.version</code>;响应里有 <code>version</code></td></tr>
+    <tr><td>「还是 3 才写,写完改成 4」</td><td>条件更新(compare-and-set)</td><td><code>UPDATE … version = version + 1 WHERE id = $1 AND version = $2</code></td></tr>
+    <tr><td>已经是 4 了</td><td>影响 0 行</td><td>仓储返回 <code>{ status: 'stale' }</code></td></tr>
+    <tr><td>重新抄一遍再算</td><td>重试整轮「读 → 判断 → 写」</td><td><code>TasksService.change()</code> 用 <code>withRetry</code>,最多 3 轮</td></tr>
+    <tr><td>告诉客人「有人改过了」</td><td>409 Conflict</td><td><code>409 conflict/stale-version</code></td></tr>
+  </table>
+
+  <h3>④ 真实术语</h3>
+  <p><b>乐观并发控制</b>(optimistic concurrency control,OCC),口语叫乐观锁。「乐观」是假设冲突很少,所以先不锁,冲突了再处理。虽然叫「锁」,但它<b>不持有任何锁</b>:这也是它能跨请求使用的原因(第 6 节)。</p>
+
+  <h3>在 nest-lab 里的写法</h3>
+  <p>仓储(<code>pg-tasks.repository.ts</code>,节选):</p>
+  <pre><code>const sets = ['version = version + 1'];          // 改了什么都 +1
+if (changes.title !== undefined) sets.push(`title = $${params.push(changes.title)}`);
+if (changes.done !== undefined) sets.push(`done = $${params.push(changes.done)}`);
+const versionCheck = expectedVersion === undefined ? '' : ` AND version = $${params.push(expectedVersion)}`;
+const { rowCount } = await client.query(`UPDATE tasks SET ${sets.join(', ')} WHERE id = $1${versionCheck}`, params);
+// rowCount 0 → 再查一次:SELECT 1 FROM tasks WHERE id = $1 → 在:stale(409),不在:not-found(404)</code></pre>
+  <p>Service(<code>tasks.service.ts</code>,节选):</p>
+  <pre><code>return await withRetry(async () =&gt; {
+  const current = await this.findOne(id);                                    // 404 在这里
+  if (input.version !== undefined &amp;&amp; input.version !== current.version) throw stale; // 客户端基于的版本已过时
+  assertCanChange(current, input);                                           // 业务规则:409 task-completed
+  const result = await this.repo.update(id, changes, current.version);       // 带着「我读到的版本」写
+  if (result.status === 'updated') return result.task;
+  if (result.status === 'not-found') throw new NotFoundException(…);
+  if (input.version !== undefined) throw stale;   // 客户端给了 version:交给客户端决定
+  throw new LostRace();                            // 没给:服务器替它整轮重做
+}, { isRetryable: (e) =&gt; e instanceof LostRace, maxAttempts: 3, baseDelayMs: 5, maxDelayMs: 50 });</code></pre>
+  <p>重做的是<b>整轮</b>:重新读、<b>重新判断业务规则</b>、再写。这正是用例 ② 需要的:改标题的请求被抢先之后重读,发现任务已经完成,于是 409 task-completed,不会把标题写进一个已完成的任务。</p>
+
+  <h3>API 怎么变:version 放在请求体里,可选</h3>
+  <table>
+    <tr><th>请求</th><th>行为</th></tr>
+    <tr><td>PUT / PATCH 带 <code>"version": 3</code></td><td>当前不是第 3 版 → <code>409 conflict/stale-version</code>,什么都不写。写的时候才发现被抢先,也是 409</td></tr>
+    <tr><td>PUT / PATCH 不带 <code>version</code></td><td>和以前一样能用;服务器保证自己这一轮「读 → 判断 → 写」不被插队(被抢先就重做,最多 3 轮)</td></tr>
+    <tr><td>所有任务响应(v1、v2)</td><td>新增 <code>version</code> 字段</td></tr>
+    <tr><td>PATCH 只给 <code>version</code></td><td>422:「至少要给 title、done、checklist 中的一个」</td></tr>
+    <tr><td><code>"version": 0</code> 或不是整数</td><td>422(<code>@IsInt @Min(1)</code>)</td></tr>
+  </table>
+  <p><b>兼容性(按 Day 19 的规则判断)</b>:响应新增字段、请求新增<b>可选</b>字段、新增一个 problem type,都是非破坏性变更,老客户端不用改。如果把 <code>version</code> 设成必填,所有老客户端的 PUT / PATCH 都会变成 422,那就是破坏性变更,要走版本化。</p>
+  <p>还有一个变化要说清楚:<b>每次写入成功 version 都 +1</b>,包括内容完全相同的 PUT。<code>test/rest.e2e-spec.ts</code> 里「PUT 重复发结果不变(幂等)」的用例因此改成「除了 version 都相同,version 每次 +1」。幂等说的是对资源状态的效果:标题、完成状态、清单都没变;版本号像 <code>updated_at</code> 一样记录的是「被写过几次」。反过来,带着同一个 version 把 PUT 重放两次,第二次是 409,这让「重放」变得可以察觉。</p>
+  <p><code>openapi.json</code> 重新生成后的差异:<code>TaskResponse</code> 多了必填的 <code>version</code>(integer);<code>ReplaceTaskDto</code>、<code>UpdateTaskDto</code> 多了可选的 <code>version</code>(integer,minimum 1);PUT / PATCH 的描述和 409 的说明更新了。没有删除或改名任何东西。</p>
+  <p>为什么今天不用 HTTP 标准的 <code>ETag</code> / <code>If-Match</code> / <code>412</code>?它们做的是同一件事(条件请求),但要同时处理响应头、弱 ETag、<code>If-None-Match</code> 的缓存语义,Week 12 讲 HTTP 缓存时一起做。到时候 ETag 的值可以就从 <code>version</code> 算出来。</p>
+
+  <p><b>⑤ 动手验证。</b>✍️ <b>预测</b>:<code>01-lost-update.sql</code> 后半段,同样的顺序、写的时候加上 <code>AND version = 读到的版本</code>,A 的 UPDATE 影响几行?真实结果:</p>
+  <pre><code>A 读到:version = 1
+B 读到:version = 1
+UPDATE 1
+↑ B:UPDATE 1(version 1 → 2)
+UPDATE 0
+↑ A:UPDATE 0 —— 它基于的第 1 版已经不在了,什么都没写。应用看到 0 行,就知道「被人抢先了」
+ id | title  | done | version
+----+--------+------+---------
+  2 | 写周报 | t    |       2</code></pre>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #2:悲观锁 —— 先压上镇纸再看</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    在读之前先把这一行锁住(<code>SELECT … FOR NO KEY UPDATE</code>),再读、判断、写,事务提交时才放开。别人想改这一行,只能排队;排到的时候,读到的已经是前一个人改完的最新状态。冲突的请求不会失败,只是等。
+  </div>
+
+  <h3>② 生活类比:Day 39 的镇纸</h3>
+  <p>伙计要按某一行算账,<b>先在那一行压上镇纸</b>,再抄、再算、再写,写完盖章才拿开。第二个伙计来改同一行,看见镇纸就站在旁边等。等到镇纸拿开,他看到的是第一个伙计写完之后的账,不会照着旧账算。</p>
+
+  <h3>③ 类比的边界 ⚠️</h3>
+  <ul>
+    <li><b>镇纸只能在一张作业单(一个事务)里压着</b>。事务一结束锁就放了。HTTP 请求结束时事务早就提交了,所以悲观锁<b>不能跨请求</b>:不能「GET 的时候锁住,PUT 的时候再放开」(第 6 节)。</li>
+    <li><b>压着镇纸的时候别出门</b>。锁持有期间做的任何慢事情(调外部 API、等用户、发邮件)都会让排队的人一起等,还占着一个数据库连接。第 3 幕里读和写之间加了 20 ms 延迟,悲观锁在锁里也等了这 20 ms。</li>
+    <li><b>不加锁的读不排队</b>。普通 SELECT 不受行锁影响(Day 39),读到的是旧值。悲观锁只对「也来加锁」的人有效,所以所有「读 → 判断 → 写」的代码路径都要用同一种加锁方式,漏一处就漏了。</li>
+    <li><b>锁多行可能死锁</b>。今天只锁一行;要锁多行时按固定顺序(Day 39 第 5 幕)。</li>
+  </ul>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>nest-lab 里</th></tr>
+    <tr><td>先压镇纸</td><td>行锁:<code>SELECT … FOR NO KEY UPDATE</code></td><td><code>updateLocked</code> 的第一条 SQL</td></tr>
+    <tr><td>压着镇纸抄账、算账</td><td>同一个事务里读最新值、在应用里判断</td><td><code>findById(id, client)</code> + <code>decide(current)</code></td></tr>
+    <tr><td>写完盖章才拿开</td><td>锁持有到 COMMIT / ROLLBACK</td><td><code>transaction()</code>(Day 36 修过的那个)</td></tr>
+    <tr><td>规则不允许 → 不写,拿开镇纸</td><td>decide 抛异常 → ROLLBACK</td><td><code>assertCanChange</code> 抛 409</td></tr>
+    <tr><td>第二个人站着等</td><td>锁等待</td><td>第 2 幕实测等了约 300 ms</td></tr>
+  </table>
+
+  <h3>④ 真实术语</h3>
+  <p><b>悲观并发控制</b>(pessimistic concurrency control),口语叫悲观锁:假设冲突经常发生,先锁再做。PostgreSQL 里就是 Day 39 的行锁。为什么用 <code>FOR NO KEY UPDATE</code> 而不是 <code>FOR UPDATE</code>:我们不改主键;<code>FOR UPDATE</code> 会挡住「往 <code>checklist_items</code> 插一行引用这个任务」时外键检查要拿的 <code>FOR KEY SHARE</code>,<code>FOR NO KEY UPDATE</code> 不挡(Day 39 的兼容表)。普通 UPDATE 自己拿的也是 <code>FOR NO KEY UPDATE</code>。</p>
+
+  <h3>在 nest-lab 里的写法</h3>
+  <pre><code>async updateLocked(id, decide) {
+  return this.transaction(async (client) =&gt; {
+    const { rowCount } = await client.query('SELECT 1 FROM tasks WHERE id = $1 FOR NO KEY UPDATE', [id]);
+    if (!rowCount) return undefined;
+    const current = (await this.findById(id, client))!;  // 锁已经在手:读到的就是最新的
+    const changes = decide(current);                     // 抛异常 → transaction() 回滚,锁释放
+    await this.writeChanges(client, id, changes);        // 和乐观锁共用,同样 version + 1
+    return this.findById(id, client);
+  });
+}</code></pre>
+  <p>锁和读分成两条 SQL,因为 <code>SELECT_TASKS</code> 里用 <code>json_agg</code> 拼清单;只锁 <code>tasks</code> 这一行就够了。<code>decide</code> 是同步函数:在它里面不能 await 别的东西,这也是在提醒你「压着镇纸的时候别出门」。</p>
+  <p>它没有接到 HTTP 上:主线是乐观锁(第 6 节解释原因)。<code>updateLocked</code> 由观察脚本和 <code>test/concurrency.e2e-spec.ts</code> 里的两个用例使用(10 个并发「读计数 → +1 → 写」一个不丢;decide 抛异常时不写、版本不变)。</p>
+
+  <h3>⚠️ 关于事务边界:今天的写法有个限制</h3>
+  <p><code>updateLocked</code> 的事务开在<b>仓储里</b>,Service 只能通过 <code>decide</code> 回调把判断塞进去。如果一个业务操作要锁两张表、调用两个仓储,今天的结构就做不到「同一个事务」。Week 7 会讲<b>事务传播</b>:让 Service 开事务、把同一个连接自动交给它调用的所有仓储。用的还是 Day 13 请求 ID 贯穿日志的那个工具 AsyncLocalStorage:那次放进「请求上下文」的是请求 ID,到时候放进去的是「当前事务的连接」(常见做法是 nestjs-cls 和它的 <code>@Transactional()</code>;Spring 的 <code>@Transactional</code> 和传播行为 REQUIRED / REQUIRES_NEW 是同一个概念)。今天不引入,先把问题记下来。</p>
+
+  <p><b>⑤ 动手验证。</b>✍️ <b>预测</b>:A 用 <code>FOR NO KEY UPDATE</code> 锁住任务 3。B 普通 SELECT 会等吗?B 用 <code>NOWAIT</code> 呢?B 不加 NOWAIT 地去锁,A 300 ms 后把 done 改成 true 并提交,B 读到什么?真实结果(第 2 幕,3 遍一致,等待时间 302–305 ms):</p>
+  <pre><code>  A:BEGIN; SELECT … FOR NO KEY UPDATE → done = false, version = 1(压上镇纸)
+  B:普通 SELECT(不加锁)→ 立刻返回 done = false, version = 1(行锁不挡读,读到的是 A 提交前的值)
+  B:SELECT … FOR NO KEY UPDATE NOWAIT → ERROR 55P03 could not obtain lock on row in relation "tasks"
+  B:BEGIN; SELECT … FOR NO KEY UPDATE → 卡住,在等 A
+  A:(300 ms 后)UPDATE … SET done = true, version = version + 1; COMMIT
+  B:这时才返回(等了 304 ms),读到 done = true, version = 2 —— 是 A 提交之后的最新值</code></pre>
+  <p>最后一行是关键:B 排到的时候,读到的不是它开始等时的旧快照,而是 A 提交后的值(Read Committed 下,加锁的读在拿到锁之后读最新提交的版本)。所以 B 的判断基于最新状态。</p>
+</section>
+
+<section id="sec6">
+  <h2>📇 概念卡 #3:怎么选 —— 客人要想 5 分钟的时候</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    如果「读」和「写」在<b>同一个请求</b>里,两种都行:冲突少用乐观锁,冲突多、重做代价大用悲观锁。如果「读」和「写」是<b>两个请求</b>(用户打开编辑页、想一会儿、再保存),只能用乐观锁:锁不能跨请求压着,只有版本号能跟着页面走一趟再带回来。
+  </div>
+
+  <h3>② 生活类比:客人要想 5 分钟</h3>
+  <p>客人拿着账页的复印件回座位想了 5 分钟,再回柜台说「照这个改」。你不可能让镇纸在账页上压 5 分钟,所有人都得等着;客人也可能根本不回来了。能做的只有:复印件右上角印着版本号,客人回来时对一下。对不上,就告诉他「这页在您想的时候被别人改过了,请看看新的」。</p>
+
+  <h3>③ 类比的边界 ⚠️</h3>
+  <ul>
+    <li><b>服务器内部的重试救不了跨请求的丢失更新</b>。客户端没带 version 的 PUT,服务器看到的是两个各自合法、先后到达的请求,它没法知道 A 是照着 5 分钟前的页面改的。第 4 幕实测见下面。</li>
+    <li><b>409 之后不能原样重试</b>。原样重发等于覆盖别人的修改。要重新 GET 最新内容,让用户确认或合并,再带着新的 version 提交(<code>docs/problems.md</code> 里这样写了)。</li>
+    <li><b>乐观锁不是 React Query 的「乐观更新」</b>。乐观更新说的是界面:不等服务器回应就先显示成功,失败了回滚;它<b>不防止覆盖</b>。两者可以一起用:乐观更新先改界面,请求里带上 version,收到 409 时回滚并提示「已被他人修改」。</li>
+    <li><b>Google Docs 不是乐观锁</b>。它不拒绝后到的修改,而是把两个人的编辑操作实时合并(操作变换 / CRDT 一类的技术,未展开、未实测)。乐观锁只负责「发现冲突」,不负责「合并」。</li>
+  </ul>
+
+  <h3>④ 真实数据:三种写法放在同一组场景里</h3>
+  <p><b>第 3 幕:同一个请求内部的竞态</b>(「标成已完成」和「改标题」,读和写之间隔 20 ms,改标题晚 5 ms 发出,各 20 次)。✍️ <b>预测</b>:三种写法各违规几次?</p>
+  <pre><code>  修之前:违规 20 / 20,总耗时 1513–1649 ms
+      完成 200 / 改名 200(改名时任务已完成!) × 20
+  乐观锁:违规 0 / 20,总耗时 1530–1979 ms
+      完成 200 / 改名 conflict/task-completed × 20
+  悲观锁:违规 0 / 20,总耗时 1468–1990 ms
+      完成 200 / 改名 conflict/task-completed × 20</code></pre>
+  <p>(第一遍跑的时候我把「违规」判成了「最后是已完成 + 新标题」,结果乐观锁、悲观锁也显示违规。那是判错了:先改名、后完成也是这个结局,而且完全合法。正确的判断是「改标题这次写入之后,任务是已完成的」,也就是标题是在完成之后被改的。脚本里写了注释。)</p>
+
+  <p><b>第 4 幕:跨请求</b>(A、B 先后打开同一个任务,B 标成已完成并保存,A 改了标题后保存)。✍️ <b>预测</b>:不带 version 时谁赢?</p>
+  <pre><code>  不带 version:B 的 PUT → 200,A 的 PUT → 200;最后 title = 季度计划(A 改), done = false, version = 3
+  带 version:B 的 PUT → 200,A 的 PUT → conflict/stale-version;最后 title = 季度计划, done = true, version = 2</code></pre>
+
+  <p><b>第 5 幕:代价</b>(50 个并发的「读计数 → +1 → 写」,连接池 10 个连接,没有人为延迟,3 遍的区间)。✍️ <b>预测</b>:同一行上,乐观锁会重做多少次?</p>
+  <table>
+    <tr><th></th><th>50 个请求改同一行(高冲突)</th><th>50 个请求各改各的行(无冲突)</th></tr>
+    <tr><td>修之前</td><td>136–149 ms,<b>只加了 1</b>(50 个几乎同时读到 0)</td><td>21–24 ms,50 / 50</td></tr>
+    <tr><td>乐观锁</td><td>451–683 ms,50 / 50;一共尝试 464–513 次(<b>重做 414–463 次</b>)</td><td>20–27 ms,50 / 50,重做 0 次</td></tr>
+    <tr><td>悲观锁</td><td>134–316 ms,50 / 50,每个一次就成</td><td>25–38 ms,50 / 50(多一条 FOR NO KEY UPDATE)</td></tr>
+  </table>
+
+  <h3>怎么选</h3>
+  <table>
+    <tr><th>情况</th><th>选</th><th>为什么</th></tr>
+    <tr><td>读和写跨请求(编辑页、表单、离线编辑)</td><td><b>乐观锁</b>(只能它)</td><td>锁不能跨请求;version 跟着客户端走</td></tr>
+    <tr><td>同一个请求里,冲突少(大多数 CRUD)</td><td>乐观锁</td><td>无冲突时没有额外代价,不持锁、不占连接等待</td></tr>
+    <tr><td>同一个请求里,同一行冲突很多(库存、余额、计数器、抢座)</td><td>悲观锁,或者干脆用一条原子 SQL</td><td>乐观锁会大量重做(第 5 幕重做约 9 倍);如果逻辑能写成 <code>SET n = n + 1</code>、<code>SET stock = stock - 1 WHERE stock &gt; 0</code>,一条语句最好(Day 37)</td></tr>
+    <tr><td>重做的代价很大(调了外部 API、发了消息)</td><td>悲观锁</td><td>乐观锁失败要重做整轮</td></tr>
+    <tr><td>规则涉及<b>多行或「不存在的行」</b>(「至少留一个人值班」、「同一时段不能重复预订」)</td><td>Serializable + <code>withRetry</code>,或约束 / 咨询锁</td><td>版本号和行锁都只管「这一行」;写偏斜(Day 37)要 SSI 来发现,发现后报 40001,整轮重做</td></tr>
+  </table>
+  <p><b>nest-lab 选乐观锁作主线</b>:任务编辑是典型的跨请求场景(用户在页面上改完再保存),冲突少;同一个请求内部的竞态也顺带解决了(被抢先就整轮重做)。悲观锁的实现留在仓储里,作为对比和以后的备选。</p>
+  <p>用到的 <code>withRetry</code> 就是 Day 37 写的那个,今天搬进了 nest-lab。它本来是给 40001 / 40P01 用的,今天换了一个 <code>isRetryable</code>,用来重试「写的时候版本变了」。两种情况的道理一样:<b>失败那一轮读到的东西已经过时,必须从头重做,而不是只重试最后一步</b>。</p>
+
+  <p><b>⑤ 动手验证</b>:见习题 2,把仓储里的 <code>AND version = $n</code> 去掉,看哪个测试变红。</p>
+</section>
+
+<section id="sec7">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <table>
+    <tr><th>生态</th><th>乐观锁</th><th>冲突时</th><th>悲观锁</th></tr>
+    <tr><td>Node(<code>pg</code>,nest-lab)</td><td>自己加 <code>version</code> 列,<code>UPDATE … WHERE id = $1 AND version = $2</code>,看 <code>rowCount</code></td><td>自己决定:409 / 重做</td><td><code>SELECT … FOR NO KEY UPDATE</code>,同一个 client 包在事务里</td></tr>
+    <tr><td>Prisma</td><td><b>没有内置的版本字段</b>。官方文档的做法:<code>updateMany({ where: { id, version }, data: { …, version: { increment: 1 } } })</code>,看返回的 <code>count</code> 是不是 0</td><td>自己抛错 / 重试</td><td>没有原生 FOR UPDATE,用 <code>$queryRaw</code>(Day 39)</td></tr>
+    <tr><td>EF Core</td><td>属性上贴 <code>[ConcurrencyCheck]</code>,或者 <code>[Timestamp]</code> / <code>.IsRowVersion()</code>;EF 在 UPDATE 的 WHERE 里自动带上原值</td><td><code>SaveChanges</code> 抛 <code>DbUpdateConcurrencyException</code></td><td>没有锁 API,<code>FromSql(… FOR UPDATE)</code>(Day 39)</td></tr>
+    <tr><td>EF Core + Npgsql(PostgreSQL)</td><td>可以不加列,直接用系统列 <code>xmin</code> 当版本号:<code>[Timestamp] public uint Version { get; set; }</code> 或 <code>.Property(b =&gt; b.Version).IsRowVersion()</code>,类型为 <code>uint</code> 时映射到 <code>xmin</code>(类型 <code>xid</code>)</td><td>同上</td><td>同上</td></tr>
+    <tr><td>JPA / Hibernate</td><td>字段上贴 <code>@Version</code>(整数或时间戳),Hibernate 自动加 WHERE 和 +1</td><td><code>OptimisticLockException</code>(Spring 里包成 <code>ObjectOptimisticLockingFailureException</code>)</td><td><code>@Lock(LockModeType.PESSIMISTIC_WRITE)</code> → <code>FOR UPDATE</code></td></tr>
+    <tr><td>Go</td><td>手写 SQL,<code>res.RowsAffected()</code> 为 0 就是冲突</td><td>自己处理</td><td>在 <code>tx</code> 里手写 <code>FOR UPDATE</code></td></tr>
+    <tr><td>HTTP 标准(Week 12)</td><td>响应头 <code>ETag: "3"</code>,修改时带 <code>If-Match: "3"</code></td><td><code>412 Precondition Failed</code>;没带 <code>If-Match</code> 时可以回 <code>428 Precondition Required</code></td><td>—</td></tr>
+  </table>
+  <p>🔎 核实说明:</p>
+  <ul>
+    <li>用 Context7 查过 Npgsql EF Core provider 的源码和测试:<code>uint</code> 属性配上 <code>[Timestamp]</code> / <code>IsRowVersion()</code> 会映射成列 <code>xmin</code>、类型 <code>xid</code>(<code>ulong</code> 映射成 <code>xid8</code>)。旧版本里的 <code>UseXminAsConcurrencyToken()</code> 据我记忆已被这个写法取代,<b>没有核实</b>。用 <code>xmin</code> 当版本号有一个要注意的地方:它是「最后写这一行的事务号」,不是一个从 1 开始的计数器(Day 38),适合当并发令牌,不适合给人看。</li>
+    <li>用 Context7 查过 Prisma 文档:Prisma 的博客写着「Prisma does not support OCC yet」,文档的做法是在 <code>updateMany</code> 的 where 里带上 version。另外 Prisma 文档里出现了新一代 API(把 <code>updateMany</code> 改名为 <code>updateAndCount</code>,并且写着 update 里的 <code>{ increment: n }</code> 不可用,要用原生 SQL)。具体以你所用版本的官方文档为准,<b>都没有在本机实测</b>。</li>
+    <li>EF Core 的 <code>[ConcurrencyCheck]</code> / <code>DbUpdateConcurrencyException</code>、JPA 的 <code>@Version</code> / <code>OptimisticLockException</code> / <code>@Lock(PESSIMISTIC_WRITE)</code>、Spring 的异常包装、HTTP 的 <code>412</code> / <code>428</code>(RFC 9110 / RFC 6585)是公认事实或我的记忆,<b>今天无法联网核对</b>(本环境访问不了 npgsql.org、prisma.io),<b>没有实测</b>。</li>
+    <li>PostgreSQL 和 nest-lab 的所有行为都在本机实测过。</li>
+  </ul>
+  <p>📌 Day 42 复盘时,可以在 roadmap 顶部的对照表里新增一行「乐观锁」:PG 手写 <code>WHERE version = $n</code> / <code>xmin</code> ↔ EF Core <code>[ConcurrencyCheck]</code>、<code>IsRowVersion()</code> ↔ JPA <code>@Version</code> ↔ Prisma <code>updateMany</code> + version ↔ HTTP <code>If-Match</code> / 412,内容自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"What's the difference between optimistic and pessimistic locking? When would you use each? How do you prevent lost updates in a REST API?"</b>(或者:「乐观锁和悲观锁有什么区别?各在什么场景用?REST API 里怎么防止丢失更新?」)你可以答:<br>
+    <b>"两者都是解决『读出来、在应用里判断、再写回去』之间被别人插队的问题。乐观锁不加锁,给行加一个 version 字段,写的时候 UPDATE ... WHERE id = ? AND version = ?,同时把 version 加一;影响零行就说明在我读和写之间有人改过,这时要么整轮重做,要么返回 409 让客户端处理。悲观锁是先 SELECT ... FOR UPDATE,在 PostgreSQL 里不改主键时我用 FOR NO KEY UPDATE,把行锁住再读、判断、写,别人只能排队,排到的时候读到的是最新值。我在项目里实测过:同一行上 50 个并发的读改写,不加控制只加了 1;乐观锁全对,但重做了四百多次;悲观锁全对,也更快;如果是各改各的行,三种写法耗时差不多。所以冲突少、尤其是读和写跨请求的时候,比如用户打开编辑页想一会儿再保存,只能用乐观锁,因为锁不能跨请求持有,version 可以跟着页面带回来;冲突多的热点行或者重做代价很大的操作,用悲观锁,或者能写成一条原子 SQL 就写成一条。如果规则涉及多行,比如至少留一个人值班,行级的版本号和行锁都不够,要用 Serializable 加重试或者约束。REST API 里我会在响应里返回 version,修改时请求带上它,过时就返回 409;更标准的做法是 ETag 加 If-Match,不匹配返回 412。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec8">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:两个窗口手动做一遍(动手,约 10 min)</h3>
+    <ol>
+      <li>先把第 3–6 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day40</code> 批改。</li>
+      <li>按 <code>sql/day40/01-lost-update.sql</code> 开头的注释,用两个 psql 窗口手动做一遍丢失更新和 <code>UPDATE 0</code>。✍️ <b>预测</b>:如果 A 的 UPDATE 在 B 提交<b>之前</b>就发出(B 先 <code>BEGIN</code>、UPDATE 但不提交),A 会怎样?B 提交后 A 的 UPDATE 影响几行?</li>
+      <li>按 <code>02-pessimistic.sql</code> 的注释做一遍。把 A 的 <code>FOR NO KEY UPDATE</code> 换成 <code>FOR UPDATE</code>,再在窗口 B 里 <code>INSERT INTO</code> 一行引用任务 3 的数据(需要先自己建一张带外键的子表),会怎样?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:让测试变红(动手,约 10 min)</h3>
+    <ol>
+      <li>✍️ <b>预测</b>:把 <code>src/tasks/pg-tasks.repository.ts</code> 里 <code>writeChanges</code> 的 <code>versionCheck</code> 改成空字符串(不再检查版本),<code>npm run test:e2e:pg</code> 里哪几个用例会变红?<code>npm run test:e2e</code>(内存版)呢?做完记得改回来。(我实测的结果:PG 上 3 遍都是只有用例 ② 变红;用例 ① 仍然通过,因为 Service 读到的版本已经和请求里的 <code>version</code> 不一致,在写之前就拦下了;内存版全部通过,因为内存仓储有自己的版本检查。想一想:那用例 ① 到底测的是哪一层?)</li>
+      <li>✍️ <b>预测</b>:把 <code>TasksService.change()</code> 里的 <code>maxAttempts: 3</code> 改成 <code>1</code>,用例 ② 的结果是什么?type 是哪个?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:API 的边界(curl 或 Swagger UI,约 5 min)</h3>
+    <p>✍️ <b>预测</b>后再试:同一个 PUT 带着同一个 <code>version</code> 发两次;PATCH 只给 <code>{"version": 1}</code>;PATCH 给 <code>{"title": "x", "version": 0}</code>;POST 带 <code>version</code>。各返回什么状态码和 type?你会怎么在前端处理 <code>conflict/stale-version</code>?</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/40-optimistic-pessimistic/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事说:「Google Docs 两个人同时改不会互相覆盖;我们的 CMS 保存时会弹『该内容已被他人修改』;React Query 的乐观更新是先改界面、失败了再回滚。后端的『乐观锁』是同一个东西吗?」用「账页右上角的版本号」讲清楚乐观锁,说出它和这三样各自像在哪、不像在哪。</li>
+      <li>nest-lab 的 PATCH 以前是「读 → 判断 409 规则 → 写」。两个请求同时到达时,具体会写出什么错误的数据?Node 是单线程的,为什么还会发生?今天用哪两种办法修的,各自让「后来的那个请求」经历了什么?</li>
+      <li>用户打开编辑页、想了 5 分钟再保存。为什么这种情况只有乐观锁能管?什么时候反而该选悲观锁?什么时候该用 Serializable + 重试?</li>
+    </ol>
+    <p>写完回到第 3–6 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:<code>npm run db:reset</code> 重建开发用的 schema(多了 <code>version</code> 列);在 <code>nest-lab/README.md</code> 的成长日志里记一笔;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec9">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>先查后改有两种翻车</b>:丢失更新(后写的把先写的盖掉,没有报错)和绕过业务规则(基于过时的状态判断通过)。插队发生在 <code>await</code> 和 <code>await</code> 之间,单线程的 Node、内存仓储一样会发生(修之前 20 / 20 次违规)。</li>
+    <li><b>乐观锁</b>:<code>UPDATE … SET …, version = version + 1 WHERE id = $1 AND version = $2</code>,0 行就是被抢先(再查一次区分 404 / 409)。客户端带了 version 就 409 stale-version,没带就整轮重做。Read Committed 就够,因为后到的 UPDATE 会用最新的行重新检查 WHERE。</li>
+    <li><b>悲观锁</b>:事务里先 <code>SELECT … FOR NO KEY UPDATE</code> 再读、判断、写,别人排队,排到时读到最新值(实测等了约 300 ms,读到 version 2)。锁只活在一个事务里,持锁时别做慢事。</li>
+    <li><b>怎么选</b>:跨请求只能乐观锁;同一行冲突多用悲观锁或一条原子 SQL(50 并发同一行:乐观锁重做 414–463 次、451–683 ms,悲观锁 134–316 ms;无冲突时三者都在 20–38 ms);多行规则用 Serializable + <code>withRetry</code>。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>为什么「先 SELECT version 看一眼、再 UPDATE」不算乐观锁?正确的写法是什么?</li>
+    <li>两个事务同时执行 <code>UPDATE … WHERE id = 1 AND version = 3</code>,在 Read Committed 下为什么只有一个成功?</li>
+    <li>UPDATE 影响 0 行,可能是哪两种情况?nest-lab 怎么区分?</li>
+    <li>客户端没带 version 时,nest-lab 被抢先后做了什么?为什么要「重新判断业务规则」,而不是直接再写一次?</li>
+    <li>为什么用 <code>FOR NO KEY UPDATE</code> 而不是 <code>FOR UPDATE</code>?</li>
+    <li>修之前,内存版为什么「碰巧通过」了用例 ②?今天怎么改的?</li>
+    <li>给 API 加 <code>version</code> 时,做成必填和可选,兼容性上有什么区别?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 41</b>:连接池深入与 PgBouncer。今天的悲观锁在等锁时占着连接(第 5 幕连接池只有 10 个),明天看连接为什么是稀缺资源、PgBouncer 的 transaction 模式下哪些东西不能用(会话级 <code>SET</code>、会话级咨询锁、预备语句),以及超时三件套 <code>statement_timeout</code> / <code>idle_in_transaction_session_timeout</code> / <code>lock_timeout</code>。</p>
+</section>
+
+<footer>
+  Day 40 · Phase 2 / Week 6 · 产出:<code>docs/40-optimistic-pessimistic/</code> 本文档 + <code>nest-lab/</code>(<code>version</code> 列与乐观锁、<code>updateLocked</code>、<code>409 conflict/stale-version</code>、<code>src/database/with-retry.ts</code>、<code>test/concurrency.e2e-spec.ts</code>、<code>sql/day40/</code>、<code>npm run day40</code>)+ <code>src/40-optimistic-pessimistic/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

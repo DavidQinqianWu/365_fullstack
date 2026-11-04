@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsInt, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
 import { IsNotBlank } from '../../common/validation/is-not-blank.validator.js';
 import { ChecklistItemDto } from './checklist-item.dto.js';
 
@@ -30,4 +30,19 @@ export class ReplaceTaskDto {
   @ValidateNested({ each: true })
   @Type(() => ChecklistItemDto)
   checklist?: ChecklistItemDto[];
+
+  // Day 40:乐观锁。「我是照着第几版改的」—— 和服务器上的版本对不上就 409 conflict/stale-version,不会悄悄覆盖别人的修改。
+  // 可选:不给 = 不做这项检查(老客户端照常工作,Day 19:新增可选字段不是破坏性变更);
+  // 不给时服务器仍然保证「读 → 判断业务规则 → 写」这一轮内部不被插队(见 TasksService.change)
+  // POST 用不到它:CreateTaskDto 只挑了 title、checklist
+  @ApiPropertyOptional({
+    type: 'integer',
+    description: '读到的版本号(响应里的 version)。给了就做乐观锁检查:不一致时返回 409 conflict/stale-version',
+    minimum: 1,
+    example: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  version?: number;
 }

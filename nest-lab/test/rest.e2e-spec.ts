@@ -50,8 +50,16 @@ describe('REST 语义 (e2e)', () => {
     const body = { title: '整体替换', done: true };
     const first = await request(server).put('/tasks/2').set(KEY).send(body).expect(200);
     const second = await request(server).put('/tasks/2').set(KEY).send(body).expect(200);
-    expect(second.body).toEqual(first.body);
-    expect(first.body).toEqual({ id: 2, title: '整体替换', done: true, checklist: [], createdAt: FIXED });
+    // Day 40:每次写入成功 version 都 + 1(像 updated_at 一样是「元数据」),所以比较时把它拿出来单独看。
+    // 幂等说的是「对资源状态的效果」相同:标题、完成状态、清单都没变;版本号记录的是「被写过几次」
+    const { version: v1, ...rest1 } = first.body;
+    const { version: v2, ...rest2 } = second.body;
+    expect(rest2).toEqual(rest1);
+    expect(v2).toBe(v1 + 1);
+    expect(first.body).toEqual({ id: 2, title: '整体替换', done: true, checklist: [], createdAt: FIXED, version: 2 });
+    // 带上 version 再重放同一个 PUT:第二次基于的已经是旧版本 → 409(乐观锁让「重放」变得可以察觉)
+    await request(server).put('/tasks/2').set(KEY).send({ ...body, version: v2 }).expect(200);
+    await request(server).put('/tasks/2').set(KEY).send({ ...body, version: v2 }).expect(409);
   });
 
   it('PATCH 是部分更新:只给 done,标题不变', async () => {
@@ -62,6 +70,7 @@ describe('REST 语义 (e2e)', () => {
       done: true,
       checklist: [],
       createdAt: FIXED,
+      version: 2, // Day 40
     });
   });
 

@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="day" content="28">
+<meta name="phase" content="Phase 2 / Week 4">
+<meta name="summary" content="复盘日,不学新内容。画出「一个带 checklist 的 POST /v2/tasks 从 HTTP 到写进 PostgreSQL 的一生」把 Day 22–27 串起来,默写六张概念卡,做一次 SQL 与仓储 review,自测 12 题。">
+<title>Day 42 - 复盘日:把 Week 6 的六天连成两个同时到达的请求</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 6 · 复盘日</div>
+  <h1>Day 42 - 复盘日:把 Week 6 的六天连成两个同时到达的请求</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(画图 25 min + 默写 25 min + 并发 review 15 min + 对照表与自测 25 min)·
+    <b>今天不学新内容。</b>复盘日只有一个任务:把 Day 36–41 从「跟着讲义跑出了 40001、死锁和 409」变成「合上讲义说得出、画得出、查得出问题」·
+    产出:<code>src/42-week6-review/</code> 下的一张全景图、六张概念卡、一次并发 review 和一份自测答卷
+  </div>
+</header>
+
+<div class="warn">
+  <span class="tag">⚠️ 复盘日的规矩</span>
+  <p><b>不许翻 Day 36–41 的讲义,也不许打开 nest-lab 的代码、<code>sql/</code> 目录、<code>pgbouncer/</code> 和 <code>docs/db-timeouts.md</code>。</b>先凭记忆写,写完再对照订正。订正的地方用红色或加粗标出来,<b>那些就是你真正的知识缺口</b>,Week 7 会再考。</p>
+  <p>如果某一题完全写不出来,不要跳过。写下「我不会」,然后去看讲义,再用自己的话重写一遍。</p>
+  <p>第三件事(并发 review)是唯一的例外:它本来就要求你读代码、必要时开两个 psql 窗口验证。但<b>前两件事做完之前不要打开</b>。</p>
+  <p>今天<b>不改 nest-lab</b>。review 里发现的问题先记下来,写清楚改法和「计划在哪一周改 / 为什么现在接受」。</p>
+</div>
+
+<nav class="toc">
+  <h2>📖 今天的四件事</h2>
+  <ol>
+    <li><a href="#sec1">🗺️ 第一件事:画出「两个同时到达的 PATCH 经过 PgBouncer 进入 PostgreSQL 的一生」(约 25 min)</a></li>
+    <li><a href="#sec2">✍️ 第二件事:六张概念卡默写(约 25 min)</a></li>
+    <li><a href="#sec3">🔍 第三件事:给 nest-lab 做一次并发 review(约 15 min)</a></li>
+    <li><a href="#sec4">📊 第四件事:新增对照表 + 自测 12 题(约 25 min)</a></li>
+    <li><a href="#sec5">🎯 Week 6 结算、Phase 2 前半程遗留清单与 Week 7 预告</a></li>
+    <li><a href="#sec6">✅ 复盘日自检</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🗺️ 第一件事:画出「两个同时到达的 PATCH 经过 PgBouncer 进入 PostgreSQL 的一生」(约 25 min)</h2>
+  <p>Week 4 的图画到「SQL 被参数化、借一个连接、在事务里执行」;Week 5 的图把 PostgreSQL 打开,画了优化器怎么选计划。两张图里都只有<b>一个</b>请求。Week 6 讲的全是「不止一个」:两个请求同时改同一行时,谁先谁后、谁等谁、旧数据去了哪、失败的那个怎么收场。今天这张图要画<b>两条泳道</b>。</p>
+
+  <h3>任务</h3>
+  <p>在 <code>src/42-week6-review/request-lifecycle.md</code> 里,用文字或 mermaid(推荐 <code>sequenceDiagram</code>)画出下面这个过程。Nest 管线可以简写成一两行,<b>重点画「连接 → 事务 → 快照 / 行版本 → 行锁 → 写入 → 清理」</b>。每一站标注两个编号:它是 Week 6 哪一天学的(Day 36–41),以及它建在 Week 1–5 的哪个机制上。</p>
+  <div class="task">
+    <h3>场景(主线)</h3>
+    <pre><code># nest-lab:TASKS_STORAGE=postgres,DATABASE_URL 指向 PgBouncer(6432,transaction 模式),DB_STARTUP_SEARCH_PATH=false
+# 任务 1 当前 version = 3、done = false。两个客户端几乎同时发出:
+curl -s -X PATCH localhost:3000/v2/tasks/1 -H 'x-demo-key: let-me-in' -H 'content-type: application/json' -d '{"title":"改个标题","version":3}'   # A
+curl -s -X PATCH localhost:3000/v2/tasks/1 -H 'x-demo-key: let-me-in' -H 'content-type: application/json' -d '{"done":true,"version":3}'          # B</code></pre>
+    <p>要覆盖这些环节(顺序你自己排):</p>
+    <ul>
+      <li>nest-lab 的连接池借连接、PgBouncer 给这次事务分配服务端连接;「读 → 判断 → 写」三步一共借了几次连接,会不会落在不同的服务端连接上</li>
+      <li>真正发到 PostgreSQL 的 SQL 按顺序是哪几条,<b>哪几条在同一个事务里</b>。<b>先别假设</b>「乐观锁就是一条 UPDATE、不需要 BEGIN」。凭记忆想一想:nest-lab 的 <code>repo.update</code> 有没有包 <code>transaction()</code>?为什么?</li>
+      <li>读的那一步看到的是哪个快照;两个 UPDATE 在哪里相遇、谁等谁、等的是什么锁</li>
+      <li>后到的 UPDATE 醒来以后用哪个版本的行重新判断 <code>WHERE version = 3</code>,结果是几行,为什么不需要提高隔离级别</li>
+      <li>0 行之后:仓储怎么区分 404 和 409、Service 做了什么、客户端最后收到什么</li>
+      <li>写入在表里留下了什么(新旧两个行版本、<code>xmin</code> / <code>xmax</code>),旧版本什么时候、被谁清掉</li>
+      <li>事务结束后,服务端连接回到 PgBouncer 的池里、nest-lab 的连接回到 <code>pg.Pool</code></li>
+    </ul>
+    <p>再写四条支线(模板里已列好):改用悲观锁 <code>updateLocked</code>;A 在事务里挂住不提交;客户端都没带 <code>version</code>;同样的请求在内存模式下。</p>
+  </div>
+
+  <h3>写完之后自查:每一站你标出 Day 编号了吗?</h3>
+  <p>参考答案的<b>对应关系</b>(只给 Day 编号,不是完整答案;每一站具体做什么、顺序如何,要你自己写):</p>
+  <table>
+    <tr><th>环节</th><th>Week 6</th><th>建在 Week 1–5 的</th></tr>
+    <tr><td>guard、DTO 校验 <code>version</code>、Controller → Service(简写成一行)</td><td>Day 40</td><td>Day 11、16、19</td></tr>
+    <tr><td>nest-lab 的 <code>pg.Pool</code> 借连接、池满时等待</td><td>Day 41</td><td>Day 27</td></tr>
+    <tr><td>PgBouncer 分配服务端连接、<code>connect_query</code> 设 schema</td><td>Day 41</td><td>Day 22</td></tr>
+    <tr><td>读:一条单独的 SELECT,它看到的快照</td><td>Day 37、Day 38</td><td>Day 26、27</td></tr>
+    <tr><td>判断:版本号比较、已完成不能改标题的规则</td><td>Day 40</td><td>Day 15、17</td></tr>
+    <tr><td>写入所在的事务:<code>BEGIN</code> / <code>COMMIT</code>、同一个 client</td><td>Day 36</td><td>Day 27</td></tr>
+    <tr><td>UPDATE 拿的行锁、第二个 UPDATE 排队</td><td>Day 39、Day 40</td><td>—</td></tr>
+    <tr><td>后到者醒来后重新判断 <code>WHERE</code>;为什么 Read Committed 就够</td><td>Day 37、Day 40</td><td>—</td></tr>
+    <tr><td>0 行 → 区分 404 / 409 → <code>409 conflict/stale-version</code></td><td>Day 40</td><td>Day 17</td></tr>
+    <tr><td>新旧行版本、<code>xmin</code> / <code>xmax</code>、死元组、HOT</td><td>Day 38</td><td>Day 32</td></tr>
+    <tr><td>autovacuum 回收死元组</td><td>Day 38</td><td>Day 31(visibility map)</td></tr>
+    <tr><td>事务结束,服务端连接还给 PgBouncer,连接还给 <code>pg.Pool</code></td><td>Day 41</td><td>Day 27</td></tr>
+    <tr><td>支线:悲观锁在哪里等、等多久、占着什么</td><td>Day 39、40、41</td><td>—</td></tr>
+    <tr><td>支线:idle in transaction 挡住清理、拿着锁、占着连接;哪个超时出手、池子怎么恢复</td><td>Day 36、38、39、41</td><td>Day 27</td></tr>
+    <tr><td>支线:没带 <code>version</code>,整轮重做</td><td>Day 37(<code>withRetry</code>)、Day 40</td><td>—</td></tr>
+    <tr><td>支线:内存版为什么「检查 + 写」不会被插队,哪种竞态它挡得住</td><td>Day 40</td><td>Day 1–3(event loop)、Day 9</td></tr>
+  </table>
+
+  <div class="concept">
+    <span class="tag">为什么这张图值 25 分钟</span>
+    <p>前几周的图回答「请求经过哪些站」「数据怎么可靠地写进去」「同一条 SQL 为什么有时快有时慢」;今天这张图回答<b>「两个人同时改,结果为什么还对;如果不对,错在哪一站」</b>。面试里问「怎么防止丢失更新」,能从「两个请求在哪里相遇、行锁怎么排队、后到者用哪个版本重新判断、旧版本什么时候被清掉、长事务会把这一切卡住」一路讲下来的人,说明他真的在两个窗口里复现过,而不是只背过「加个 version」。</p>
+    <p>这张图在 MySQL 和 SQL Server 里大体一样:都有行锁、都有某种多版本(InnoDB 的 undo log、SQL Server 的 tempdb 版本存储),乐观锁的写法也一样。差别在细节:默认隔离级别、旧版本存在哪里、谁负责清理。<b>你画的是「一个有 MVCC 和行锁的数据库怎么处理并发写」,不是「PostgreSQL 的实现细节」。</b></p>
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>✍️ 第二件事:六张概念卡默写(约 25 min)</h2>
+  <p>写在 <code>src/42-week6-review/concept-cards.md</code>。<b>每张卡片必须包含三部分</b>:通用定义(不绑定数据库和语言)、PostgreSQL / NestJS(nest-lab)里的样子、MySQL / SQL Server / .NET / Java 里的样子。第三部分大多没在本机实测,订正时标「未实测」。</p>
+
+  <div class="task">
+    <h3>卡片 1:事务与 ACID、aborted 状态(Day 36)</h3>
+    <ul>
+      <li>A、C、I、D 各保证什么、各靠什么机制实现(各举一个本周的实测)</li>
+      <li>事务里一条语句出错之后再发语句会怎样;SAVEPOINT 能做什么</li>
+      <li>什么东西「回滚不了」</li>
+      <li>nest-lab 的 <code>transaction()</code> 修了哪两个缺陷;ROLLBACK 失败时为什么要 <code>release(err)</code></li>
+    </ul>
+  </div>
+  <div class="task">
+    <h3>卡片 2:隔离级别与五种并发异常(Day 37)</h3>
+    <ul>
+      <li>脏读、不可重复读、幻读、丢失更新、写偏斜</li>
+      <li>PostgreSQL 的四个级别实际各挡住了哪几种;为什么 Read Uncommitted = Read Committed</li>
+      <li><code>SET n = n + 1</code> vs「读 → 算 → 写回」</li>
+      <li>40001 在哪两个级别出现、应用该怎么做</li>
+    </ul>
+  </div>
+  <div class="task">
+    <h3>卡片 3:MVCC 与 VACUUM(Day 38)</h3>
+    <ul>
+      <li>UPDATE 在磁盘上做了什么;<code>xmin</code>、<code>xmax</code>、<code>ctid</code></li>
+      <li>快照怎么判断「看得见」</li>
+      <li>死元组、表膨胀;<code>VACUUM</code> vs <code>VACUUM FULL</code>;autovacuum 的触发</li>
+      <li>长事务为什么挡住清理;冻结与回卷(一句话)</li>
+    </ul>
+  </div>
+  <div class="task">
+    <h3>卡片 4:锁 —— 行锁、SKIP LOCKED、表锁与 DDL 锁队列、死锁、咨询锁(Day 39)</h3>
+    <ul>
+      <li>有了 MVCC 为什么还要锁;四种行锁;UPDATE 和外键检查各拿哪种</li>
+      <li><code>NOWAIT</code> / <code>lock_timeout</code> / <code>SKIP LOCKED</code>;队列为什么不重复、不互等</li>
+      <li><code>ALTER TABLE</code> 为什么能让无关的 SELECT 超时</li>
+      <li>死锁怎么被发现、怎么避免;事务级 vs 会话级咨询锁</li>
+    </ul>
+  </div>
+  <div class="task">
+    <h3>卡片 5:乐观锁 vs 悲观锁(Day 40)</h3>
+    <ul>
+      <li>「先查后改」的两种翻车;Node 单线程为什么挡不住</li>
+      <li>乐观锁的 SQL;0 行的两种意思;客户端带不带 <code>version</code> 时各怎么处理</li>
+      <li>悲观锁的 SQL;为什么是 <code>FOR NO KEY UPDATE</code>;能不能跨请求</li>
+      <li>怎么选</li>
+    </ul>
+  </div>
+  <div class="task">
+    <h3>卡片 6:连接池、PgBouncer 与超时三件套(Day 41)</h3>
+    <ul>
+      <li>连接为什么贵;连接数和吞吐的关系(本机实测大概多少)</li>
+      <li>多副本时怎么算账;三种池模式</li>
+      <li>transaction 模式下会出问题的会话级状态;<code>DB_STARTUP_SEARCH_PATH</code> 为什么存在</li>
+      <li>超时三件套各防什么、到点报什么、推荐设在哪里</li>
+    </ul>
+  </div>
+
+  <div class="concept">
+    <span class="tag">写完六张卡,再用一句话收尾</span>
+    <p><b>「很多人同时改的时候,怎么还对」对 nest-lab 意味着什么?</b>写在 <code>concept-cards.md</code> 末尾,再写下这一周最让你意外的一次实测结果,以及不看代码写出 nest-lab 现在哪里用了事务、哪里有版本号检查、哪里会重试、重试什么错误。Week 4 的题眼是「存进去的东西要比代码活得久,而且不能坏」,Week 5 是「数据多了以后还要快」,Week 6 是<b>「同时改的时候还要对,而且对的代价(等待、重试、连接)要算得清」</b>。</p>
+  </div>
+</section>
+
+<section id="sec3">
+  <h2>🔍 第三件事:给 nest-lab 做一次并发 review(约 15 min)</h2>
+  <p>这次 review 的对象是 <code>nest-lab/src/tasks/</code>(<code>tasks.service.ts</code>、<code>pg-tasks.repository.ts</code>、<code>in-memory-tasks.repository.ts</code>)、<code>nest-lab/src/database/</code>(<code>pg-pool.ts</code>、<code>with-retry.ts</code>)、<code>PgTasksRepository.transaction()</code>,以及 <code>nest-lab/docs/db-timeouts.md</code>。用「第一次接手这个服务、明天要扛一次大促」的眼光看,必要时开两个 psql 窗口,或者照 <code>scripts/day40-try.mjs</code>、<code>day41-try.mjs</code> 的写法验证。把发现写在 <code>src/42-week6-review/concurrency-review.md</code>。</p>
+
+  <h3>Review 清单(逐条检查)</h3>
+  <table>
+    <tr><th>检查项</th><th>为什么重要</th><th>对应 Day</th></tr>
+    <tr><td>每一个「读 → 判断 → 写」都有版本号或锁保护吗?PUT、PATCH、DELETE、POST 各是什么情况</td><td>漏一处就是丢失更新或绕过规则</td><td>Day 40</td></tr>
+    <tr><td>事务里有没有慢操作?事务是不是开得比需要的早、关得比需要的晚</td><td>锁拿得越久,排队越长;还挡住 VACUUM、占着连接</td><td>Day 36 / 38 / 41</td></tr>
+    <tr><td>会话级状态在 PgBouncer 的 transaction 模式下安全吗(代码、脚本、迁移里的 <code>SET</code>、咨询锁、临时表、具名预备语句)</td><td>偶发、难复现的串数据</td><td>Day 41</td></tr>
+    <tr><td><code>withRetry</code> 会不会重试不该重试的错误、漏掉该重试的?重做的是整件事吗?次数用完时客户端收到的错误语义对吗</td><td>重试错了比不重试更糟</td><td>Day 37 / 40</td></tr>
+    <tr><td>超时设置了吗、设在哪里?57014、55P03、25P03 到了应用里变成什么状态码</td><td>没有超时 = 一个坏请求能拖垮整个池子</td><td>Day 41</td></tr>
+    <tr><td><code>updateLocked</code> 可能死锁吗?将来一次锁两个任务呢?它的事务边界能扩展到多个仓储吗</td><td>死锁和「事务开不到 Service 层」</td><td>Day 39 / 40,Week 7</td></tr>
+    <tr><td>内存版仓储为什么天然测不出某些竞态?现在的并发测试是怎么让竞态稳定出现的</td><td>测试绿了不代表没有竞态</td><td>Day 40</td></tr>
+    <tr><td>连接池大小、等待超时、空闲回收和 PgBouncer 的配置相互匹配吗?副本数变多时谁先撑不住</td><td>层层排队时,最外层的超时决定用户看到什么</td><td>Day 41</td></tr>
+  </table>
+
+  <div class="story">
+    <span class="tag">🔦 找不到问题时的提示(不是答案)</span>
+    <ul>
+      <li>第 1 条:<code>remove()</code> 先查后删,Day 40 说它「不需要版本号」。如果 A 刚把任务改成了重要的内容,B 拿着 5 分钟前的页面点了删除,B 删的是不是他没看过的那一版?HTTP 层面有什么标准办法表达「只有它还是我看到的那一版才删」?</li>
+      <li>第 2 条:<code>change()</code> 里读用的是 <code>pool.query</code>,写用的是 <code>transaction()</code>。事务里那几条语句之间有没有慢操作?将来如果要在「改完任务」之后发一封通知邮件,你会把它放在事务里面还是外面?</li>
+      <li>第 3 条:搜一下 <code>scripts/</code> 和 <code>sql/</code>,哪些文件里有不带 <code>LOCAL</code> 的 <code>SET</code>?它们是经过 PgBouncer 执行的吗?<code>db-reset.mjs</code> 应该连 5432 还是 6432?</li>
+      <li>第 4 条:客户端<b>没带</b> <code>version</code>,连续 3 轮都被抢先时,Service 抛的是哪个 problem type?这个 type 的名字和 <code>docs/problems.md</code> 里写的「调用方该怎么做」对没带 version 的客户端说得通吗?</li>
+      <li>第 5 条:在 <code>src/database/pg-errors.ts</code> 的 <code>translatePgError</code> 里找 57014、55P03。找不到的话,它们最后变成了什么?客户端该不该重试?</li>
+      <li>第 6 条:<code>updateLocked</code> 只锁一行。<code>writeChanges</code> 还会删、插 <code>checklist_items</code>,外键检查要拿父行的什么锁?和自己已经拿着的锁冲突吗?<code>decide</code> 为什么是同步函数?</li>
+      <li>第 7 条:<code>test/concurrency.e2e-spec.ts</code> 的用例 ② 是怎么把「另一个请求」插进读和写之间的?不这样做,两个 supertest 请求真的会交错吗?Day 40 里去掉 <code>AND version = $n</code> 之后,为什么用例 ① 还是绿的?</li>
+      <li>第 8 条:<code>pg-pool.ts</code> 的 <code>connectionTimeoutMillis</code> 是多少?经过 PgBouncer 时,连接建立得很快,但查询可能在 PgBouncer 门口排队,那段等待受哪个设置管?(<code>pgbouncer.ini</code> 里找 <code>query_wait_timeout</code>。)两个值差多少?用户先看到哪个?</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>产出要求</h3>
+    <p>每发现一个问题,写成这个格式:</p>
+    <pre><code>## 文件 / 位置:nest-lab/src/tasks/xxx.ts 的 xxx
+**对应清单第几条:** ……
+**问题:** ……
+**证据(代码行 / 实测 / 讲义里的哪一段):** ……
+**后果(对用户 / 对数据库 / 对运维):** ……
+**改法:** ……
+**计划在哪一周改 / 为什么现在接受:** ……</code></pre>
+    <p><b>最后一行最重要。</b>这一周的很多「问题」是有意的取舍:为了不改 API 契约,为了等 Week 7 的事务传播、Week 9 的角色与迁移、Week 12 的 ETag、Week 14 的 compose。把理由写出来,你才能分清<b>「有意接受的代价」</b>(记账、排期、设复查条件)和<b>「没想到的坑」</b>(补测试、补监控)。</p>
+    <p><b>至少找出 2 个问题。</b>选做:读一遍 <code>docs/db-timeouts.md</code>,找一个你不同意的建议值或结论,写出理由和你会用什么实验验证。</p>
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📊 第四件事:新增对照表 + 自测 12 题(约 25 min)</h2>
+
+  <h3>4.1 新增跨语言对照表(约 5 min)</h3>
+  <p>打开 <code>roadmap.md</code> 顶部的「后端概念跨语言对照表」。和这周有关的已有行:<b>声明式事务 / 事务传播</b>(Week 7 会细化)、<b>共享内存与原子操作(防竞态)</b>(Week 1 的 Atomics,对照今天的「数据库里的竞态」)。</p>
+  <p><b>任务(必做):新增五行</b>。这五行 Day 36–41 的讲义都提过,<b>五列都要你自己填</b>(Node / TS 生态那一列可以写「PostgreSQL / nest-lab」,其余列写对应数据库或语言生态里的做法)。提示(只是方向,不是答案):</p>
+  <ul>
+    <li><b>隔离级别:默认值与实现</b>:PostgreSQL 的默认级别是什么,Repeatable Read 实际是什么、Serializable 靠什么?MySQL(InnoDB)默认是哪一级,它的 RR 靠什么防幻读?SQL Server 默认是哪一级,<code>READ_COMMITTED_SNAPSHOT</code> 改变了什么?.NET 的 <code>TransactionScope</code> 默认是哪一级(记得这一格要核实)?</li>
+    <li><b>MVCC 的实现</b>:旧版本存在哪里(表里、undo log、tempdb),谁负责清理,清理不及时会出什么事?</li>
+    <li><b>行锁 / SKIP LOCKED / 咨询锁</b>:三家各怎么写?哪家从哪个版本开始支持 <code>SKIP LOCKED</code>?ORM(EF Core、JPA、Prisma)里能不能直接表达?</li>
+    <li><b>乐观锁</b>:EF Core、JPA、Prisma、Go 各怎么声明版本列、冲突时抛什么?PostgreSQL 上的 EF Core 可以不加列,用哪个系统列?HTTP 层的标准写法是什么?</li>
+    <li><b>连接池</b>:Npgsql、HikariCP、pgxpool 的默认最大连接数各是多少(Day 41 核实过三个)?外部连接池和云上托管的各有哪些?</li>
+  </ul>
+  <p>填完后想一想:这五行里,哪些格子是你<b>实测过</b>的,哪些只是<b>读来</b>的?读来的那些,在旁边标一个「未实测」。Week 6 讲义里 MySQL / SQL Server / ORM 的内容大多是「已用 Context7 或联网核实、未实测」或「记忆、未核实」。</p>
+
+  <h3>4.2 自测 12 题(闭卷,约 20 min,写在 <code>src/42-week6-review/self-test.md</code>)</h3>
+  <div class="task">
+    <h3>基础题(每题 1 分)</h3>
+    <ol>
+      <li>ACID 四个字母各保证什么?事务里一条语句出错之后,再发 <code>SELECT 1</code> 会得到什么?怎么只撤销出错的那一步而不是整个事务?</li>
+      <li>写出五种并发异常的名字,各用一句话说明。PostgreSQL 默认是哪个隔离级别?在这个级别下,哪几种异常会静默发生?</li>
+      <li>一次 <code>UPDATE</code> 在 PostgreSQL 的表里留下了什么?<code>xmin</code> 和 <code>xmax</code> 各记的是什么?<code>VACUUM</code> 和 <code>VACUUM FULL</code> 各做什么、各锁不锁表?</li>
+      <li><code>SELECT … FOR UPDATE</code> 挡不挡普通的 <code>SELECT</code>?<code>NOWAIT</code>、<code>lock_timeout</code>、<code>SKIP LOCKED</code> 各在拿不到锁时怎么做?死锁报什么错误码?</li>
+      <li>写出乐观锁的那条 <code>UPDATE</code>。影响 0 行可能是哪两种情况?悲观锁用的是哪条 SQL?</li>
+      <li>PgBouncer 的三种池模式各是什么?超时三件套各叫什么、到点各报什么?</li>
+    </ol>
+  </div>
+  <div class="task">
+    <h3>理解题(每题 2 分)</h3>
+    <ol start="7">
+      <li>两个事务同时给同一行「加 1」。分别写成 <code>UPDATE … SET n = n + 1</code> 和「先读、应用里算、再写回」,在 Read Committed 和 Repeatable Read 下各会怎样?Day 40 的乐观锁为什么在 Read Committed 下就够了?</li>
+      <li>一个连接 <code>BEGIN</code> 之后挂着不提交,会从哪三个方面伤害系统(提示:清理、锁、连接)?你会用哪条查询发现它,用哪个设置防住它?到点之后,nest-lab 的连接池会怎样?</li>
+      <li>为什么一条等锁的 <code>ALTER TABLE</code> 会让一个和它毫不相干的 <code>SELECT</code> 也卡住?线上执行 DDL 前应该先设什么、失败了怎么办?</li>
+      <li>在 PgBouncer 的 transaction 模式下:一个客户端执行了不带 <code>LOCAL</code> 的 <code>SET statement_timeout</code>,另一个执行了会话级 <code>pg_advisory_lock</code>,第三个用了具名预备语句。各会出什么问题、各怎么修?nest-lab 的 <code>search_path</code> 又遇到了什么问题?</li>
+    </ol>
+  </div>
+  <div class="task">
+    <h3>综合题(每题 5 分)</h3>
+    <ol start="11">
+      <li><b>场景题:</b>促销活动时,商品库存出现了负数,而代码里明明是「先查库存,够了才扣」。<b>请定位原因(画出两个请求的时间线,说明是哪一种并发异常),给出三种修法(至少包括一种乐观、一种悲观、一种不需要先读的写法),并比较它们在高并发抢购下的正确性、吞吐、实现复杂度和失败时用户看到什么。</b>如果规则变成「同一个用户在活动期间最多买 2 件」(要数他已有的订单),哪些修法还管用,为什么?</li>
+      <li><b>场景题:</b>凌晨一次 <code>ALTER TABLE</code> 让整个 API 卡死了 3 分钟;同一周,数据库磁盘告警说某张表膨胀到了正常大小的 10 倍。<b>这两件事可能有什么共同的根因?请给出排查步骤(先查什么、用哪些视图或命令、期望看到什么证据),以及预防措施(数据库设置、应用代码、发布流程、监控各至少一条)。</b>如果系统前面有 PgBouncer,排查时有什么要额外注意的地方?</li>
+    </ol>
+  </div>
+  <p><b>评分:</b>基础题 1 分 × 6 + 理解题 2 分 × 4 + 综合题 5 分 × 2,满分 24。<b>低于 17 分,开始 Week 7 前先把错题对应的那天重看一遍。</b>另外 8 道题在 <code>self-test.md</code> 末尾,留给下周碎片时间选做:</p>
+  <ul>
+    <li>「至少留一个人值班」的写偏斜在三个级别下的结果,和 Serializable 以外的两种修法</li>
+    <li>40001 之后为什么要重做整个事务;退避为什么要随机抖动;nest-lab 把 <code>isRetryable</code> 换成了什么</li>
+    <li>相反顺序加锁的死锁:多久、谁报错、DETAIL 写了什么、怎么避免</li>
+    <li>SKIP LOCKED 队列里 worker 崩溃或卡住时任务怎么办</li>
+    <li>HOT、<code>fillfactor</code> 和 MVCC 的关系;覆盖索引为什么让 PATCH 变慢、让 Heap Fetches 变多</li>
+    <li>PUT 带同一个 <code>version</code> 重放两次;不带时还幂等吗;<code>412</code> 和 <code>409</code> 怎么分工</li>
+    <li>8 核、<code>max_connections = 200</code>、10 个副本时的连接数算式(有 / 没有 PgBouncer)</li>
+    <li>MySQL 的默认隔离级别、MVCC 实现、防幻读的办法;SQL Server 的 <code>READ_COMMITTED_SNAPSHOT</code>(未实测)</li>
+  </ul>
+</section>
+
+<section id="sec5">
+  <h2>🎯 Week 6 结算、Phase 2 前半程遗留清单与 Week 7 预告</h2>
+
+  <h3>这周你从「不知道」到「能讲清楚」的东西</h3>
+  <table>
+    <tr><th>Day</th><th>主题</th><th>核心收获(账房版)</th></tr>
+    <tr><td>36</td><td>事务与 ACID</td><td>一张整单作业单,要么全部盖章,要么整张作废;作废的时候还得把伙计的状态收拾干净(<code>transaction()</code> 修复)</td></tr>
+    <tr><td>37</td><td>隔离级别与并发异常</td><td>每个伙计手里那张账本照片是什么时候拍的,决定了他会不会看错;照片太旧的,数据库会喊他重来(40001 + <code>withRetry</code>)</td></tr>
+    <tr><td>38</td><td>MVCC 与 VACUUM</td><td>账本从不涂改,只在后面另写一行;旧行要有人定期划掉,而一个一直拿着旧照片的伙计会让谁都不敢划</td></tr>
+    <tr><td>39</td><td>锁</td><td>账本上压一块镇纸、看见镇纸就拿下一张;整本收走重新装订时门口排起长队;墙上那块值班牌</td></tr>
+    <tr><td>40</td><td>乐观锁 vs 悲观锁</td><td>看账页右上角的版本号,还是先压上镇纸再看;客人要想 5 分钟的时候,只能靠版本号</td></tr>
+    <tr><td>41</td><td>连接池与 PgBouncer</td><td>总店门口的叫号台:几百位客人,20 位伙计;换了伙计,他不记得你喜欢红笔;墙上三条规矩</td></tr>
+  </table>
+
+  <div class="concept">
+    <span class="tag">一句话总结 Week 6</span>
+    <p><b>你现在知道一个事务保证了什么、没保证什么;四种隔离级别在 PostgreSQL 里实际挡住了哪些异常,被拦下的 40001 要整个重做;UPDATE 不改旧行而是写新版本,旧版本靠 VACUUM 清理,长事务会把清理卡住;行锁、表锁、死锁和咨询锁各是什么样子;以及怎样用乐观锁或悲观锁修掉「先查后改」,怎样用连接池和 PgBouncer 让连接数可控、用超时三件套防住失控的请求。你还在 nest-lab 里修掉了 Week 4 留下的两个已知问题(<code>transaction()</code> 的错误吞掉与坏连接、先查后改的丢失更新),写了第一套会在修复前失败的并发测试,并让同一套 e2e 经过 PgBouncer 通过。</b></p>
+    <p>Week 4 回答「存进去的东西怎么保证不坏」,Week 5 回答「数据多了怎么还快」,Week 6 回答「同时改的时候怎么还对」。三个问题合起来,就是「数据库这一层」的基本功。Week 7 往上走一层:代码里<b>怎么组织</b>数据访问(ORM、Repository、Unit of Work),以及事务边界应该归谁管。</p>
+  </div>
+
+  <h3>Week 6 结算:两个 Week 4 遗留问题已关闭</h3>
+  <table>
+    <tr><th>问题</th><th>来自</th><th>怎么修的</th><th>证据</th></tr>
+    <tr><td><code>transaction()</code>:ROLLBACK 失败时吞掉原错误;坏连接被还回池子</td><td>Day 27 / 28 review、Week 5 遗留 #7</td><td>原错误优先抛出、ROLLBACK 错误只记日志;<code>release(err)</code> 丢弃不可信的连接</td><td>Day 36:5 个单元测试 + <code>npm run day36</code> 第 8 幕</td></tr>
+    <tr><td>Service「先查后改」的丢失更新 / 绕过业务规则</td><td>Day 24 / 28 review、Week 5 遗留 #8</td><td>乐观锁(<code>version</code> 列 + 条件 UPDATE + 整轮重做 / 409 stale-version);仓储另有悲观锁 <code>updateLocked</code></td><td>Day 40:<code>test/concurrency.e2e-spec.ts</code> 修复前 PG 上 4 个失败,修复后内存 / PG / PgBouncer 全部通过</td></tr>
+  </table>
+
+  <h3>Phase 2 前半程遗留清单(有意接受的代价,已排期)</h3>
+  <p>这些问题在 Day 36–41 里都出现过,不是遗漏,而是「正确的做法要等后面的知识」。review 时你可能已经遇到了其中几条。Week 5 遗留清单里还没关闭的几条也一并列在最后。</p>
+  <table>
+    <tr><th>#</th><th>问题</th><th>风险</th><th>计划在哪一周 / 怎么处理</th></tr>
+    <tr><td>1</td><td>事务边界只能开在仓储里:<code>updateLocked(id, decide)</code> 靠同步回调把判断塞进事务,一个业务操作要跨两个仓储、或者判断需要 <code>await</code> 时就做不到</td><td>以后出现「改任务 + 写审计日志必须在同一个事务」时,只能把逻辑堆进仓储</td><td>Week 7:事务传播(AsyncLocalStorage、<code>nestjs-cls</code> + <code>@Transactional()</code>,对照 Spring 的 REQUIRED / REQUIRES_NEW)</td></tr>
+    <tr><td>2</td><td>乐观锁的版本号放在请求体的 <code>version</code> 里,不是 HTTP 标准的 <code>ETag</code> / <code>If-Match</code></td><td>通用的 HTTP 客户端、缓存、网关不认识它</td><td>Week 12:ETag 由 <code>version</code> 生成,<code>If-Match</code> 不匹配回 412,缺失时可回 428</td></tr>
+    <tr><td>3</td><td>超时三件套只写进了 <code>docs/db-timeouts.md</code>,没有落到角色上;应用角色和迁移角色还没分开</td><td>一个失控的查询或忘了提交的事务没有上限</td><td>Week 9(已写进 roadmap):建应用专用角色并设超时,迁移用 owner 角色</td></tr>
+    <tr><td>4</td><td>PgBouncer 只在本机手动 / 脚本里运行,没有进 <code>compose.yaml</code>;Docker 镜像写法未实测</td><td>换到容器环境时配置要重写</td><td>Week 14(已写进 roadmap):compose 里加 PgBouncer,实测镜像</td></tr>
+    <tr><td>5</td><td><code>npm run test:e2e:pgbouncer</code> 需要先手动启动 PgBouncer</td><td>容易忘了跑,PgBouncer 兼容性回归发现不了</td><td>Week 15(CI/CD):流水线里起 PostgreSQL + PgBouncer 服务,三套 e2e(内存 / PG / PgBouncer)都跑</td></tr>
+    <tr><td>6</td><td>数据库超时类错误(57014、55P03)和连接断开(25P03)在应用里统一变成 500</td><td>客户端分不清「该重试」和「代码有 bug」</td><td>Week 12(API 质量):细分错误类型(如 503 + <code>Retry-After</code>),和限流一起设计</td></tr>
+    <tr><td>7</td><td>并发测试靠「包一层 <code>findById</code>」把另一个请求精确插进读和写之间;真实负载下的竞态只在观察脚本里测过</td><td>测试覆盖的是我们想得到的时序</td><td>Week 11(测试体系):并发 / 负载测试的位置;上线后用 409 stale-version 的比例做监控(Week 19)</td></tr>
+    <tr><td>8</td><td>PgBouncer 1.22 下 <code>search_path</code> 不能经由启动参数传递;新版本 + PostgreSQL 18 的行为只读过文档、未实测</td><td>升级 PgBouncer / PostgreSQL 时行为可能变化</td><td>升级时复查;启动时的 <code>current_schema()</code> 核对会第一时间暴露问题</td></tr>
+    <tr><td>9</td><td>本周跨语言内容(MySQL / SQL Server 的隔离级别与锁、EF Core / JPA / Prisma 的乐观锁与悲观锁、各语言连接池)大多没在本机实测</td><td>记错了在面试或换栈时露馅</td><td>ORM 部分 Week 7 逐条核对;其余用到时实测</td></tr>
+    <tr><td>10</td><td>仓库根目录的 <code>src/37-isolation-levels/with-retry.ts</code> 和 nest-lab 的 <code>src/database/with-retry.ts</code> 是两份副本</td><td>以后只改了一份</td><td>接受:根目录那份是 Day 37 的习题记录,不再修改;nest-lab 只用自己那份</td></tr>
+    <tr><td>11</td><td>Week 5 遗留中未关闭的:统计目标与计划不稳定(#2)、短关键词最坏情况(#3)、pg_stat_statements 看不到应用层(#6)、<code>title COLLATE "C"</code> 索引是否值得(#10)</td><td>同 Day 35</td><td>Week 19(可观测性)</td></tr>
+    <tr><td>12</td><td>Week 5 遗留中未关闭的:v1 一次返回全部任务(#4)、生产上建索引(#9)、<code>compose.yaml</code> 的 pg_stat_statements 未实测(#11)、<code>users</code> 落库的索引(#5)</td><td>同 Day 35</td><td>Week 12 / Week 9 / Week 14 / Week 10</td></tr>
+  </table>
+
+  <h3>Week 7 预告(Day 43–49):ORM 与数据访问模式</h3>
+  <p>以 roadmap 的 Phase 2 / Week 7 为准,大致包括(每天的具体拆分以当天讲义为准)。<b>重点学模式,不是学 Prisma</b>:</p>
+  <ul>
+    <li><b>ActiveRecord vs DataMapper</b>:对象自己会存自己,还是由另一层负责存;nest-lab 现在的 <code>Task</code> 接口 + 仓储更像哪一种</li>
+    <li><b>Unit of Work</b>:一次业务操作里改了好几个对象,最后一次性提交(EF Core 的 <code>DbContext</code> / <code>SaveChanges</code>)</li>
+    <li><b>Repository 模式的争议</b>:ORM 已经是仓储了,还要不要再包一层?nest-lab 的 <code>TasksRepository</code> 接口值不值</li>
+    <li><b>N+1 问题</b>:nest-lab 为什么一直用 LATERAL + <code>json_agg</code> 一次取清单项(Day 26 / 27),ORM 里怎么不小心写出 N+1、怎么发现</li>
+    <li><b>在 NestJS 里落地 Prisma</b>:<code>PrismaService</code> 作为 Provider 注入;顺带看一眼 TypeORM(装饰器实体,更像 EF Core / Hibernate);对照 EF Core 的 LINQ + <code>DbContext</code> 写一页笔记</li>
+    <li><b>事务传播专题</b>:为什么事务不该写在 Controller 里;一个业务操作跨多个 Service 时怎么共用一个事务 —— AsyncLocalStorage(Day 13 用过)+ <code>nestjs-cls</code> 的 <code>@Transactional()</code>,对照 Spring <code>@Transactional</code> 的 REQUIRED / REQUIRES_NEW;事务里不要调外部 HTTP、不要做长任务(这周已经看到锁会被一直占着)</li>
+    <li><b>何时绕过 ORM 写原生 SQL</b>:报表、批量、窗口函数;nest-lab 的 keyset 分页和 trigram 搜索在 ORM 里怎么写</li>
+  </ul>
+  <p><b>nest-lab 会怎样演进</b>(具体以当天讲义为准):</p>
+  <table>
+    <tr><th>现在</th><th>Week 7 之后(预计)</th><th>为什么这样安排</th></tr>
+    <tr><td>两种仓储实现:内存版、<code>pg</code> 版,共用一套 e2e(内存 / PG / PgBouncer 三种跑法)</td><td>加第三种实现:Prisma 版仓储,<b>同一套 e2e</b> 在它上面也要通过</td><td>Day 9 的仓储接口和 Day 27 的「换实现只改一行」再验证一次:换 ORM 也不该改 Service 和测试</td></tr>
+    <tr><td>乐观锁写在手写 SQL 里</td><td>Prisma 版里用 <code>updateMany</code> + <code>version</code> 实现同样的语义(Day 40 核实过 Prisma 没有内置乐观锁),并发测试照样要过</td><td>检验「乐观锁是一个模式,不是某个库的功能」</td></tr>
+    <tr><td><code>updateLocked</code> 的事务开在仓储里</td><td>事务由 Service 开、经 AsyncLocalStorage 传给仓储(<code>@Transactional()</code>)</td><td>修掉遗留 #1</td></tr>
+    <tr><td>清单项用 LATERAL + <code>json_agg</code> 一次取回</td><td>对比 Prisma 的 <code>include</code> 实际发了几条 SQL;故意写一次 N+1 再用日志 / pg_stat_statements 抓出来</td><td>N+1 要亲眼看到一次才记得住</td></tr>
+  </table>
+  <p>想一想(不用写):如果 Prisma 版仓储的 <code>update</code> 也要返回 <code>updated / not-found / stale</code> 三种结果,它要发几条 SQL?Prisma 的 <code>$transaction</code> 和 nest-lab 的 <code>transaction()</code>,在 PgBouncer 的 transaction 模式下各有什么要注意的?</p>
+
+  <h3>提交今天的产出</h3>
+  <pre><code>git add -A
+git commit -m "docs: week 6 review"</code></pre>
+</section>
+
+<section id="sec6">
+  <h2>✅ 复盘日自检</h2>
+  <ul class="check">
+    <li>画出了「两个同时到达的 PATCH 经过 PgBouncer 进入 PostgreSQL 的一生」,两条泳道都画了,每一站都标了 Week 6 的 Day 和 Week 1–5 的 Day;写出了真正发出的 SQL 和事务边界;四条支线也写了</li>
+    <li>六张概念卡全部默写完,每张都有「通用定义 + PostgreSQL / nest-lab + MySQL / SQL Server / .NET / Java」三部分,末尾写了 Week 6 的题眼对 nest-lab 意味着什么,并凭记忆写出了 nest-lab 的事务、版本检查和重试都在哪</li>
+    <li>对 nest-lab 做了并发 review,至少找出 2 个问题,写清了证据、改法、「计划在哪一周改 / 为什么现在接受」</li>
+    <li>roadmap 对照表新增了「隔离级别」「MVCC」「行锁 / SKIP LOCKED / 咨询锁」「乐观锁」「连接池」五行,五列都是自己填的,没实测的格子标了「未实测」</li>
+    <li>自测 12 题做完并打分,低于 17 分的部分已经安排重看</li>
+    <li>看过 Week 6 结算和遗留清单,知道两个 Week 4 遗留问题怎么关闭的、剩下的每一条为什么现在不修、在哪一周修;知道 Week 7 nest-lab 会加哪一种仓储实现</li>
+    <li>今天的产出已经 commit</li>
+  </ul>
+</section>
+
+<footer>
+  Day 42 · Phase 2 / Week 6 · 复盘日 · 产出:<code>src/42-week6-review/</code> 下的四份文档 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

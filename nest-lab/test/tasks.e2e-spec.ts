@@ -53,6 +53,7 @@ describe('Tasks (e2e)', () => {
         done: true,
         checklist: [],
         createdAt: FIXED,
+        version: 1, // Day 40
       });
   });
 
@@ -108,7 +109,7 @@ describe('Tasks (e2e)', () => {
       .set(KEY)
       .send({ title: '写 e2e 测试' })
       .expect(201);
-    expect(created.body).toEqual({ id: 3, title: '写 e2e 测试', done: false, checklist: [], createdAt: FIXED });
+    expect(created.body).toEqual({ id: 3, title: '写 e2e 测试', done: false, checklist: [], createdAt: FIXED, version: 1 });
 
     await request(app.getHttpServer()).get('/tasks/3').expect(200);
   });

@@ -12,6 +12,7 @@ describe('envSchema / validateEnv', () => {
       TASKS_STORAGE: 'memory', // Day 27:默认不需要数据库
       DATABASE_SCHEMA: 'app',
       DB_POOL_MAX: 10,
+      DB_STARTUP_SEARCH_PATH: true, // Day 41:直连 PostgreSQL 时用启动参数设 search_path
       DB_RESET_ON_START: false,
     });
   });

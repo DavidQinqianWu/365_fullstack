@@ -34,6 +34,12 @@ export const envSchema = z
       .default('app'),
     // 连接池最多同时开几个连接(每个连接在 PG 那边是一个进程,Day 22)
     DB_POOL_MAX: z.coerce.number().int().min(1).max(50).default(10),
+    // Day 41:建连接时是否用启动参数 options=-c search_path=… 选 schema。
+    //   true(默认):直连 PostgreSQL 时用
+    //   false:经过 PgBouncer 时用 —— PgBouncer 拒绝 options 里的 search_path(08P01 unsupported startup parameter),
+    //          schema 改由 PgBouncer 的库别名 connect_query 设置(pgbouncer/pgbouncer.ini)。
+    //   两种情况下应用启动时都会检查 current_schema() 是不是 DATABASE_SCHEMA,不是就拒绝启动(PgTasksRepository)
+    DB_STARTUP_SEARCH_PATH: z.stringbool().default(true),
     // 启动时清空任务表并写入样品数据 —— 让 PG 版和内存版一样「每次开店都是一个新冰柜」。
     // 只给 e2e:pg 和观察脚本用;生产环境禁止(见 superRefine)
     DB_RESET_ON_START: z.stringbool().default(false),

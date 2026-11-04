@@ -32,7 +32,11 @@ import { TasksService } from './tasks.service.js';
       provide: TASKS_REPOSITORY,
       useFactory: (seed: Task[], pool: pg.Pool, config?: ConfigService<Env, true>): TasksRepository => {
         if (config?.get('TASKS_STORAGE', { infer: true }) !== 'postgres') return new InMemoryTasksRepository(seed);
-        return new PgTasksRepository(pool, config.get('DB_RESET_ON_START', { infer: true }) ? seed : null);
+        return new PgTasksRepository(
+          pool,
+          config.get('DB_RESET_ON_START', { infer: true }) ? seed : null,
+          config.get('DATABASE_SCHEMA', { infer: true }), // Day 41:启动时核对 search_path 是否生效
+        );
       },
       // ConfigService 设成 optional:单元测试里只导入 TasksModule(没有 ConfigModule)时,默认用内存版
       inject: [TASKS_SEED, PG_POOL, { token: ConfigService, optional: true }],
@@ -48,8 +52,8 @@ import { TasksService } from './tasks.service.js';
       useFactory: (clock: Clock): Task[] => {
         const openedAt = clock.now().toISOString(); // 开业时间
         return [
-          { id: 1, title: '跑通 nest new', done: true, checklist: [], createdAt: openedAt },
-          { id: 2, title: '看懂 Module / Controller / Provider', done: false, checklist: [], createdAt: openedAt },
+          { id: 1, title: '跑通 nest new', done: true, checklist: [], createdAt: openedAt, version: 1 },
+          { id: 2, title: '看懂 Module / Controller / Provider', done: false, checklist: [], createdAt: openedAt, version: 1 },
         ];
       },
       inject: [CLOCK],

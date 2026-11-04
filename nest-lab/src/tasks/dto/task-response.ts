@@ -21,6 +21,8 @@ export class TaskResponse {
   @ApiProperty({ example: false }) done!: boolean;
   @ApiProperty({ type: () => [ChecklistItemResponse] }) checklist!: ChecklistItemResponse[];
   @ApiProperty({ format: 'date-time', example: '2026-01-01T00:00:00.000Z' }) createdAt!: string;
+  // Day 40:新增字段(只增不减,v1 / v2 都带上)。修改时把它放进请求体的 version,就能用上乐观锁
+  @ApiProperty({ type: 'integer', example: 1, description: '版本号:新建时为 1,每次修改成功后 + 1' }) version!: number;
 }
 
 export function toTaskResponse(task: Task): TaskResponse {
@@ -30,5 +32,6 @@ export function toTaskResponse(task: Task): TaskResponse {
     done: task.done,
     checklist: task.checklist.map((i) => ({ text: i.text, done: i.done })),
     createdAt: task.createdAt,
+    version: task.version,
   };
 }

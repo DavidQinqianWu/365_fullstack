@@ -68,7 +68,7 @@ describe('OpenAPI 文档 (e2e)', () => {
   it('文档 schema 的字段 = 映射函数真实输出的字段(防止「忘了贴 @ApiProperty」)', () => {
     const schemas = (doc.components?.schemas ?? {}) as Record<string, { properties?: object }>;
     const props = (name: string) => Object.keys(schemas[name]?.properties ?? {}).sort();
-    const task = toTaskResponse({ id: 1, title: 't', done: false, checklist: [], createdAt: '2026-01-01T00:00:00.000Z' });
+    const task = toTaskResponse({ id: 1, title: 't', done: false, checklist: [], createdAt: '2026-01-01T00:00:00.000Z', version: 1 });
     expect(props('TaskResponse')).toEqual(Object.keys(task).sort());
     const user = toUserResponse(
       { id: 1, email: 'a@b.c', displayName: 'A', role: 'user', passwordHash: 'x', internalNote: 'n', createdAt: new Date() },

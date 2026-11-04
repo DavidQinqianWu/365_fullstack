@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 39 - 锁:账本上压一块镇纸、整本收走重新装订,还有墙上那块值班牌</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 6</div>
+  <h1>Day 39 - 锁:账本上压一块镇纸、整本收走重新装订,还有墙上那块值班牌</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>为什么有了 MVCC 还要锁 · 行锁四种模式、<code>NOWAIT</code>、<code>lock_timeout</code> · <code>SKIP LOCKED</code> 任务队列 · 表锁级别与 DDL 锁队列 · 死锁与按顺序加锁 · 谁挡住了谁(<code>pg_blocking_pids</code>)· 咨询锁</b> ·
+    项目:<code>nest-lab/</code> 新增 <code>sql/day39/</code>(schema <code>day39</code>)、<code>npm run day39</code>(约 10 秒);nest-lab 的 <code>src</code> 不改(乐观锁 / 悲观锁的落地是 Day 40)·
+    所有输出来自 PostgreSQL 16.15 的真实运行,跑了 3 遍、写区间;每个连接都设了 <code>statement_timeout</code> 兜底,脚本不会挂住
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:读不挡写,可写和写还得排队</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天新增了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:行锁与 SKIP LOCKED —— 压一块镇纸,看见镇纸就拿下一张</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:表锁与锁队列 —— 整本收走重新装订,门口排起长队</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:死锁、排查与咨询锁 —— 两块镇纸互相等,墙上一块值班牌</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:读不挡写,可写和写还得排队</h2>
+  <p>Day 38 讲了 MVCC:每个事务看自己那份快照,读和写互不等待。但你也见过三次「等待」:</p>
+  <ul>
+    <li>Day 36 第 4 幕,B 要改 A 正在改的同一行,只能等 A 提交;</li>
+    <li>Day 37 的原子自增,T2 的 <code>UPDATE … SET n = n + 1</code> 卡在那里,直到 T1 结束;</li>
+    <li>Day 34 在事务里 <code>DROP INDEX</code>,整张表被锁住。</li>
+  </ul>
+  <p>这些都是<b>锁</b>。MVCC 解决的是读和写的冲突,写和写的冲突仍然要靠锁:同一行同一时刻只能有一个事务在改,改表结构的时候整张表都不能动。</p>
+  <p>今天把锁拆成三块讲:</p>
+  <ul>
+    <li><b>行锁</b>:包括用它做一个任务队列;</li>
+    <li><b>表锁</b>:包括一个 <code>ALTER TABLE</code> 怎样让整个服务卡住;</li>
+    <li><b>死锁、排查工具和咨询锁</b>。</li>
+  </ul>
+  <p>明天(Day 40)用这些工具修 nest-lab 的「先查后改」。</p>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你做过防重复点击:提交按钮点了以后先 <code>disabled</code>,请求回来再恢复,这就是一把最简单的锁。浏览器还有 Web Locks API:<code>navigator.locks.request('sync', async () =&gt; { … })</code>,同一个名字的锁,多个标签页里同一时刻只有一个能拿到。你可能也写出过「卡死」:两个 Promise 各自等着对方先 resolve,谁都不动。数据库里这三样都有,分别叫行锁、咨询锁和死锁。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天新增了什么</h2>
+  <pre><code>cd nest-lab
+npm run day39      # 行锁 → SKIP LOCKED 队列 → DDL 锁队列 → 死锁 → 咨询锁(本机约 10 秒)
+
+# 手动版:开两三个 psql 窗口,按 sql/day39/02、04、05、07 里的注释一步一步做
+psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab
+nest_lab=&gt; SET search_path = day39;</code></pre>
+  <p>观察脚本用多个 <code>pg</code> 连接(A、B、C、W1–W4、副本 1–3……)按固定时序执行,每一步都打印用时和结果。每个连接都设了 <code>statement_timeout = 10s</code>,即使哪一步卡住,也会在 10 秒内报错退出,不会把脚本永远挂住。</p>
+
+  <h3>📂 今天新增了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>干什么用</th></tr>
+    <tr><td><code>sql/day39/01-setup.sql</code></td><td>schema <code>day39</code>:<code>accounts</code> / <code>transfers</code>(外键)、<code>jobs</code>(200 个任务 + 部分索引)、<code>big</code>(10 万行)</td></tr>
+    <tr><td><code>sql/day39/02-row-locks.sql</code></td><td>行锁的两个窗口手动步骤、四种行锁的冲突表</td></tr>
+    <tr><td><code>sql/day39/03-skip-locked.sql</code></td><td>一个 worker「领任务 → 处理 → 标记完成」的一次循环</td></tr>
+    <tr><td><code>sql/day39/04-ddl-lock-queue.sql</code></td><td>三个窗口的锁队列步骤;常见语句各拿什么表锁</td></tr>
+    <tr><td><code>sql/day39/05-deadlock.sql</code></td><td>死锁与按顺序加锁的两个窗口步骤</td></tr>
+    <tr><td><code>sql/day39/06-who-blocks.sql</code></td><td><b>工具</b>:谁在等谁、等了多久、在执行什么 SQL</td></tr>
+    <tr><td><code>sql/day39/07-advisory.sql</code></td><td>事务级 vs 会话级咨询锁</td></tr>
+    <tr><td><code>scripts/day39-try.mjs</code> + <code>package.json</code> 的 <code>day39</code></td><td>观察脚本(只引用 nest-lab 里的文件)</td></tr>
+    <tr><td><code>README.md</code></td><td>命令、成长日志 Day 39</td></tr>
+  </table>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:行锁与 SKIP LOCKED —— 压一块镇纸,看见镇纸就拿下一张</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>行锁</b>保证同一行同一时刻只有一个事务在改它。UPDATE / DELETE 会自动加锁;<code>SELECT … FOR UPDATE</code> 让你在「读出来、在应用里算」之前就先锁住,别人想改就得等。锁一直拿到<b>事务结束</b>。等不了的话,<code>NOWAIT</code> 立刻报错,<code>lock_timeout</code> 等一会儿再报错,<code>SKIP LOCKED</code> 直接跳过被锁的行。最后这个正好拿来做任务队列:多个 worker 同时领任务,谁也不领重复的,谁也不用等谁。
+  </div>
+
+  <h3>② 生活类比:镇纸</h3>
+  <p>伙计要改账本上的某一行,先在那一行上<b>压一块镇纸</b>:「我正在改,别动」。别的伙计照样可以看(MVCC 的照片),但要改这一行,就得站在旁边等镇纸拿走。镇纸要等这张作业单盖章或作废后才拿走,不是改完这一行就拿走。</p>
+  <p>镇纸有轻有重:最重的(<code>FOR UPDATE</code>)谁来都不行;普通改账压的那块(<code>FOR NO KEY UPDATE</code>)允许别人来核对「这个会员号还在不在」(外键检查)。</p>
+  <p>领活的伙计们从一叠工单里拿最上面那张。有了 <code>SKIP LOCKED</code>,他们<b>看见上面压着镇纸就直接拿下一张</b>,不排队;没有它,所有人都盯着同一张工单,前一个人办完,下一个人才能接着看。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测</th></tr>
+    <tr><td>压镇纸,别人照样能看</td><td><code>SELECT … FOR UPDATE</code>;普通 SELECT 不受影响</td><td>B 普通读 2 ms</td></tr>
+    <tr><td>镇纸记在那一行上</td><td>行锁写在行头的 <code>xmax</code>(Day 38)</td><td><code>xmax</code> = A 的事务号</td></tr>
+    <tr><td>看见镇纸立刻走</td><td><code>NOWAIT</code></td><td>2 ms:<code>55P03 could not obtain lock on row</code></td></tr>
+    <tr><td>等一会儿还不行就走</td><td><code>lock_timeout</code></td><td>502 ms:<code>55P03 canceling statement due to lock timeout</code></td></tr>
+    <tr><td>普通改账的镇纸允许核对会员号</td><td>UPDATE 拿 <code>FOR NO KEY UPDATE</code>,外键检查拿 <code>FOR KEY SHARE</code></td><td>INSERT 子表 2 ms 成功;换成 FOR UPDATE 就卡住</td></tr>
+    <tr><td>看见镇纸就拿下一张</td><td><code>FOR UPDATE SKIP LOCKED</code></td><td>4 个 worker 各 50 个,等锁 2–5 ms</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:行锁。</b>✍️ <b>预测(先写再运行)</b>:A <code>FOR UPDATE</code> 锁住 1 号账户。B 普通读、B UPDATE(<code>lock_timeout = 500ms</code>)、B <code>FOR UPDATE NOWAIT</code>、B 插一笔引用 1 号账户的转账,各会怎样?A 换成普通的 UPDATE 呢?真实结果(<code>npm run day39</code> 第 2 幕,3 遍一致):</p>
+  <pre><code>  A:BEGIN; SELECT … WHERE id = 1 FOR UPDATE(A 的事务号 268568)
+  B:普通 SELECT → balance = 100,2 ms(行锁不挡读);这一行的 xmax = 268568(= A 的事务号:行锁记在行头)
+  B:UPDATE 同一行(lock_timeout 500ms)→ ERROR 55P03 canceling statement due to lock timeout,502 ms
+  B:SELECT … FOR UPDATE NOWAIT → ERROR 55P03 could not obtain lock on row in relation "accounts",2 ms
+  B:SELECT … FOR SHARE NOWAIT → ERROR 55P03 could not obtain lock on row in relation "accounts"(FOR SHARE 和 FOR UPDATE 冲突)
+  B:INSERT 一笔引用 1 号账户的转账(外键检查要 FOR KEY SHARE)→ ERROR 55P03 canceling statement due to lock timeout,502 ms
+
+  A:BEGIN; UPDATE accounts SET balance = … WHERE id = 1(普通 UPDATE 拿的是 FOR NO KEY UPDATE)
+  B:同样的 INSERT → 成功,2 ms(FOR NO KEY UPDATE 不挡外键检查)
+  B:SELECT … FOR NO KEY UPDATE NOWAIT → ERROR 55P03 could not obtain lock on row in relation "accounts"(两个写同一行仍然冲突)</code></pre>
+  <ul>
+    <li><b>行锁记在哪</b>:Day 38 说「<code>xmax</code> 有值不一定是删除」,这里就是一个例子。A 只是 <code>FOR UPDATE</code>,这一行的 <code>xmax</code> 就写上了 A 的事务号。PostgreSQL 不在内存里给每一行建锁记录,而是写在行头;多个事务同时拿共享锁时,<code>xmax</code> 里放的是一个「多事务号」(multixact)。所以锁住一百万行也不会耗尽内存,但会产生写入。</li>
+    <li><b>四种模式</b>:普通 UPDATE 拿的是 <code>FOR NO KEY UPDATE</code>(只要不改主键 / 唯一键),外键检查拿的是 <code>FOR KEY SHARE</code>,两者不冲突。所以「改账户余额」和「往这个账户上记一笔转账」可以同时进行。如果你显式写了 <code>FOR UPDATE</code>,就连外键检查也挡住了。<b>只需要防止别人同时改时,用 <code>FOR NO KEY UPDATE</code> 比 <code>FOR UPDATE</code> 更友好。</b>完整的冲突表在 <code>02-row-locks.sql</code> 的注释里(以官方文档「Explicit Locking」为准)。</li>
+    <li><b><code>NOWAIT</code> 和 <code>lock_timeout</code> 都报 <code>55P03</code></b>(<code>lock_not_available</code>),区别只是等不等:前者立刻报,后者等满 500 ms(实测 502 ms)再报。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 B:SKIP LOCKED 任务队列。</b>每个 worker 的一次循环(<code>03-skip-locked.sql</code>):</p>
+  <pre><code>BEGIN;
+SELECT id FROM jobs WHERE status = 'pending' ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1;   -- 领一个
+-- 处理(脚本里 sleep 5 ms)
+UPDATE jobs SET status = 'done', worker = $2, times_done = times_done + 1 WHERE id = $1;    -- 标记完成
+COMMIT;</code></pre>
+  <p>✍️ <b>预测</b>:4 个 worker 并发领 200 个任务(每个任务处理 5 ms)。有没有任务被处理两次?各 worker 分到多少?去掉 <code>SKIP LOCKED</code> 呢?真实结果(第 3 幕,3 遍):</p>
+  <pre><code>  FOR UPDATE SKIP LOCKED
+    用时 376 – 384 ms;完成 200 个,其中恰好处理了 1 次的 200 个,最多被处理 1 次
+    各 worker 分到:W1=50 W2=50 W3=50 W4=50                  (3 遍都是)
+    领任务时花在等锁上的时间合计 2 – 5 ms
+
+  FOR UPDATE(不加 SKIP LOCKED)
+    用时 1458 – 1466 ms;完成 200 个,其中恰好处理了 1 次的 200 个,最多被处理 1 次
+    各 worker 分到:W1=53 W2=45 W3=62 W4=40 / W1=44 W2=43 W3=51 W4=62 / W1=62 W2=39 W3=40 W4=59
+    领任务时花在等锁上的时间合计 4350 – 4372 ms
+    「等到锁却领了个空、其实队列里还有」0 次</code></pre>
+  <ul>
+    <li><b>SKIP LOCKED</b>:4 个 worker 真正并行,200 × 5 ms ÷ 4 ≈ 250 ms 的活用了约 380 ms,每个任务恰好处理一次,几乎没有等锁。</li>
+    <li><b>不加 SKIP LOCKED</b>:结果同样正确(没有重复处理),但 4 个 worker 都去抢「id 最小的那个待处理任务」,一个在处理,另外三个排队,实际上变成了串行:用时约 1.46 秒,4 倍;四个 worker 等锁的时间加起来约 4.36 秒。</li>
+    <li>一个可能的坑在这里<b>没有出现</b>:排队的 worker 等到锁时,那一行已经被标成 <code>done</code>。PostgreSQL 会重新检查 WHERE 条件,发现不满足就继续找下一行,所以不会「领了个空」(3 遍都是 0 次)。</li>
+    <li>这就是很多「基于 PostgreSQL 的任务队列」的核心(比如 graphile-worker、pg-boss,只提名字,没有实测)。真正的队列还要处理任务失败重试、超时未完成的任务重新放回、死信等,Week 8 / 13 讲 Redis 和消息队列时再对比。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「压了镇纸,别人就看不到」——行锁不挡读。</b>普通 SELECT 读的是快照(Day 38),2 ms 就返回。行锁只挡「也想改它的」和「也想锁它的」。</li>
+      <li><b>「改完就拿走镇纸」——锁一直拿到事务结束。</b>A 锁住一行之后,如果又去调了一个 30 秒的外部接口,别人就被挡 30 秒(Day 36 说的「事务要短」又一次)。</li>
+      <li><b>「跳过镇纸」只适合队列。</b><code>SKIP LOCKED</code> 返回的是「此刻没被锁住的那部分行」,不是一个一致的结果。用它算报表或做业务判断(「还有没有库存」)会得到错误的答案。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>row-level lock</b>:<code>FOR UPDATE</code> / <code>FOR NO KEY UPDATE</code> / <code>FOR SHARE</code> / <code>FOR KEY SHARE</code>;<b>pessimistic locking</b>(Day 40);<b><code>NOWAIT</code></b>、<b><code>SKIP LOCKED</code></b>;<b><code>lock_timeout</code></b>、<code>statement_timeout</code>;SQLSTATE <b><code>55P03</code> <code>lock_not_available</code></b>、<code>57014</code> <code>query_canceled</code>;<b>multixact</b>;<b>job queue / work queue</b>。
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:表锁与锁队列 —— 整本收走重新装订,门口排起长队</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    每条语句都会在表上拿一把<b>表锁</b>:SELECT 拿最轻的 <code>ACCESS SHARE</code>,INSERT / UPDATE / DELETE 拿 <code>ROW EXCLUSIVE</code>,普通的 <code>CREATE INDEX</code> 拿 <code>SHARE</code>(挡写不挡读),<code>ALTER TABLE</code>、<code>DROP</code>、<code>TRUNCATE</code>、<code>VACUUM FULL</code> 拿最重的 <code>ACCESS EXCLUSIVE</code>(谁都挡)。锁按到达顺序排队:<b>一个拿不到锁的 <code>ALTER TABLE</code> 排在门口时,它后面来的所有普通 SELECT 也只能排在它后面</b>,整张表就像卡死了。线上做迁移一定要设 <code>lock_timeout</code>,拿不到锁就放弃、过一会儿重试。
+  </div>
+
+  <h3>② 生活类比:整本收走重新装订</h3>
+  <p>平时大家都在翻同一本账,互不影响。装订师傅要给账本<b>加一栏</b>,得把整本账<b>收走重新装订</b>,装订期间谁都不能翻。可是现在有个伙计正拿着账本在看(一个没结束的读事务),师傅只好在门口等。这时又来了几个伙计要翻账,他们本来和正在看账的人完全不冲突,可按规矩他们得<b>排在师傅后面</b>。于是门口排起长队,账房看起来像停业了。</p>
+  <p>聪明的装订师傅会说:「我只等 200 毫秒,等不到就先走,过一会儿再来。」这样后面的人最多只被挡 200 毫秒。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测</th></tr>
+    <tr><td>翻账</td><td>SELECT:<code>AccessShareLock</code></td><td>—</td></tr>
+    <tr><td>在账本里改一行</td><td>INSERT / UPDATE / DELETE:<code>RowExclusiveLock</code></td><td>—</td></tr>
+    <tr><td>抄一份目录(只挡改不挡看)</td><td><code>CREATE INDEX</code>:<code>ShareLock</code></td><td>—</td></tr>
+    <tr><td>整本收走重新装订</td><td><code>ALTER TABLE</code> 等:<code>AccessExclusiveLock</code></td><td>—</td></tr>
+    <tr><td>门口的队伍</td><td>锁队列:后来的请求排在等待中的 <code>AccessExclusiveLock</code> 后面</td><td>C 的 SELECT 卡了 1.5 秒后超时</td></tr>
+    <tr><td>只等 200 毫秒就走,过会儿再来</td><td><code>SET lock_timeout = '200ms'</code> + 重试</td><td>第 4 次成功;C 只被挡 156–159 ms</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:常见语句拿的表锁。</b>真实结果(<code>04-ddl-lock-queue.sql</code>,在一个事务里执行后查 <code>pg_locks</code>):</p>
+  <pre><code>    表    |      锁模式      | 拿到了
+----------+------------------+--------
+ accounts | RowExclusiveLock | t          ← UPDATE
+ big      | AccessShareLock  | t          ← SELECT
+ big      | ShareLock        | t          ← CREATE INDEX(不加 CONCURRENTLY)
+ big      | AccessExclusiveLock          ← ALTER TABLE big ADD COLUMN note text</code></pre>
+
+  <p><b>⑤ 动手验证 B:锁队列。</b>✍️ <b>预测</b>:A 开着一个读过 <code>big</code> 的事务不结束;B 执行 <code>ALTER TABLE big ADD COLUMN note text</code>;C 执行一个普通的 <code>SELECT count(*) FROM big</code>(超时 1.5 秒)。C 会被挡住吗?真实结果(第 4 幕,3 遍一致):</p>
+  <pre><code>  A:BEGIN; SELECT count(*) FROM big;(拿着 ACCESS SHARE,事务不结束)
+  B:ALTER TABLE big ADD COLUMN note text;(要 ACCESS EXCLUSIVE → 排队)
+  C:SELECT count(*) FROM big;(一个普通请求)
+  此刻 pg_blocking_pids(谁挡住了谁):
+    B-migration  在等 Lock:relation      被 A-reader(pid 15041)挡住     ALTER TABLE big ADD COLUMN note text
+    C-request    在等 Lock:relation      被 B-migration(pid 15042)挡住  SELECT count(*) AS n FROM big
+  C 的结果:ERROR 57014 canceling statement due to statement timeout,1501 ms(本来和 A 一点也不冲突)
+  A:COMMIT → B 的 ALTER 完成,从开始排队算共 1707 – 1708 ms
+
+  —— 线上的做法:迁移设 lock_timeout,拿不到锁就放弃、过一会儿重试 ——
+  B 第 1 次:ERROR 55P03 canceling statement due to lock timeout → 等 100 ms 再试
+  B 第 2 次:ERROR 55P03 canceling statement due to lock timeout → 等 100 ms 再试
+  B 第 3 次:ERROR 55P03 canceling statement due to lock timeout → 等 100 ms 再试
+  B 第 4 次:成功(1003 – 1004 ms)
+  同一时间 C 的普通 SELECT:n = 100000,用了 156 – 159 ms(最多被挡 200 ms)</code></pre>
+  <ul>
+    <li>C 只要 <code>ACCESS SHARE</code>,和 A 完全兼容,却被挡住了:<code>pg_blocking_pids</code> 显示挡住 C 的是 <b>B</b>,不是 A。PostgreSQL 的锁是排队的,后来的请求不能「插队」绕过一个正在等待的冲突请求,否则 B 可能永远拿不到锁。</li>
+    <li>这就是「线上执行一个 <code>ALTER TABLE</code>,整个服务卡住」的原因。<code>ADD COLUMN</code> 本身在 PostgreSQL 11 之后通常是瞬间完成的,只改表的定义、不重写数据,卡住的是<b>等锁</b>的那段时间。只要有一个长查询或者一个 <code>idle in transaction</code> 的连接(Day 38)拿着表锁,迁移就会在门口排队,所有请求跟着排队,连接池很快被占满(Day 27),然后报 500。</li>
+    <li>修法:迁移脚本里 <code>SET lock_timeout = '200ms'</code>(或更短),拿不到就报 <code>55P03</code>、退出、重试。这样别的请求最多被挡 200 ms。同样道理,Day 34 的 <code>schema.sql</code> 整个重建在生产上不能用;建索引要用 <code>CREATE INDEX CONCURRENTLY</code>(不挡写),这些是 Week 9「零停机迁移」的内容。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「装订很快,不会影响别人」——慢的是排队,不是装订。</b><code>ADD COLUMN</code> 只要几毫秒,可它在等锁的这段时间里,后面所有请求都被挡住了。判断一个迁移危不危险,要看「它要什么锁」和「现在有没有长事务」,而不只是「它本身要跑多久」。</li>
+      <li><b>「设了 lock_timeout 就安全了」——失败了要有人重试。</b>迁移工具或脚本要能在 <code>55P03</code> 后重试几次;重试也失败,就要找出是谁一直拿着锁(第三张卡的工具)。</li>
+      <li><b>「表锁只有 DDL 才有」——每条语句都拿表锁。</b>只是普通读写的表锁彼此兼容,平时感觉不到。和 <code>ACCESS EXCLUSIVE</code> 一冲突,才发现连 SELECT 也在排队。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>table-level lock</b>:<code>ACCESS SHARE</code> / <code>ROW SHARE</code> / <code>ROW EXCLUSIVE</code> / <code>SHARE UPDATE EXCLUSIVE</code> / <code>SHARE</code> / <code>SHARE ROW EXCLUSIVE</code> / <code>EXCLUSIVE</code> / <code>ACCESS EXCLUSIVE</code>(8 种,今天只讲 4 种);<b>lock queue</b>;<code>LOCK TABLE</code>;<code>pg_locks</code>(<code>locktype</code>、<code>mode</code>、<code>granted</code>);<b><code>lock_timeout</code></b>;<code>CREATE INDEX CONCURRENTLY</code>(Week 9);<b>zero-downtime migration</b>。
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:死锁、排查与咨询锁 —— 两块镇纸互相等,墙上一块值班牌</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    <b>死锁</b>:A 锁着 1 号等 2 号,B 锁着 2 号等 1 号,谁也等不到。PostgreSQL 在等待超过 <code>deadlock_timeout</code>(默认 1 秒)后检查谁在等谁,发现绕成了圈,就让其中一个事务报 <code>40P01 deadlock detected</code> 并回滚,另一个继续。<b>避免</b>的办法是所有人都按同一个顺序加锁。排查锁等待用 <code>pg_blocking_pids()</code> 配合 <code>pg_stat_activity</code>。<b>咨询锁</b>(advisory lock)不锁任何行或表,只锁一个数字,常用来保证「多个副本里同一件事同一时刻只有一个在做」。
+  </div>
+
+  <h3>② 生活类比:两块镇纸、一块值班牌</h3>
+  <p>伙计甲在 1 号账上压了镇纸,接着要改 2 号;伙计乙在 2 号账上压了镇纸,接着要改 1 号。两个人都站着等对方的镇纸,永远等不到。账房掌柜每隔一会儿巡视一圈,发现这个圈,就让其中一个人作废他的作业单、把镇纸拿走,另一个人就能继续了。以后定一条规矩:<b>要改几行账,一律按账号从小到大压镇纸</b>,这样大家最多是排队,不会绕成圈。</p>
+  <p>墙上还挂着一块「<b>今晚对账值班</b>」的牌子,跟账本本身没关系。几家分店的伙计到点都来摘牌,谁先摘到谁对账,没摘到的就回去。前提是大家都遵守「先摘牌再对账」的约定。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测</th></tr>
+    <tr><td>各压一块、等对方那块</td><td>死锁</td><td>—</td></tr>
+    <tr><td>掌柜隔一会儿巡视</td><td><code>deadlock_timeout</code>(默认 1s)后检查等待图</td><td>1001–1024 ms 后报错</td></tr>
+    <tr><td>让其中一个作废</td><td><code>40P01 deadlock detected</code>,那个事务回滚</td><td>A 被选中,B 继续</td></tr>
+    <tr><td>按账号从小到大压镇纸</td><td>按固定顺序加锁:<code>ORDER BY id FOR UPDATE</code></td><td>B 只是排队 304–305 ms</td></tr>
+    <tr><td>谁挡住了谁</td><td><code>pg_blocking_pids()</code> + <code>pg_stat_activity</code></td><td>第 4 幕那张表</td></tr>
+    <tr><td>墙上的值班牌</td><td><code>pg_try_advisory_lock(42)</code></td><td>3 个连接只有 1 个拿到</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:死锁与修法。</b>✍️ <b>预测</b>:A 改 1 号再改 2 号,B 改 2 号再改 1 号,多久之后、哪一个会报错?错误里会写什么?按顺序加锁之后呢?真实结果(第 5 幕,3 遍):</p>
+  <pre><code> deadlock_timeout:1s
+  A:UPDATE id = 1(锁住 1 号)
+  B:UPDATE id = 2(锁住 2 号)
+  A:UPDATE id = 2 → 等 B
+  B:UPDATE id = 1 → 等 A
+  A:ERROR 40P01 deadlock detected(1001 – 1024 ms 后)
+     DETAIL: Process 15048 waits for ShareLock on transaction 268988; blocked by process 15049.
+             Process 15049 waits for ShareLock on transaction 268987; blocked by process 15048.
+     HINT:   See server log for query details.
+  B:UPDATE 成功(另一个被回滚后,它拿到了锁)
+
+  —— 修法:按固定顺序(id 从小到大)一次锁住要改的所有行 ——
+  A:SELECT … WHERE id IN (1, 2) ORDER BY id FOR UPDATE → 拿到两行
+  B:同样的语句 → 等 A(是排队,不是互相等)
+  A:改完两行,COMMIT
+  B:拿到两行,等了 304 – 305 ms
+  B:改完两行,COMMIT;最终余额 Alice=100 Bob=50(两笔转账都成功,没有死锁)</code></pre>
+  <ul>
+    <li>DETAIL 把圈写得清清楚楚:「进程 15048 在等事务 268988(进程 15049 的)」「进程 15049 在等事务 268987(进程 15048 的)」。两个进程等的都是对方的<b>事务号</b>(ShareLock on transaction):行锁的等待,实际上是「等那个事务结束」。具体是哪两条 SQL,要去服务器日志里看(HINT 说的就是这个)。</li>
+    <li>报错之前正好等了约 1 秒,这就是 <code>deadlock_timeout</code>。检查等待图比较贵,所以只在等了这么久之后才查。它也是 <code>log_lock_waits = on</code> 时记录「等锁超过多久」的阈值。</li>
+    <li><b>修法</b>:要改多行,先用 <code>ORDER BY id FOR UPDATE</code> 按同一个顺序<b>一次</b>锁住,再改。B 只是排队等了 0.3 秒,两笔转账都成功了。其他办法:缩短事务(锁拿得越久越容易撞上)、一次少锁几行。</li>
+    <li>死锁不是 bug,而是并发系统迟早会遇到的事。只要两段代码以不同顺序访问同一批数据,就有可能发生。所以除了尽量避免,还要<b>把 <code>40P01</code> 当成可重试的错误</b>:Day 37 的 <code>withRetry</code> 已经包含了它。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 B:谁挡住了谁。</b>线上卡住时第一件事就是跑这条查询(<code>06-who-blocks.sql</code>,复制到任何库都能用):</p>
+  <pre><code>SELECT w.pid AS 等待者, now() - w.query_start AS 等了多久,
+       w.wait_event_type || ':' || w.wait_event AS 在等什么, left(w.query, 60) AS 等待者的语句,
+       pg_blocking_pids(w.pid) AS 被谁挡住,
+       b.pid AS 挡路的, b.state AS 挡路者状态, now() - b.xact_start AS 挡路者的事务开了多久, left(b.query, 60) AS 挡路者最后一条语句
+FROM pg_stat_activity w
+JOIN LATERAL unnest(pg_blocking_pids(w.pid)) AS bp(pid) ON true
+JOIN pg_stat_activity b ON b.pid = bp.pid
+WHERE w.datname = current_database()
+ORDER BY w.query_start;</code></pre>
+  <p>第 4 幕里它的结果是:B(ALTER)被 A(<code>idle in transaction</code> 的读事务)挡住,C(SELECT)被 B 挡住。顺着「被谁挡住」一路往上找,找到那个<b>自己没在等、却挡着别人</b>的进程,它通常就是一个忘了提交的事务。处理办法:先联系它的主人;实在不行,<code>SELECT pg_cancel_backend(pid)</code> 取消它正在执行的语句,或 <code>pg_terminate_backend(pid)</code> 断开它的连接(Day 36 用过)。想在日志里留下证据,打开 <code>log_lock_waits</code>(点到为止)。</p>
+
+  <p><b>⑤ 动手验证 C:咨询锁。</b>✍️ <b>预测</b>:3 个连接同时 <code>pg_try_advisory_lock(42)</code>,几个返回 true?会话级的咨询锁在 COMMIT 之后还在吗?真实结果(第 6 幕、<code>07-advisory.sql</code>):</p>
+  <pre><code>=== ① 事务级:pg_advisory_xact_lock,事务结束自动释放
+ locktype | objid |     mode      | granted
+ advisory |     7 | ExclusiveLock | t
+COMMIT
+ COMMIT 之后还剩几个咨询锁:0
+=== ② 会话级:pg_try_advisory_lock,事务结束也不释放
+ 拿到了吗:t
+COMMIT
+ COMMIT 之后还剩几个咨询锁:1
+ 释放成功:t
+WARNING:  you don't own a lock of type ExclusiveLock
+ 再释放一次(没拿着):f
+
+  副本 1:pg_try_advisory_lock(42) → true
+  副本 2:pg_try_advisory_lock(42) → false
+  副本 3:pg_try_advisory_lock(42) → false
+  拿到的个数:1
+  副本 1 释放之后,副本 2 再试 → true</code></pre>
+  <ul>
+    <li>典型用途:nest-lab 部署了 3 个副本(Day 4 / 5 的多进程、Phase 4 的多副本),每个副本里都有一个「每天凌晨发提醒邮件」的定时任务。每个副本到点先 <code>pg_try_advisory_lock(某个固定数字)</code>,只有拿到的那个干活,其他直接跳过。不需要额外的 Redis 或 ZooKeeper,只要大家共用同一个数据库。</li>
+    <li><b>事务级</b>(<code>pg_advisory_xact_lock</code>)在事务结束时自动释放,不会忘;<b>会话级</b>(<code>pg_advisory_lock</code> / <code>pg_try_advisory_lock</code>)要手动 unlock 或者断开连接才释放。实测 COMMIT 之后它还在。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「定了顺序就再也不会死锁」——只能防住你自己写的、按顺序加锁的代码。</b>外键检查、触发器、唯一索引冲突等待,都会在你看不见的地方拿锁。所以死锁要当成可重试的错误处理,而不是假设它不存在。</li>
+      <li><b>「值班牌数据库会帮你看着」——咨询锁只是一个约定。</b>数据库不知道「数字 42 代表发邮件任务」,也不会拦住一个不先拿锁就直接干活的进程。所有相关的代码都得遵守约定,这个数字也要在团队里登记好,别撞号。</li>
+      <li><b>「拿到的牌子用完会自己挂回去」——会话级咨询锁在连接池里会泄漏。</b>连接是借来还回去的(Day 27),如果拿了会话级锁却忘了 unlock,这个连接被还回池子时锁还在,下一个借到它的请求「意外地」拿着这把锁,而原来的代码以为自己已经放了。用 PgBouncer 的 transaction 模式时,同一个会话里的两条语句甚至可能跑在不同的服务器连接上,会话级锁就完全不可靠了(Day 41)。优先用事务级的。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>deadlock</b>、<b>wait-for graph</b>、<b><code>deadlock_timeout</code></b>、SQLSTATE <b><code>40P01</code> <code>deadlock_detected</code></b>;<b>lock ordering</b>;<b><code>pg_blocking_pids()</code></b>、<code>pg_locks</code>、<code>pg_stat_activity.wait_event_type / wait_event</code>、<code>pg_cancel_backend()</code> / <code>pg_terminate_backend()</code>、<code>log_lock_waits</code>;<b>advisory lock</b>:<code>pg_advisory_lock</code> / <code>pg_try_advisory_lock</code> / <code>pg_advisory_xact_lock</code> / <code>pg_advisory_unlock</code>;<b>leader election</b>、<b>distributed lock</b>(Week 8 用 Redis 再做一次)。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <table>
+    <tr><th></th><th>PostgreSQL</th><th>MySQL(InnoDB)</th><th>SQL Server</th></tr>
+    <tr><td>行锁</td><td>写在行头(<code>xmax</code> / multixact),不占内存锁表</td><td>锁加在索引记录上;RR 下还有<b>间隙锁 / next-key lock</b>,锁住「范围」防止插入(Day 37)</td><td>内存里的锁管理器;锁太多时会<b>锁升级</b>(lock escalation)成表锁</td></tr>
+    <tr><td><code>NOWAIT</code> / <code>SKIP LOCKED</code></td><td>支持</td><td><b>8.0.1 起</b>支持</td><td>表提示 <code>READPAST</code>(跳过被锁的行)、<code>NOWAIT</code>;用 <code>UPDLOCK</code> 提示做 FOR UPDATE</td></tr>
+    <tr><td>DDL 锁表与锁队列</td><td><code>ACCESS EXCLUSIVE</code> + 锁队列</td><td><b>元数据锁(MDL)</b>:同样的现象,一个等 MDL 的 <code>ALTER</code> 挡住后面所有查询</td><td>Schema modification 锁(Sch-M)</td></tr>
+    <tr><td>咨询锁</td><td><code>pg_advisory_lock</code> 等</td><td><code>GET_LOCK('name', timeout)</code></td><td><code>sp_getapplock</code></td></tr>
+  </table>
+  <p><b>ORM 里怎么加行锁:</b></p>
+  <table>
+    <tr><th>生态</th><th>写法</th></tr>
+    <tr><td>Node(<code>pg</code>)</td><td>直接写 SQL:<code>SELECT … FOR UPDATE</code>,用同一个 client 包在事务里(Day 27)</td></tr>
+    <tr><td>Prisma</td><td><b>没有原生的 FOR UPDATE</b>;在 <code>$transaction</code> 里用 <code>$queryRaw</code> 写 <code>SELECT … FOR UPDATE</code></td></tr>
+    <tr><td>EF Core</td><td><b>没有锁 API</b>;在显式事务里用 <code>FromSql($"SELECT * FROM … WHERE id = {id} FOR UPDATE")</code>,查出来的实体照常被跟踪、可以 <code>SaveChanges</code>(SQL Server 用 <code>WITH (UPDLOCK)</code>)</td></tr>
+    <tr><td>JPA / Hibernate</td><td><code>@Lock(LockModeType.PESSIMISTIC_WRITE)</code> 或 <code>em.find(…, PESSIMISTIC_WRITE)</code> 生成 <code>FOR UPDATE</code>;超时用提示 <code>jakarta.persistence.lock.timeout</code>(0 通常对应 NOWAIT)</td></tr>
+    <tr><td>Go</td><td>手写 SQL,在 <code>tx</code> 里执行</td></tr>
+  </table>
+  <p>🔎 核实说明:</p>
+  <ul>
+    <li>联网核对过:MySQL 8.0.1 起支持 <code>SKIP LOCKED</code> / <code>NOWAIT</code>(MySQL 官方博客与 8.0 手册);EF Core 至今没有内置的悲观锁 API(相关 issue #26042 仍未完成),推荐 <code>FromSql</code> + 显式事务;Prisma 没有原生 FOR UPDATE(有对应的 feature request),社区做法是 <code>$queryRaw</code>。</li>
+    <li>公认事实或我的记忆、<b>没有在本机实测</b>:InnoDB 的间隙锁 / next-key lock 和 MDL、SQL Server 的锁升级 / <code>READPAST</code> / <code>UPDLOCK</code> / <code>sp_getapplock</code>、MySQL 的 <code>GET_LOCK</code>、JPA 的 <code>@Lock</code> 与 <code>jakarta.persistence.lock.timeout</code>、graphile-worker / pg-boss。</li>
+    <li>PostgreSQL 的所有行为都在本机实测过。</li>
+  </ul>
+  <p>📌 Day 42 复盘时,可以在 roadmap 顶部的对照表里新增一行「行锁 / 跳过已锁行 / 咨询锁」:PG <code>FOR UPDATE SKIP LOCKED</code> / <code>pg_advisory_lock</code> ↔ MySQL 8.0.1+ 同语法 / <code>GET_LOCK</code> ↔ SQL Server <code>UPDLOCK, READPAST</code> / <code>sp_getapplock</code>,内容自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"What is a deadlock and how do you avoid it? What does SELECT FOR UPDATE do? Why can an ALTER TABLE in production freeze the whole service? How would you build a job queue or a distributed lock with a database?"</b>(或者:「什么是死锁?怎么避免?SELECT FOR UPDATE 的作用?为什么线上执行 ALTER TABLE 会把整个服务卡住?怎么用数据库实现一个任务队列 / 分布式锁?」)你可以答:<br>
+    <b>"SELECT FOR UPDATE 是在读的时候就给行加写锁,直到事务结束,别的事务想改或者想锁这几行都要等,普通读不受影响,用在『先读出来、在应用里算、再写回去』的场景,防止丢失更新;等不了可以加 NOWAIT 立刻报错,或者设 lock_timeout。死锁是两个事务各自拿着对方需要的锁互相等;PostgreSQL 等待超过 deadlock_timeout,默认一秒,之后检查等待图,让其中一个报 40P01 回滚,我实测过错误详情里会写出谁在等谁。避免的办法是所有代码按固定顺序加锁,比如要改多行就按 id 排序一次性 FOR UPDATE,我实测过这样只会排队不会死锁;再加上缩短事务,并且把死锁当成可重试的错误。ALTER TABLE 卡住服务,是因为它要最重的 ACCESS EXCLUSIVE 表锁,如果有一个长查询或者没提交的事务拿着这张表的锁,ALTER 就在门口排队,而 PostgreSQL 的锁是排队的,后来的普通 SELECT 也只能排在 ALTER 后面,整张表像卡死了一样,连接池很快被占满;我实测过一个普通 SELECT 因此超时。线上迁移要先设一个很短的 lock_timeout,拿不到锁就放弃重试,建索引用 CONCURRENTLY。用数据库做任务队列,可以让多个 worker 用 SELECT ... FOR UPDATE SKIP LOCKED LIMIT 1 领任务,跳过别人正在处理的行,我实测四个 worker 领两百个任务每个恰好处理一次,比不加 SKIP LOCKED 快了将近四倍;分布式锁可以用 PostgreSQL 的咨询锁,比如多个副本的定时任务先 pg_try_advisory_lock,只有拿到的那个执行,最好用事务级的,因为会话级的在连接池里容易泄漏。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:三个窗口手动做一遍(动手,约 12 min)</h3>
+    <ol>
+      <li>先把第 3、4、5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day39</code> 批改。</li>
+      <li>按 <code>04-ddl-lock-queue.sql</code> 开三个窗口做一遍锁队列,卡住时在第四个窗口跑 <code>\i sql/day39/06-who-blocks.sql</code>。✍️ <b>预测</b>:「挡路者状态」那一列,A 是什么?如果 A 不是 <code>idle in transaction</code>,而是一条正在跑的长查询(<code>SELECT pg_sleep(30), count(*) FROM big</code>),结果有什么不同?</li>
+      <li>按 <code>05-deadlock.sql</code> 做一遍死锁。✍️ <b>预测</b>:被回滚的一定是后来的那个事务吗?把 B 的 <code>SET deadlock_timeout = '5s'</code> 之后再做一次,谁先报错?</li>
+      <li>两个窗口同时执行 <code>03-skip-locked.sql</code>(它会 <code>pg_sleep(2)</code>),它们领到的 id 一样吗?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:为 nest-lab 设计(动笔,约 10 min)</h3>
+    <ol>
+      <li>nest-lab 的 PUT 先 <code>findOne</code> 检查 409 规则、再 <code>update</code>。用今天的工具写出一种修法:在事务里先 <code>SELECT … FOR UPDATE</code>(还是 <code>FOR NO KEY UPDATE</code>?为什么?),再检查、再更新。这样做之后,两个同时 PUT 同一个任务的请求会怎样?(Day 40 会实现并和乐观锁对比。)</li>
+      <li>假设 nest-lab 要加一个「每天凌晨把超过 30 天的已完成任务归档」的定时任务,部署 3 个副本。用咨询锁写出它的伪代码。你选事务级还是会话级?为什么?</li>
+      <li>如果要给 nest-lab 的 <code>tasks</code> 表加一列 <code>priority</code>,写出一个线上安全的迁移步骤(<code>lock_timeout</code>、重试几次、失败了怎么办)。</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:队列的边界(思考,约 3 min)</h3>
+    <p>今天的 SKIP LOCKED 队列里,如果一个 worker 领到任务后进程崩溃了(连接断开),这个任务会怎样?如果 worker 没崩溃,但处理到一半卡住了 10 分钟呢?你会怎么设计「超时未完成的任务重新放回队列」?</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/39-locks/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事说:「我做防重复点击会把按钮 disabled;浏览器的 <code>navigator.locks.request</code> 能让多个标签页里同一时刻只有一个在跑;我还写出过两个 Promise 互相等对方导致页面卡死。数据库里也有这些吗?」用「镇纸」和「值班牌」的比喻讲清楚行锁、死锁和咨询锁,并说出这个比喻在哪里会骗人。</li>
+      <li>为什么一个 <code>ALTER TABLE</code> 能让一个和它无关的 SELECT 超时?怎么用 <code>lock_timeout</code> 避免?</li>
+      <li>SKIP LOCKED 队列为什么不会重复领任务、也不用互相等?去掉 SKIP LOCKED 会怎样?它为什么不能用在一般的业务查询里?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里记一笔;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>行锁</b>:<code>FOR UPDATE</code> 不挡普通读(2 ms),挡写和别的锁,一直拿到事务结束,记在行头的 <code>xmax</code> 里。<code>NOWAIT</code> 立刻报、<code>lock_timeout</code> 等满再报,都是 <code>55P03</code>。普通 UPDATE 拿的 <code>FOR NO KEY UPDATE</code> 不挡外键检查,显式的 <code>FOR UPDATE</code> 会挡。</li>
+    <li><b>SKIP LOCKED 队列</b>:4 个 worker 领 200 个任务,每个恰好处理一次、各 50 个、用时约 380 ms;不加 SKIP LOCKED 结果也对,但变成串行,约 1460 ms,等锁合计约 4.4 秒。</li>
+    <li><b>表锁与锁队列</b>:<code>ALTER TABLE</code> 要 <code>ACCESS EXCLUSIVE</code>,被一个没结束的读事务挡住后,<b>后面的普通 SELECT 也排在它后面</b>,实测 1.5 秒超时。迁移要设 <code>lock_timeout</code> 并重试:实测第 4 次成功,其间普通 SELECT 只被挡了约 157 ms。</li>
+    <li><b>死锁与咨询锁</b>:相反顺序加锁约 1 秒后报 <code>40P01 deadlock detected</code>,DETAIL 写出谁在等谁;按 id 顺序一次锁住就只会排队。死锁要当可重试错误处理。<code>pg_blocking_pids()</code> 找出谁挡住了谁。咨询锁 3 个连接只有 1 个拿到,优先用事务级的,会话级的在连接池里会泄漏。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>有了 MVCC,为什么还需要锁?行锁挡读吗?</li>
+    <li><code>FOR UPDATE</code> 和 <code>FOR NO KEY UPDATE</code> 有什么区别?外键检查拿的是哪种锁?</li>
+    <li>SKIP LOCKED 队列和不加 SKIP LOCKED 的队列,正确性和性能各有什么不同?</li>
+    <li>画出「A 读事务 → B 的 ALTER → C 的 SELECT」的锁队列。为什么 C 被 B 挡住而不是被 A?</li>
+    <li>死锁是怎么被发现的?为什么报错前正好等了约 1 秒?怎么避免?</li>
+    <li>事务级和会话级咨询锁有什么区别?为什么会话级的在连接池里会出问题?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 40</b>:乐观锁 vs 悲观锁,在 nest-lab 里修掉 Week 4 遗留的「先查后改」和「先查后删」。乐观锁:加一个 <code>version</code> 字段,<code>UPDATE … WHERE id = $1 AND version = $2</code>,影响 0 行就是冲突,回 409 problem+json;悲观锁:今天的 <code>SELECT … FOR UPDATE</code>。写并发测试证明修复前会丢更新、修复后不会;把 Day 37 的 <code>withRetry</code> 移进 nest-lab 的 src;预告 Week 7 的事务传播。</p>
+</section>
+
+<footer>
+  Day 39 · Phase 2 / Week 6 · 产出:<code>docs/39-locks/</code> 本文档 + <code>nest-lab/</code>(<code>sql/day39/</code> 七个文件、<code>npm run day39</code>)+ <code>src/39-locks/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

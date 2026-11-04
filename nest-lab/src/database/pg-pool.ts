@@ -10,9 +10,11 @@ export interface PoolSettings {
   connectionString: string;
   schema: string; // 已经过 env schema 的白名单校验(只含小写字母、数字、下划线)
   max: number;
+  // Day 41:false = 不在启动参数里设 search_path(经过 PgBouncer 时),见 env.schema.ts 的 DB_STARTUP_SEARCH_PATH
+  searchPathAtStartup?: boolean;
 }
 
-export function createPool({ connectionString, schema, max }: PoolSettings): pg.Pool {
+export function createPool({ connectionString, schema, max, searchPathAtStartup = true }: PoolSettings): pg.Pool {
   return new pg.Pool({
     connectionString,
     max, // 最多同时几个连接。多副本部署时:副本数 × max 不能超过数据库的 max_connections(默认 100)
@@ -20,6 +22,9 @@ export function createPool({ connectionString, schema, max }: PoolSettings): pg.
     connectionTimeoutMillis: 3_000, // 池子满了、或者数据库连不上:最多等 3 秒就报错,不无限挂住
     application_name: 'nest-lab', // 在 pg_stat_activity 里认得出「这些连接是 nest-lab 的」
     // 表放在哪个 schema:连上以后执行 SET search_path。schema 名不能参数化,所以必须先过白名单
-    options: `-c search_path=${schema}`,
+    // Day 41:PgBouncer 不接受 options 里的 search_path,那时由 PgBouncer 那边设置(searchPathAtStartup = false)。
+    // 注意不能改成「连上以后执行一次 SET search_path」:transaction 模式下下一个事务可能换了一个服务端连接,
+    // 这句 SET 留在了别人用的连接上(讲义第 5 节「红笔」那个坑)
+    ...(searchPathAtStartup ? { options: `-c search_path=${schema}` } : {}),
   });
 }

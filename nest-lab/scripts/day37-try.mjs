@@ -1,6 +1,6 @@
 // Day 37 观察脚本:隔离级别与并发异常 —— 两个连接(T1 / T2)按固定时间顺序交替执行,
 // 在 READ UNCOMMITTED / READ COMMITTED / REPEATABLE READ / SERIALIZABLE 下复现脏读、不可重复读、幻读、丢失更新、写偏斜,
-// 自动判定「异常发生了 / 没发生 / 被数据库拦下(要重试)」,最后用 src/37-isolation-levels/with-retry.ts 演示重试。
+// 自动判定「异常发生了 / 没发生 / 被数据库拦下(要重试)」,最后用 src/database/with-retry.ts(Day 40 从仓库根目录搬进 nest-lab) 演示重试。
 //
 // 跑:npm run day37   # 本机约 3 秒
 // 前提同 Day 22:PostgreSQL 已运行、本机有 psql;连接参数来自 .env 的 POSTGRES_*(没写时用开发默认值)。
@@ -8,7 +8,7 @@
 // 手动版(两个 psql 窗口)见 sql/day37/04-two-windows.sql。
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { withRetry } from '../../src/37-isolation-levels/with-retry.ts';
+import { withRetry } from '../dist/database/with-retry.js'; // Day 40:改用 nest-lab 自己的 src/database/with-retry.ts(编译后在 dist)
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 try {
@@ -257,7 +257,7 @@ for (const [name, byLevel] of Object.entries(results)) {
 }
 
 // ---------- 重试 ----------
-line('第 9 幕:40001 之后怎么办 —— 整个事务从头重做(src/37-isolation-levels/with-retry.ts)');
+line('第 9 幕:40001 之后怎么办 —— 整个事务从头重做(src/database/with-retry.ts)');
 // 两个并发的事务;第一次尝试时用一个「栅栏」确保两边都先读完再写,让冲突一定发生
 const barrier = () => {
   let arrived = 0;

@@ -39,8 +39,11 @@
     "day33": "node scripts/day33-try.mjs",
     "day34": "nest build && node scripts/day34-try.mjs",
     "day36": "nest build && node scripts/day36-try.mjs",
-    "day37": "node scripts/day37-try.mjs",
+    "day37": "nest build && node scripts/day37-try.mjs",
     "day38": "node scripts/day38-try.mjs",
+    "day39": "node scripts/day39-try.mjs",
+    "day40": "nest build && node scripts/day40-try.mjs",
+    "day41": "nest build && node scripts/day41-try.mjs",
     "db:reset": "node scripts/db-reset.mjs",
     "db:seed:big": "node scripts/db-reset.mjs --big",
     "load": "node scripts/load-tasks.mjs",
@@ -52,7 +55,8 @@
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
-    "test:e2e:pg": "node scripts/db-reset.mjs --schema app_test && vitest run --config ./vitest.config.e2e.pg.ts"
+    "test:e2e:pg": "node scripts/db-reset.mjs --schema app_test && vitest run --config ./vitest.config.e2e.pg.ts",
+    "test:e2e:pgbouncer": "node scripts/db-reset.mjs --schema app_test && DATABASE_URL=postgresql://nest_lab:nest_lab_dev@127.0.0.1:6432/nest_lab_app_test DB_STARTUP_SEARCH_PATH=false vitest run --config ./vitest.config.e2e.pg.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

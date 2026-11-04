@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 41 - 连接池深入与 PgBouncer:总店门口的叫号台,伙计换了人就不记得你喜欢红笔</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 6</div>
+  <h1>Day 41 - 连接池深入与 PgBouncer:总店门口的叫号台,伙计换了人就不记得你喜欢红笔</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>连接为什么贵、连接多 ≠ 快 · 多副本撞上 <code>max_connections</code> · PgBouncer 的 session / transaction / statement 三种模式 · transaction 模式的坑(<code>SET</code>、咨询锁、临时表、预备语句)· 超时三件套 · nest-lab 经过 PgBouncer</b> ·
+    项目:<code>nest-lab/</code> 新增 <code>pgbouncer/</code>(配置)、<code>sql/day41/</code>、<code>npm run day41</code>(约 18 秒,自己启动和停止 PgBouncer)、<code>npm run test:e2e:pgbouncer</code>、<code>docs/db-timeouts.md</code>;
+    <code>src</code> 有一处<b>很小的配置改动</b>(为了能经过 PgBouncer 运行,见第 7 节)·
+    所有输出来自 PostgreSQL 16.15 + PgBouncer 1.22.0 的真实运行,脚本跑了 4 遍、写区间
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:Day 28 那道综合题,今天真的撞一次</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天新增了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:连接为什么贵、为什么不是越多越快 —— 账房里只有几张桌子</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:PgBouncer —— 总店门口的叫号台</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:transaction 模式的坑 —— 换了伙计,他不记得你喜欢红笔</a></li>
+    <li><a href="#sec6">⏱️ 超时三件套:账房墙上的三条规矩</a></li>
+    <li><a href="#sec7">🧩 nest-lab 经过 PgBouncer:发现了一处不兼容</a></li>
+    <li><a href="#sec8">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec9">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec10">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:Day 28 那道综合题,今天真的撞一次</h2>
+  <p>Day 27 给 nest-lab 装了连接池:账房门口固定几位伙计,请求来了借一位,办完还回来。Day 28 的复盘出过一道场景题:</p>
+  <div class="story"><span class="tag">📋 Day 28 场景题:</span>上线后,高峰期日志里出现大量 <code>sorry, too many clients already</code>……应用有 6 个副本,每个副本的连接池大小是 20,PostgreSQL 用的是默认配置。</div>
+  <p>当时是在纸上算账:6 × 20 = 120,而 <code>max_connections</code> 默认是 100。今天在本机真的撞一次,然后把题目里「架构层」的那个答案装上:<b>PgBouncer</b>。</p>
+  <p>Day 40 的悲观锁也留了一个尾巴:等锁的时候,请求一直占着一个数据库连接。连接为什么是稀缺资源,今天一起讲清楚。</p>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    你见过 Chrome DevTools 的 Network 面板里一排请求卡在「Stalled / Queueing」:HTTP/1.1 下浏览器对同一个域名最多同时开 6 个连接,第 7 个请求只能排队。HTTP/2 一个连接上能同时跑很多请求(多路复用),排队就没了。数据库连接也有上限,PgBouncer 做的事情有一点像「在服务器门口替你排队、复用连接」,但它和 HTTP/2 不完全一样,第 4 节会说哪里不一样。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天新增了什么</h2>
+  <pre><code>cd nest-lab
+npm run day41               # 自己启动 PgBouncer → 8 幕实验 → 停掉 PgBouncer(约 18 秒)
+
+# 手动用 PgBouncer(在 nest-lab 目录;不能用 root 运行,root 下加 -u &lt;普通用户&gt;)
+pgbouncer pgbouncer/pgbouncer.ini                                           # 终端 1:前台运行,Ctrl+C 停止
+psql postgresql://nest_lab:nest_lab_dev@127.0.0.1:6432/nest_lab             # 终端 2:经过 PgBouncer 连库
+psql postgresql://nest_lab:nest_lab_dev@127.0.0.1:6432/pgbouncer -c 'SHOW POOLS'   # 管理控制台
+npm run test:e2e:pgbouncer                                                  # 同一套 e2e 经过 PgBouncer 跑</code></pre>
+  <p>本机装的是 PgBouncer 1.22.0(<code>apt install pgbouncer</code>;macOS 是 <code>brew install pgbouncer</code>)。<code>npm run day41</code> 会根据 <code>pgbouncer/pgbouncer.ini</code> 生成一份临时配置(日志、pid 放进临时目录),作为子进程启动它。脚本不管是正常结束、出错退出还是被 Ctrl+C,都会停掉 PgBouncer,最后打印「本脚本启动的 pgbouncer 进程还剩 0 个」。找不到 <code>pgbouncer</code> 命令或启动失败时,会给出提示并跳过第 4–6、8 幕。</p>
+
+  <h3>📂 今天新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>干什么用</th></tr>
+    <tr><td><code>pgbouncer/pgbouncer.ini</code></td><td>监听 <code>127.0.0.1:6432</code>;SCRAM 认证;<code>pool_mode = transaction</code>、<code>default_pool_size = 20</code>、<code>max_client_conn = 500</code>;7 个库别名(见下表)</td></tr>
+    <tr><td><code>pgbouncer/userlist.txt</code></td><td>用户名和密码。里面只有本地开发的占位密码 <code>nest_lab_dev</code>(和 <code>.env.example</code> 一样),所以<b>提交进了 git</b>;真实环境的密码不能这样放(第 7 节)</td></tr>
+    <tr><td><code>sql/day41/01-setup.sql</code></td><td>schema <code>day41</code> 的演示表;看本机的连接名额</td></tr>
+    <tr><td><code>sql/day41/02-who-is-connected.sql</code></td><td><b>工具</b>:谁连着、各在什么状态、还剩多少名额、谁在事务里发呆</td></tr>
+    <tr><td><code>sql/day41/03-session-state.sql</code></td><td>两个窗口手动复现「SET 串到别人那里」「咨询锁泄漏」</td></tr>
+    <tr><td><code>sql/day41/04-timeouts.sql</code></td><td>超时三件套能设在哪里、<code>pg_settings.source</code> 怎么看</td></tr>
+    <tr><td><code>scripts/day41-try.mjs</code> + <code>package.json</code></td><td>观察脚本;新增 <code>day41</code>、<code>test:e2e:pgbouncer</code></td></tr>
+    <tr><td><code>docs/db-timeouts.md</code></td><td>一页运维说明:连接数怎么定、超时建议值、设在哪里、怎么经过 PgBouncer 运行</td></tr>
+    <tr><td><code>src/config/env.schema.ts</code>、<code>src/database/pg-pool.ts</code>、<code>src/database/database.module.ts</code>、<code>src/tasks/pg-tasks.repository.ts</code>、<code>src/tasks/tasks.module.ts</code>、<code>.env.example</code></td><td>新增 <code>DB_STARTUP_SEARCH_PATH</code>;启动时核对 <code>current_schema()</code>(第 7 节)</td></tr>
+    <tr><td><code>src/config/env.schema.spec.ts</code>、<code>src/tasks/pg-tasks.repository.spec.ts</code></td><td>默认值多一项;新增 3 个单元测试</td></tr>
+    <tr><td><code>README.md</code></td><td>命令、成长日志 Day 41</td></tr>
+  </table>
+  <table>
+    <tr><th>库别名(连 6432 时写的库名)</th><th>池模式</th><th>用途</th></tr>
+    <tr><td><code>nest_lab</code></td><td>transaction</td><td>默认</td></tr>
+    <tr><td><code>nest_lab_session</code> / <code>nest_lab_statement</code></td><td>session / statement</td><td>对比三种模式</td></tr>
+    <tr><td><code>nest_lab_app</code> / <code>nest_lab_app_test</code></td><td>transaction</td><td>nest-lab 应用 / e2e 用:<code>connect_query</code> 设好 schema</td></tr>
+    <tr><td><code>nest_lab_tiny</code></td><td>transaction,只有 2 个服务端连接</td><td>复现会话级状态的坑</td></tr>
+    <tr><td><code>nest_lab_day41</code></td><td>transaction</td><td>第 8 幕:nest-lab 的代码经过 PgBouncer</td></tr>
+  </table>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:连接为什么贵、为什么不是越多越快 —— 账房里只有几张桌子</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    PostgreSQL 每接一个连接,就专门开一个进程伺候它:要内存、要认证、要调度。连接数有硬上限(<code>max_connections</code>,默认 100),超了直接拒绝。而且干活的是 CPU,核心就那么几个:连接开得比核心多很多时,总吞吐不会再涨,每条查询只是排更久的队。
+  </div>
+
+  <h3>② 生活类比:账房里只有几张桌子</h3>
+  <p>延续 Day 27 的比喻:连接 = 账房里的伙计,应用连接池 = <b>每家分店门口自己留着的几位伙计</b>。</p>
+  <ul>
+    <li>账房只有 4 张桌子(4 个 CPU 核心)。伙计请得再多,同一时刻也只有 4 个人在写账,其他人站着等桌子。</li>
+    <li>账房的花名册最多登记 100 个伙计(<code>max_connections</code>),其中 3 个名额留给掌柜(超级用户)。第 98 个来报到的伙计会被门卫挡回去。</li>
+    <li>每家分店都觉得「我留 20 个伙计很合理」,6 家分店加起来就是 120 个,花名册不够。</li>
+  </ul>
+
+  <h3>③ 类比的边界 ⚠️</h3>
+  <ul>
+    <li><b>站着等的伙计也要钱</b>:每个空闲连接在 PostgreSQL 里仍然是一个进程,占内存;查询需要排序、哈希时,每个进程还能各自再用 <code>work_mem</code>(本机 4 MB),连接越多,最坏情况下的内存越大。</li>
+    <li><b>不全是 CPU</b>:查询在等磁盘、等锁(Day 39)、等网络时不占桌子,这时多几个连接确实能提高吞吐。所以公式只是起点:HikariCP 文档引用的 PostgreSQL 社区经验值是 <code>核心数 × 2 + 有效磁盘数</code>,本机约 9–10。</li>
+    <li><b>超过上限是拒绝,不是排队</b>:应用连接池满了会在应用里排队(Day 27 设了最多等 3 秒),但 PostgreSQL 的 <code>max_connections</code> 满了是直接报错。</li>
+  </ul>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测(<code>npm run day41</code> 第 1–3 幕,4 遍)</th></tr>
+    <tr><td>每来一个伙计都要登记、发工牌</td><td>建连接:TCP + 启动包 + SCRAM 认证 + fork 一个后端进程</td><td>依次打开 40 个连接 245–305 ms,平均每个 6.1–7.6 ms</td></tr>
+    <tr><td>伙计站着也领工资</td><td>空闲后端进程的内存</td><td>每个约 15.7–16.0 MB RSS(含碰过的共享内存,独占部分更小)</td></tr>
+    <tr><td>来一位客人招一个伙计、办完就辞退</td><td>不用连接池,每个请求新建连接</td><td>200 次 <code>SELECT 1</code>:1731–1907 ms;用池子 24–39 ms(快约 45–80 倍)</td></tr>
+    <tr><td>花名册满了</td><td><code>53300 too_many_connections</code></td><td>6 × 20 直连:成功 95–96,失败 24–25</td></tr>
+    <tr><td>4 张桌子</td><td>CPU 核心数</td><td>连接超过 5 个以后吞吐不升</td></tr>
+  </table>
+
+  <h3>④ 真实术语</h3>
+  <p><b>connection pool</b>(连接池,应用里的叫 application-side / client-side pool)、<b>max_connections</b>、<b>superuser_reserved_connections</b>、<b>backend process</b>(后端进程,Day 22)、错误码 <b>53300 too_many_connections</b>。</p>
+
+  <p><b>⑤ 动手验证 A:撞上 max_connections。</b>✍️ <b>预测</b>:6 个连接池各 20 个连接,同时各发 20 条 <code>SELECT pg_sleep(0.5)</code>,成功几个?失败的报什么?真实结果(第 2 幕):</p>
+  <pre><code>  max_connections = 100(其中 3 个留给超级用户),实验前已有 1 个客户端连接(含脚本自己的监控连接)
+  6 个连接池同时各发 20 条 SELECT pg_sleep(0.5)(697 ms):成功 95,失败 25
+      FATAL 53300 remaining connection slots are reserved for roles with the SUPERUSER attribute × 4
+      FATAL 53300 sorry, too many clients already × 21</code></pre>
+  <p>4 遍里成功 95–96、失败 24–25。最后几个名额报的是另一句话:不是满了,而是剩下的留给超级用户。两种都是 53300。失败的请求<b>直接失败</b>,不排队。</p>
+
+  <p><b>⑤ 动手验证 B:连接多 ≠ 快。</b>✍️ <b>预测</b>:同一批 1200 条 CPU 型查询,2 / 5 / 20 / 80 个并发连接,吞吐和延迟怎么变?(本机 4 核)真实结果(第 3 幕,4 遍的区间):</p>
+  <table>
+    <tr><th>并发连接</th><th>吞吐(条/秒)</th><th>单条延迟 p50</th><th>p99</th></tr>
+    <tr><td>2</td><td>387–450</td><td>4.3–4.5 ms</td><td>6.5–9.2 ms</td></tr>
+    <tr><td>5</td><td>854–935</td><td>4.3–4.7 ms</td><td>12.3–14.2 ms</td></tr>
+    <tr><td>20</td><td>780–896</td><td>20.6–24.4 ms</td><td>51.1–56.1 ms</td></tr>
+    <tr><td>80</td><td>738–892</td><td>86.7–99.9 ms</td><td>176.6–243.3 ms</td></tr>
+  </table>
+  <p>从 2 到 5 个连接,吞吐翻倍,因为 CPU 还没用满。之后连接数再翻 16 倍,吞吐纹丝不动,p50 延迟却涨了约 20 倍。多出来的连接没有帮忙干活,只是让每条查询排更久的队。</p>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:PgBouncer —— 总店门口的叫号台</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    PgBouncer 是夹在应用和 PostgreSQL 中间的一个小程序。应用以为自己连的是数据库,其实连的是 PgBouncer;PgBouncer 自己只向 PostgreSQL 开少量连接(比如 20 个),把几百个应用连接轮流「接」到这 20 个上。transaction 模式下,一个事务结束,这个数据库连接就让给下一个人。
+  </div>
+
+  <h3>② 生活类比:总店门口的叫号台</h3>
+  <p>6 家分店的伙计不再直接进账房,而是先到<b>总店门口的叫号台</b>取号。账房里始终只有 20 位总店伙计(<code>default_pool_size</code>)。几百位客人在门口排队(<code>max_client_conn</code>),叫到号的客人交给一位总店伙计办事。</p>
+  <ul>
+    <li><b>transaction 模式</b>:客人办完<b>一张作业单</b>(一个事务)就把伙计让出来,下一张单子可能换一位伙计。</li>
+    <li><b>session 模式</b>:客人从进门到离开一直霸占同一位伙计,哪怕他坐着喝茶什么都不办。</li>
+    <li><b>statement 模式</b>:每说一句话就换一位伙计,所以「一张作业单分好几步办」根本做不到。</li>
+  </ul>
+
+  <h3>③ 类比的边界 ⚠️</h3>
+  <ul>
+    <li><b>叫号台不让账办得更快</b>:PgBouncer 不加速任何查询。它只是让连接数可控,而且免掉了「每个应用连接都去 PostgreSQL 那边 fork 一个进程」的开销。账房还是那 4 张桌子。</li>
+    <li><b>叫号台自己也是一个关口</b>:它是一个单线程的程序(一个进程只用一个 CPU 核心;要用多核得开多个实例,比如 <code>so_reuseport</code>),也会挂、也要监控、也要高可用。连接多了排队时间会长(<code>SHOW POOLS</code> 的 <code>cl_waiting</code>、<code>SHOW STATS</code> 的等待时间)。</li>
+    <li><b>数据库看到的「会话」不再等于应用的「连接」</b>:transaction 模式下,应用的同一个连接,前后两个事务可能落在两个不同的后端进程上。凡是「记在会话上」的东西都会出问题,这是第 5 节的全部内容。</li>
+    <li><b>和 HTTP/2 不一样</b>:HTTP/2 是在<b>一个</b>连接里同时跑多个请求;PgBouncer 不会让一个服务端连接同时跑两个事务,它只是让多个客户端<b>轮流</b>用这些服务端连接。PostgreSQL 的协议本身也不支持一个连接上并发执行多个查询。</li>
+  </ul>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>在哪看</th></tr>
+    <tr><td>门口排队的客人</td><td>客户端连接(client connection)</td><td><code>SHOW POOLS</code> 的 <code>cl_active</code> / <code>cl_waiting</code></td></tr>
+    <tr><td>账房里的总店伙计</td><td>服务端连接(server connection),PostgreSQL 里的后端进程</td><td><code>sv_active</code>(正在给某个客户端用)/ <code>sv_idle</code>(空闲)</td></tr>
+    <tr><td>伙计人数</td><td><code>default_pool_size</code>(每个库别名 + 用户)</td><td><code>SHOW CONFIG</code></td></tr>
+    <tr><td>门口最多站多少人</td><td><code>max_client_conn</code></td><td>同上</td></tr>
+    <tr><td>办完一张作业单就让出伙计</td><td><code>pool_mode = transaction</code></td><td>库别名可以单独设 <code>pool_mode</code></td></tr>
+  </table>
+  <p>注意 <code>cl_active</code> 不等于「正在执行查询」:它是「已经连上、此刻没在排队」的客户端,包括闲着的。真正占着服务端连接的看 <code>sv_active</code>。</p>
+
+  <h3>④ 真实术语</h3>
+  <p><b>external connection pooler</b> / <b>connection proxy</b>,三种 <b>pool mode</b>:session pooling、transaction pooling、statement pooling。管理控制台是一个虚拟库 <code>pgbouncer</code>,只能执行 <code>SHOW</code>、<code>PAUSE</code>、<code>RESUME</code>、<code>RECONNECT</code>、<code>KILL</code>、<code>SET</code> 之类的命令。</p>
+
+  <p><b>⑤ 动手验证。</b>✍️ <b>预测</b>:同样 6 × 20 = 120 个客户端连接,改连 PgBouncer(transaction 模式),有没有失败?PostgreSQL 里最多几个后端进程?换成 session 模式,800 ms 后能完成几条 20 ms 的查询?statement 模式下 <code>BEGIN</code> 呢?真实结果(第 4 幕):</p>
+  <pre><code>  120 个客户端连接、600 条查询:成功 600,失败 0,用时 1524 ms
+  服务端连接最多的那一刻 —— PgBouncer SHOW POOLS:cl_active 88, cl_waiting 32, sv_active 20, sv_idle 0
+                     PostgreSQL 里来自 PgBouncer 的后端进程:20 个
+
+  —— session 模式(nest_lab_session):一个客户端从连上到断开一直占着一个服务端连接 ——
+  120 个客户端各发一条 20 ms 的查询,800 ms 后:完成 20 条;SHOW POOLS:cl_active 20, cl_waiting 100, sv_active 20, sv_idle 0
+
+  —— statement 模式(nest_lab_statement):每条语句结束就还连接,事务根本开不了 ——
+  BEGIN; SELECT 1 → FATAL 08P01 transaction blocks not allowed in statement pooling mode</code></pre>
+  <p>4 遍里 transaction 模式都是 600 / 600 成功、用时 1506–1547 ms,PostgreSQL 里始终是 20 个后端进程。高峰那一刻排队的客户端是 24–68 个,不同的运行差别很大,它取决于采样的时机。session 模式每遍都是「完成 20 条、100 个在等」:前 20 个客户端查完了也不放手。</p>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:transaction 模式的坑 —— 换了伙计,他不记得你喜欢红笔</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    transaction 模式下,你的这个事务和下一个事务可能由两个不同的数据库进程处理。所以凡是「设在会话上、跨事务留着」的东西都靠不住:你设的 <code>SET</code> 下一次可能不见了,还可能出现在别人那里;会话级的咨询锁、临时表、具名预备语句也一样。办法只有一个:要么只在事务里设(<code>SET LOCAL</code>、<code>pg_advisory_xact_lock</code>),要么让 PgBouncer 替你记(<code>max_prepared_statements</code>)。
+  </div>
+
+  <h3>② 生活类比:「记住我喜欢用红笔」</h3>
+  <p>客人对伙计说:「记住,我喜欢用红笔」(<code>SET statement_timeout = '100ms'</code>)。这张作业单办完,伙计回到池子里。下一张作业单,叫号台给客人派了另一位伙计,他根本不知道红笔的事。更糟的是,原来那位伙计还记着「用红笔」,接下来他接待的陌生客人也被他用红笔记了账。</p>
+  <p>值班牌(Day 39 的咨询锁)也一样:客人让伙计挂上值班牌,作业单办完客人走了,牌子还挂在那位伙计身上。下一位客人分到这位伙计,问「我能挂值班牌吗?」,伙计说「能,我已经挂着了」。</p>
+
+  <h3>③ 类比的边界 ⚠️</h3>
+  <ul>
+    <li><b>不是一定串,而是可能串</b>:能不能分到同一个服务端连接取决于当时谁闲着。测试里经常「碰巧没事」,上线后偶尔出问题。今天用只有 2 个服务端连接的 <code>nest_lab_tiny</code>,让现象每次都出现。</li>
+    <li><b>事务内是安全的</b>:一个事务从 <code>BEGIN</code> 到 <code>COMMIT</code> 一直在同一个服务端连接上。nest-lab 的 <code>transaction()</code>、悲观锁都靠这一点。</li>
+    <li><b>PgBouncer 会替你记一部分</b>:<code>client_encoding</code>、<code>TimeZone</code>、<code>application_name</code> 等少数参数是「被跟踪的」,换服务端连接时 PgBouncer 自动补上。其他参数不跟踪。</li>
+  </ul>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>修法</th></tr>
+    <tr><td>「记住我喜欢红笔」</td><td>会话级 <code>SET</code> / <code>set_config(…, false)</code></td><td><code>SET LOCAL</code>(事务结束自动撤销);或者设在角色上(第 6 节)</td></tr>
+    <tr><td>值班牌挂在伙计身上</td><td>会话级 <code>pg_advisory_lock</code></td><td><code>pg_advisory_xact_lock</code></td></tr>
+    <tr><td>伙计抽屉里的草稿纸</td><td>临时表、<code>WITH HOLD</code> 游标</td><td>别用,或者改用普通表 / session 模式的单独连接</td></tr>
+    <tr><td>「上次那张表格照旧填」</td><td>具名预备语句(协议层)</td><td><code>max_prepared_statements &gt; 0</code>(1.21+),或者只用不具名的参数化查询</td></tr>
+    <tr><td>「有消息请喊我」</td><td><code>LISTEN</code></td><td>单独用一个直连 / session 模式的连接(今天没测)</td></tr>
+  </table>
+
+  <h3>④ 真实术语</h3>
+  <p><b>session state</b>(会话状态)、<b>transaction pooling caveats</b>、<b>tracked parameters</b>(<code>track_extra_parameters</code>)、<b>protocol-level prepared statements</b>(扩展查询协议的 Parse / Bind / Execute,和 SQL 的 <code>PREPARE</code> 不是一回事)。</p>
+
+  <p><b>⑤ 动手验证 A:SET 和咨询锁。</b>✍️ <b>预测</b>:A 执行 <code>SET statement_timeout = '100ms'</code>,B 开一个事务查 <code>statement_timeout</code>,A 自己再查,各看到什么?A 用会话级咨询锁锁住 41,B 再 <code>pg_try_advisory_lock(41)</code> 得到什么?真实结果(第 5 幕,4 遍一致,只有 pid 不同):</p>
+  <pre><code>  ① SET 不带 LOCAL
+    A:SET statement_timeout = '100ms';然后查 → 服务端连接 pid 4185,statement_timeout = 100ms
+    B:BEGIN; 查 → pid 4185,statement_timeout = 100ms  ← A 设的值串到了 B 这里
+    A:再查 → pid 4184,statement_timeout = 0  ← A 自己设的值「消失」了(换了一个服务端连接)
+  修法:SET LOCAL,只在事务里生效
+    C:BEGIN; SET LOCAL statement_timeout = '100ms' → pid 4187,100ms;SELECT pg_sleep(0.3) → ERROR 57014 canceling statement due to statement timeout;ROLLBACK
+    D:BEGIN; 查 → pid 4187,statement_timeout = 0(同一个服务端连接,但设置已随事务结束撤销)
+  ② 会话级咨询锁 pg_advisory_lock(Day 39 的「值班牌」)
+    A:SELECT pg_advisory_lock(41) → 拿到了,锁记在服务端连接 pid 4189 上
+    B:BEGIN; SELECT pg_try_advisory_lock(41) → true(pid 4189)  ← B「继承」了 A 的锁
+    A:SELECT pg_advisory_unlock(41) → false(pid 4188),WARNING you don't own a lock of type ExclusiveLock
+    B COMMIT 之后,直连 PostgreSQL 查 pg_locks:咨询锁 41 仍然被 pid 4189 持有
+  修法:BEGIN; SELECT pg_advisory_xact_lock(41); … COMMIT → 事务中 pg_locks 里 1 个,COMMIT 后 0 个
+  ③ 临时表(另一种会话级状态)
+    A:CREATE TEMP TABLE scratch(在 pid 4192 上);B 开着事务时 A 再查 scratch → ERROR 42P01 relation "scratch" does not exist</code></pre>
+  <p>咨询锁那段最危险:B 以为自己拿到了一把别人没有的锁,其实是「继承」了 A 的;A 想解锁却解不掉;锁最后挂在一个池子里的服务端连接上,没有任何客户端知道它的存在,直到这个连接被关掉。Day 39 说「会话级的在连接池里会泄漏」,这就是现场。</p>
+
+  <p><b>⑤ 动手验证 B:预备语句。</b>✍️ <b>预测</b>:pg 驱动执行一条具名查询 <code>{ name: 'add_one', text: … }</code>。第一次会发 Parse(准备)+ Execute;驱动记住「这个连接上准备过了」,第二次只发 Bind + Execute。经过 transaction 模式的 PgBouncer,第二次会怎样?真实结果(第 6 幕,4 遍一致):</p>
+  <pre><code>  max_prepared_statements = 0(1.22 的默认):
+    A 第 1 次执行具名语句 add_one → ok(r = 2)
+    B 开着事务占住那个连接;A 第 2 次执行 → ERROR 26000 prepared statement "add_one" does not exist
+    新客户端 C 第 1 次执行同名语句(分到的服务端连接上已经有 A 留下的 add_one)→ ERROR 42P05 prepared statement "add_one" already exists
+    不具名的参数化查询(nest-lab 的写法)→ ok(r = 2)
+  max_prepared_statements = 100:
+    以上四种全部 ok(r = 2)</code></pre>
+  <p>开了 <code>max_prepared_statements</code> 之后,PgBouncer 自己记住每个客户端准备过哪些语句;换到别的服务端连接时,它替客户端补一次 Parse(在服务端用它自己起的名字,所以也不会和别人重名)。它只管协议层的预备语句,SQL 里的 <code>PREPARE</code> / <code>EXECUTE</code> 它不管。PgBouncer 1.24 起这个设置的默认值改成了 200。</p>
+  <p>nest-lab 只用<b>不具名</b>的参数化查询(Day 27),开不开都兼容。Day 32 也看到了它的另一面:具名预备语句执行几次之后可能换成「通用计划」(<code>done = $1</code> 用不上部分索引),不具名的每次都按真实参数做「定制计划」。</p>
+</section>
+
+<section id="sec6">
+  <h2>⏱️ 超时三件套:账房墙上的三条规矩</h2>
+  <p>账房墙上贴着三条规矩:「一件事最多办多久」、「排队等镇纸最多等多久」、「拿着作业单发呆最多多久」。它们防的是三种不同的事故,都在把有限的连接从坏请求手里抢回来。</p>
+  <table>
+    <tr><th>规矩</th><th>设置</th><th>防什么</th><th>实测(第 7 幕)</th></tr>
+    <tr><td>一件事最多办多久</td><td><code>statement_timeout</code></td><td>一条失控的查询(漏了索引、被人拼了个超大的 IN)长时间占着连接和 CPU</td><td>200ms:<code>pg_sleep(1)</code> 在 202 ms 时报 <code>57014 canceling statement due to statement timeout</code></td></tr>
+    <tr><td>排队等镇纸最多等多久</td><td><code>lock_timeout</code></td><td>被长事务、DDL 锁队列(Day 39)挡住时无限排队</td><td>300ms:306–307 ms 报 <code>55P03 canceling statement due to lock timeout</code></td></tr>
+    <tr><td>拿着作业单发呆最多多久</td><td><code>idle_in_transaction_session_timeout</code></td><td>代码 <code>BEGIN</code> 之后去调了一个慢接口、或者忘了 COMMIT:锁一直拿着、VACUUM 被挡住(Day 38)、连接被占着(经过 PgBouncer 时连服务端连接也占着)</td><td>500ms:发呆 800 ms 后,服务器<b>直接断开连接</b>:<code>FATAL 25P03 terminating connection due to idle-in-transaction timeout</code></td></tr>
+  </table>
+
+  <h3>连接被断开之后,nest-lab 的连接池怎么恢复</h3>
+  <pre><code>  idle_in_transaction_session_timeout = 500ms:BEGIN 之后发呆 800 ms,再发 SELECT 1 →
+      连接上收到的错误事件:FATAL 25P03 terminating connection due to idle-in-transaction timeout
+      SELECT 1 本身:ERROR Client has encountered a connection error and is not queryable
+      release(err) 之后:池里剩 0 个连接;下一个 pool.query 用的是 pid 4200(原来是 4199)→ 换了一个新连接,恢复正常
+      release() 之后:  池里剩 0 个连接;下一个 pool.query 用的是 pid 4201(原来是 4200)→ 换了一个新连接,恢复正常</code></pre>
+  <p>服务器发来的 FATAL 会作为连接上的 <code>error</code> 事件出现,<b>不监听就会让 Node 进程崩溃</b>(脚本里 <code>pool.on('error')</code>、<code>client.on('error')</code> 都监听了)。之后这个连接不能再查询,pg-pool 3.x 不管 <code>release()</code> 还是 <code>release(err)</code> 都会把它丢掉,下一个请求自动换新连接。Day 36 的 <code>release(err)</code> 照样有用:它管的是「看起来还活着、但状态不可信」的连接,那种 pg-pool 自己判断不了。</p>
+
+  <h3>设在哪里:后面的覆盖前面的</h3>
+  <pre><code>    ALTER DATABASE … SET statement_timeout = '30s'               → 新连接看到 30000 ms(source = database)
+    再 ALTER ROLE … IN DATABASE … SET statement_timeout = '5s'   → 新连接看到 5000 ms(source = database user)
+    再加连接参数 options=-c statement_timeout=1s                  → 1000 ms(source = client)
+    再在事务里 SET LOCAL statement_timeout = '200ms'               → 200 ms(source = session),COMMIT 后撤销
+    经过 PgBouncer(新的服务端连接)                              → 5000 ms(source = database user):角色级设置对 PgBouncer 同样有效
+    已恢复:pg_db_role_setting 里还剩 0 条设置</code></pre>
+  <p>这几行是脚本临时设的,做完立刻 <code>RESET</code>,最后确认 <code>pg_db_role_setting</code> 为空。经过 PgBouncer 时,连接参数 <code>options</code> 过不去(第 7 节),会话级 <code>SET</code> 会串(第 5 节)。所以给应用定超时,<b>最合适的地方是应用专用角色</b>:<code>ALTER ROLE … IN DATABASE … SET</code>。</p>
+  <p><b>给 nest-lab 的建议</b>(详见 <code>nest-lab/docs/db-timeouts.md</code>):<code>statement_timeout = 5s</code>、<code>lock_timeout = 2s</code>、<code>idle_in_transaction_session_timeout = 15s</code>,设在一个应用专用角色上。今天<b>没有写进代码,也没有设在 <code>nest_lab</code> 角色上</b>:这个角色同时用于 <code>db:reset</code>、灌 30 万行数据、各天的观察脚本(故意 <code>pg_sleep</code>),5 秒的限制会让它们失败。这也说明了为什么生产环境要把「应用角色」和「迁移角色」分开。</p>
+  <p>⚠️ 超时会让请求失败,应用要接得住:<code>57014</code> / <code>55P03</code> 目前在 nest-lab 里会变成 500;读请求可以重试一次,写请求要看幂等性(Day 15)。超时是保护数据库的最后一道闸,不是性能优化。</p>
+</section>
+
+<section id="sec7">
+  <h2>🧩 nest-lab 经过 PgBouncer:发现了一处不兼容</h2>
+  <p>先按「理论上应该兼容」检查一遍 nest-lab 的写法:</p>
+  <ul>
+    <li>查询都是不具名的参数化查询:不受预备语句问题影响 ✅</li>
+    <li>事务都在 <code>transaction()</code> 里,<code>BEGIN … COMMIT</code> 用同一个 client ✅</li>
+    <li>悲观锁 <code>updateLocked</code> 的 <code>FOR NO KEY UPDATE</code> 在事务里 ✅</li>
+    <li>没有会话级 <code>SET</code>、会话级咨询锁、临时表、<code>LISTEN</code> ✅</li>
+  </ul>
+  <p>然后真的连一次(第 8 幕):</p>
+  <pre><code>  ① 照原样(启动参数 options=-c search_path=day41)连 6432 → FATAL 08P01 unsupported startup parameter in options: search_path
+  ② 让 PgBouncer 忽略 options(ignore_startup_parameters = options):连接成功了,但 current_schema() = public
+     search_path 被悄悄丢掉:不加检查的话,nest-lab 会去读写 public.tasks。Day 41 加的启动检查 → 当前 schema 是 public,不是 DATABASE_SCHEMA=day41
+  ③ DB_STARTUP_SEARCH_PATH=false + 库别名 nest_lab_day41(connect_query 设 search_path)→ 启动成功,current_schema() = day41
+     Day 40 的竞态(完成 + 改名,10 次):违规 0,改名被 409 拒绝 7,其余是「先改名后完成」
+     悲观锁 updateLocked × 30 并发:计数 30、version 31(235 ms)
+     乐观锁 + withRetry × 30 并发:计数 30</code></pre>
+  <p>漏掉的一条是:Day 27 的 <code>pg-pool.ts</code> 用<b>连接启动参数</b> <code>options=-c search_path=app</code> 选 schema,而 PgBouncer 只接受少数几个启动参数。② 更危险:让 PgBouncer 忽略它之后连接能建立、不报错,但 <code>search_path</code> 没了,查询落到 <code>public</code> 里。本库的 <code>public</code> 里恰好有一张早期实验留下的 <code>tasks</code> 表。如果没有任何检查,nest-lab 会去读写这张表,e2e 启动时的 <code>TRUNCATE</code> 也会把它清空。</p>
+  <p>我还试了 <code>track_extra_parameters = IntervalStyle, search_path</code>(手动测试,不在脚本里):PgBouncer 1.22 接受了连接,但 <code>SHOW search_path</code> 仍是默认的 <code>"$user", public</code>,同样是悄悄丢掉。PgBouncer 新版本的文档写着:PostgreSQL 18 起服务器会报告 <code>search_path</code>,PgBouncer 也有了相应的处理。这一点<b>没有实测</b>。</p>
+
+  <h3>修法(nest-lab 的 src 改了三处,都是配置级的)</h3>
+  <ol>
+    <li><b>新环境变量 <code>DB_STARTUP_SEARCH_PATH</code></b>(默认 <code>true</code>,行为和以前完全一样)。经过 PgBouncer 时设为 <code>false</code>,<code>pg-pool.ts</code> 就不再发 <code>options</code>。</li>
+    <li><b>schema 由 PgBouncer 设置</b>:库别名 <code>nest_lab_app = … connect_query='SET search_path = app'</code>。PgBouncer 每新建一个服务端连接就执行一次,同一个别名下所有服务端连接的 schema 都一样,换哪个都没关系。<b>不能</b>改成「应用连上以后执行一次 <code>SET search_path</code>」:那正是第 5 节的红笔问题。</li>
+    <li><b>启动时核对</b>:<code>PgTasksRepository.onModuleInit</code> 原来执行 <code>SELECT 1</code>,现在执行 <code>SELECT current_schema()</code>,不等于 <code>DATABASE_SCHEMA</code> 就拒绝启动,并在错误信息里写明怎么修。这一条直连时也有用:任何让 <code>search_path</code> 悄悄失效的情况,都会在启动时暴露出来,而不是读写错一张表。</li>
+  </ol>
+  <p>测试里整个换掉 <code>ConfigService</code> 的用例(Day 12)会让没列出的配置项退回读 <code>process.env</code>,拿到的是字符串 <code>'false'</code>。所以 <code>database.module.ts</code> 里用 <code>String(…) !== 'false'</code> 判断。这是第一次跑经过 PgBouncer 的 e2e 时撞出来的。</p>
+  <p><b>修之前和修之后</b>(<code>DATABASE_URL</code> 指向 <code>6432/nest_lab_app_test</code>):</p>
+  <pre><code>修之前(DB_STARTUP_SEARCH_PATH 默认 true):  Tests  55 failed | 6 passed | 32 skipped (93)
+                                                error: unsupported startup parameter in options: search_path
+修之后(npm run test:e2e:pgbouncer):           Tests  93 passed (93)    ← 连跑 3 遍;把 default_pool_size 改成 2 也通过</code></pre>
+
+  <h3>Docker / 生产环境</h3>
+  <ul>
+    <li>Docker 里可以用社区镜像,比如 <code>edoburu/pgbouncer</code>、<code>bitnami/pgbouncer</code>。它们有的用环境变量生成配置,有的挂载配置文件,写法各不相同,请看镜像自己的文档。配置里的 <code>host=127.0.0.1</code> 要换成 compose 里数据库服务的名字(比如 <code>postgres</code>)。<b>本课程环境没有 Docker,未实测。</b></li>
+    <li><code>userlist.txt</code> 里放明文密码只适合本地开发。生产环境常见的做法:userlist 里放 SCRAM 秘钥(从 <code>pg_authid</code> 取,而不是明文),或者用 <code>auth_query</code> 让 PgBouncer 到数据库里查,配置文件放在 secret 管理里。</li>
+    <li>云上也有托管的连接池:AWS RDS Proxy、Supabase 的 Supavisor、Neon 自带的连接池(只提名字,没有用过)。原理一样,限制(比如 transaction 模式的会话状态)也类似,细节看各自文档。</li>
+  </ul>
+</section>
+
+<section id="sec8">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <table>
+    <tr><th>生态</th><th>应用内连接池</th><th>默认最大连接数</th></tr>
+    <tr><td>Node(<code>pg</code>,nest-lab)</td><td><code>new pg.Pool({ max })</code></td><td>10(nest-lab 用 <code>DB_POOL_MAX</code>,默认也是 10)</td></tr>
+    <tr><td>.NET(Npgsql)</td><td>内置,连接字符串 <code>Maximum Pool Size</code> / <code>Max Pool Size</code></td><td><b>100</b></td></tr>
+    <tr><td>Java(HikariCP,Spring Boot 默认)</td><td><code>maximumPoolSize</code></td><td><b>10</b></td></tr>
+    <tr><td>Go(<code>pgxpool</code>)</td><td><code>pool_max_conns</code> / <code>Config.MaxConns</code></td><td><b>max(4, runtime.NumCPU())</b></td></tr>
+  </table>
+  <p>注意 Npgsql 的默认值 100:一个 .NET 服务不改配置、开几个副本,就能把一个默认配置的 PostgreSQL 撑满。</p>
+  <p>外部连接池:PgBouncer(最常用)、Pgpool-II(还做负载均衡 / 读写分离)、云上的 AWS RDS Proxy、Supabase Supavisor、Neon 的连接池。和数据库的对照:MySQL 是一个连接一个<b>线程</b>,比 PostgreSQL 的进程便宜,但连接多了一样会有调度和内存问题;SQL Server 也是线程模型,连接池通常交给客户端(ADO.NET 内置池)。</p>
+  <p>🔎 核实说明:</p>
+  <ul>
+    <li>用 Context7 查过源码 / 官方文档:Npgsql <code>MaxPoolSize</code> 默认 100(<code>NpgsqlConnectionStringBuilder</code> 的 <code>[DefaultValue(100)]</code>);HikariCP <code>maximumPoolSize</code> 默认 10,以及 <code>connections = core_count × 2 + effective_spindle_count</code> 这个公式(HikariCP 文档注明公式来自 PostgreSQL 项目);pgxpool <code>pool_max_conns</code> 默认 <code>max(4, runtime.NumCPU())</code>;PgBouncer 1.24 起 <code>max_prepared_statements</code> 默认 200(NEWS);<code>track_extra_parameters</code> 的文档说明(PostgreSQL 18 起报告 <code>search_path</code>)。</li>
+    <li><code>pg</code> 的 <code>Pool</code> 默认 <code>max = 10</code>、MySQL / SQL Server 的线程模型、Pgpool-II、RDS Proxy / Supavisor / Neon:来自我的记忆,<b>没有核实、没有实测</b>。Docker 镜像只提了名字,<b>未实测</b>。</li>
+    <li>PostgreSQL 16.15 和 PgBouncer 1.22.0 的所有行为都在本机实测过。</li>
+  </ul>
+  <p>📌 Day 42 复盘时,可以在 roadmap 顶部的对照表里新增一行「连接池」:<code>pg.Pool max</code> ↔ Npgsql <code>Max Pool Size</code>(默认 100)↔ HikariCP <code>maximumPoolSize</code>(默认 10)↔ pgxpool <code>MaxConns</code>(默认 max(4, NumCPU)),外部池 PgBouncer,内容自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"How do you size a connection pool? Why would you put PgBouncer in front of PostgreSQL? What are the pitfalls of transaction pooling? How do you stop long transactions from taking down the database?"</b>(或者:「连接池大小怎么定?为什么要用 PgBouncer?transaction 模式有什么坑?怎么防止长事务拖垮数据库?」)你可以答:<br>
+    <b>"PostgreSQL 每个连接是一个进程,连接本身有内存开销,上限 max_connections 默认是 100;而真正干活的是 CPU 和磁盘,连接数超过核心数的两倍左右,吞吐就不涨了,只是延迟变长。我在 4 核的机器上测过,5 个并发连接和 80 个吞吐差不多,但 80 个时中位延迟从 4 毫秒涨到 90 毫秒。所以池子要小,起点是核心数乘 2 加磁盘数,再用真实负载调。多副本时要算总账:副本数乘每池大小,加上运维和迁移用的连接,不能超过 max_connections,我复现过 6 个副本每个 20 个连接直接报 too many clients。副本多或者是 serverless 的时候就在前面加 PgBouncer,用 transaction 模式,一个事务结束就把服务端连接还回去,我测过 120 个客户端连接,PostgreSQL 那边始终只有 20 个。transaction 模式的坑是会话级状态不可靠:不带 LOCAL 的 SET 会消失,还会串到别的客户端;会话级 advisory lock 会泄漏甚至被别的客户端继承;临时表、LISTEN、具名预备语句也有问题。所以要用 SET LOCAL、pg_advisory_xact_lock,预备语句要开 PgBouncer 1.21 以后的 max_prepared_statements,或者只用不具名查询。还有连接参数里的 options 过不了 PgBouncer,比如用它设 search_path 就不行。防长事务靠超时三件套:statement_timeout 限制单条语句,lock_timeout 限制等锁,idle_in_transaction_session_timeout 让在事务里发呆的连接被服务器直接断开;我会把它们设在应用专用的角色上,这样直连和经过 PgBouncer 都生效,迁移用另一个角色;应用要能处理这些错误,连接池会自动丢掉被断开的连接。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec9">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:手动复现会话级状态的坑(动手,约 10 min)</h3>
+    <ol>
+      <li>先把第 3–6 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day41</code> 批改。</li>
+      <li>终端 1 启动 PgBouncer(<code>pgbouncer pgbouncer/pgbouncer.ini</code>),再开两个连 <code>6432/nest_lab_tiny</code> 的 psql 窗口,按 <code>sql/day41/03-session-state.sql</code> 的注释做一遍。每一步之后在第三个窗口(连 <code>6432/pgbouncer</code>)执行 <code>SHOW SERVERS;</code>,看两个服务端连接各被谁占着。</li>
+      <li>✍️ <b>预测</b>:psql 窗口 A 执行 <code>\set AUTOCOMMIT off</code> 后什么都不做,窗口 B 还能用吗?把 <code>nest_lab_tiny</code> 换成 <code>nest_lab_session</code> 再做一遍 ①,现象有什么不同?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:nest-lab 经过 PgBouncer(动手,约 10 min)</h3>
+    <ol>
+      <li>PgBouncer 运行着的时候,执行 <code>npm run test:e2e:pgbouncer</code>。✍️ <b>预测</b>:在管理控制台执行 <code>SET default_pool_size = 2;</code> 和 <code>RECONNECT;</code> 后再跑一次,能通过吗?会慢多少?(提示:用例 ① 和悲观锁用例同时需要几个服务端连接?)</li>
+      <li>✍️ <b>预测</b>:不设 <code>DB_STARTUP_SEARCH_PATH=false</code>,直接把 <code>DATABASE_URL</code> 指向 6432 启动 <code>npm run start:dev</code>(<code>TASKS_STORAGE=postgres</code>),会在哪一步失败?错误信息是什么?</li>
+      <li>跑 <code>npm run test:e2e:pgbouncer</code> 的同时,直连 5432 执行 <code>\ir sql/day41/02-who-is-connected.sql</code>:✍️ <b>预测</b> 能看到几个来自 PgBouncer 的连接、它们的 <code>application_name</code> 是什么、大多处在什么 state?再经过 6432 执行一次同样的文件,看到的有什么不同?(<code>pg_stat_activity</code> 是数据库那一侧的视图)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:给 nest-lab 定数(动笔,约 5 min)</h3>
+    <p>假设生产数据库 8 核、<code>max_connections = 200</code>,nest-lab 要跑 10 个副本,另外有一个定时任务服务(2 个副本)和一个迁移工具。分别写出「不用 PgBouncer」和「用 PgBouncer transaction 模式」时,<code>DB_POOL_MAX</code>、<code>default_pool_size</code>、<code>max_client_conn</code> 各设多少,写出算式和理由。超时三件套的值你会不会和 <code>docs/db-timeouts.md</code> 的建议不同?</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/41-pgbouncer/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事说:「浏览器在 HTTP/1.1 下对同一个域名最多同时开 6 个连接,多出来的请求就排队;HTTP/2 一个连接上能同时跑很多请求。后端连数据库也是这样吗?连接开多一点不是更快吗?」用「叫号台」的比喻讲清楚应用连接池、PgBouncer 和 max_connections,并说出 HTTP/2 多路复用和 PgBouncer 哪里像、哪里不像。</li>
+      <li>nest-lab 部署了 6 个副本,每个 <code>DB_POOL_MAX=20</code>,上线后一部分请求报 <code>sorry, too many clients already</code>。为什么?有哪几种修法?换成 PgBouncer 的 transaction 模式之后,代码里有哪些写法会出问题(至少说三种),各自怎么改?</li>
+      <li>超时三件套分别防的是什么事故?为什么 nest-lab 推荐把它们设在「应用专用角色」上,而不是连接参数或 <code>SET</code> 里?<code>idle_in_transaction_session_timeout</code> 到点之后,应用这边会看到什么、连接池怎么恢复?</li>
+    </ol>
+    <p>写完回到第 3–7 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:确认 PgBouncer 已经停掉(<code>pgrep -a pgbouncer</code> 没有输出);在 <code>nest-lab/README.md</code> 的成长日志里记一笔;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec10">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>连接贵,而且多了不快</b>:一个连接一个进程(约 16 MB RSS,建一个 6–8 ms);池子复用比每次新建快 40 倍以上。4 核机器上 5 个并发连接就到吞吐顶了(约 850–930 条/秒),80 个时吞吐不变、p50 延迟涨到约 90 ms。</li>
+    <li><b>多副本要算总账</b>:6 × 20 直连,24–25 个请求直接 <code>53300 too many clients</code>。PgBouncer transaction 模式下,同样 120 个客户端 600 条查询全部成功,PostgreSQL 里始终只有 20 个后端进程;session 模式几乎不省连接;statement 模式开不了事务。</li>
+    <li><b>transaction 模式下会话状态不可靠</b>:<code>SET</code> 会消失也会串,会话级咨询锁会被「继承」并泄漏,临时表找不到,具名预备语句报 <code>26000</code> / <code>42P05</code>。修法:<code>SET LOCAL</code>、<code>pg_advisory_xact_lock</code>、<code>max_prepared_statements</code>。连接参数 <code>options</code> 也过不去,nest-lab 因此加了 <code>DB_STARTUP_SEARCH_PATH</code> 和启动时的 schema 核对。</li>
+    <li><b>超时三件套</b>:<code>statement_timeout</code>(57014)、<code>lock_timeout</code>(55P03)、<code>idle_in_transaction_session_timeout</code>(25P03,直接断开连接,池子自动换新的)。设在应用专用角色上,直连和经过 PgBouncer 都生效。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>为什么 PostgreSQL 的连接比 HTTP 请求贵得多?</li>
+    <li>4 核机器上,连接数从 5 加到 80,吞吐和延迟分别怎么变?为什么?</li>
+    <li><code>SHOW POOLS</code> 里的 <code>cl_waiting</code> 和 <code>sv_active</code> 各是什么意思?transaction 模式和 session 模式下它们有什么不同?</li>
+    <li>说出 transaction 模式下会出问题的三种「会话级」东西,和各自的修法。</li>
+    <li>pg 驱动的具名预备语句为什么会在 PgBouncer 后面报 <code>prepared statement does not exist</code>?<code>max_prepared_statements</code> 怎么解决它?</li>
+    <li>nest-lab 为什么不能用「连上以后执行一次 <code>SET search_path</code>」来代替启动参数?</li>
+    <li>超时三件套各防什么?为什么推荐设在角色上?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 42</b>:Week 6 复盘(格式同 Day 35)。把事务、隔离级别、MVCC、锁、乐观 / 悲观锁、连接池串成一张图,做一道综合题。</p>
+</section>
+
+<footer>
+  Day 41 · Phase 2 / Week 6 · 产出:<code>docs/41-pgbouncer/</code> 本文档 + <code>nest-lab/</code>(<code>pgbouncer/</code> 配置、<code>sql/day41/</code> 四个文件、<code>npm run day41</code>、<code>npm run test:e2e:pgbouncer</code>、<code>docs/db-timeouts.md</code>、<code>DB_STARTUP_SEARCH_PATH</code> 与启动时 schema 核对)+ <code>src/41-pgbouncer/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

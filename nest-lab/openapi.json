@@ -288,7 +288,7 @@
         ]
       },
       "put": {
-        "description": "幂等。checklist 不给 = 清空为 []。",
+        "description": "幂等。checklist 不给 = 清空为 []。带上 version(乐观锁)时,版本已过时返回 409 conflict/stale-version。",
         "operationId": "Tasks_replace_v2",
         "parameters": [
           {
@@ -371,7 +371,7 @@
             }
           },
           "409": {
-            "description": "与资源当前状态冲突(如已完成的任务改标题)",
+            "description": "与资源当前状态冲突(如已完成的任务改标题;请求带的 version 已过时)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -412,7 +412,7 @@
         ]
       },
       "patch": {
-        "description": "只改给了的字段,至少给一个。",
+        "description": "只改给了的字段,至少给一个(version 不算)。带上 version(乐观锁)时,版本已过时返回 409 conflict/stale-version。",
         "operationId": "Tasks_update_v2",
         "parameters": [
           {
@@ -495,7 +495,7 @@
             }
           },
           "409": {
-            "description": "与资源当前状态冲突(如已完成的任务改标题)",
+            "description": "与资源当前状态冲突(如已完成的任务改标题;请求带的 version 已过时)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1139,6 +1139,11 @@
             "type": "string",
             "format": "date-time",
             "example": "2026-01-01T00:00:00.000Z"
+          },
+          "version": {
+            "type": "integer",
+            "example": 1,
+            "description": "版本号:新建时为 1,每次修改成功后 + 1"
           }
         },
         "required": [
@@ -1146,7 +1151,8 @@
           "title",
           "done",
           "checklist",
-          "createdAt"
+          "createdAt",
+          "version"
         ]
       },
       "TaskPage": {
@@ -1231,6 +1237,12 @@
             "items": {
               "$ref": "#/components/schemas/ChecklistItemDto"
             }
+          },
+          "version": {
+            "type": "integer",
+            "description": "读到的版本号(响应里的 version)。给了就做乐观锁检查:不一致时返回 409 conflict/stale-version",
+            "minimum": 1,
+            "example": 1
           }
         },
         "required": [
@@ -1259,6 +1271,12 @@
             "items": {
               "$ref": "#/components/schemas/ChecklistItemDto"
             }
+          },
+          "version": {
+            "type": "integer",
+            "description": "读到的版本号(响应里的 version)。给了就做乐观锁检查:不一致时返回 409 conflict/stale-version",
+            "minimum": 1,
+            "example": 1
           }
         }
       },

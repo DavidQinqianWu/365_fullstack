@@ -29,6 +29,7 @@ export const ProblemTypes = {
   methodNotAllowed: define('method-not-allowed', '该资源不支持此 HTTP 方法', HttpStatus.METHOD_NOT_ALLOWED),
   notAcceptable: define('not-acceptable', '无法提供客户端要求的响应格式', HttpStatus.NOT_ACCEPTABLE),
   taskCompleted: define('conflict/task-completed', '已完成的任务不能修改标题', HttpStatus.CONFLICT),
+  staleVersion: define('conflict/stale-version', '任务已被其他请求修改', HttpStatus.CONFLICT), // Day 40:乐观锁
   unsupportedMediaType: define('unsupported-media-type', '不支持的请求体格式', HttpStatus.UNSUPPORTED_MEDIA_TYPE),
   validation: define('validation-error', '请求内容未通过校验', HttpStatus.UNPROCESSABLE_ENTITY),
   internal: define('internal', '服务器内部错误', HttpStatus.INTERNAL_SERVER_ERROR),

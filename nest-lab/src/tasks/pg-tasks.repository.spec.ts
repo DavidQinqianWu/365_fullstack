@@ -129,3 +129,23 @@ describe('PgTasksRepository 的事务(Day 36 修复)', () => {
     expect(client.release).toHaveBeenCalledWith(expect.any(Error));
   });
 });
+
+// Day 41:search_path 没设上时不会报错,而是悄悄去 public 里找同名表 —— 启动时核对 current_schema(),不对就拒绝启动
+describe('PgTasksRepository 启动时核对 schema(Day 41)', () => {
+  const poolReturning = (schema: string | null) =>
+    ({ query: vi.fn(async () => ({ rows: [{ schema }], rowCount: 1 })) }) as unknown as pg.Pool;
+
+  it('current_schema() 和 DATABASE_SCHEMA 一致:正常启动', async () => {
+    await expect(new PgTasksRepository(poolReturning('app_test'), null, 'app_test').onModuleInit()).resolves.toBeUndefined();
+  });
+
+  it('不一致(比如经过 PgBouncer 时 search_path 被丢掉,落到了 public):拒绝启动,并说明怎么修', async () => {
+    await expect(new PgTasksRepository(poolReturning('public'), null, 'app_test').onModuleInit()).rejects.toThrow(
+      /当前 schema 是 public,不是 DATABASE_SCHEMA=app_test.*DB_STARTUP_SEARCH_PATH/,
+    );
+  });
+
+  it('没给期望的 schema(观察脚本直接 new 的情况):不核对', async () => {
+    await expect(new PgTasksRepository(poolReturning('public')).onModuleInit()).resolves.toBeUndefined();
+  });
+});
