@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="day" content="28">
+<meta name="phase" content="Phase 2 / Week 4">
+<meta name="summary" content="复盘日,不学新内容。画出「一个带 checklist 的 POST /v2/tasks 从 HTTP 到写进 PostgreSQL 的一生」把 Day 22–27 串起来,默写六张概念卡,做一次 SQL 与仓储 review,自测 12 题。">
+<title>Day 28 - 复盘日:把 Week 4 的六天连成一次真正落库的请求</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 4 · 复盘日</div>
+  <h1>Day 28 - 复盘日:把 Week 4 的六天连成一次真正落库的请求</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(画图 25 min + 默写 25 min + SQL 与仓储 review 15 min + 对照表与自测 25 min)·
+    <b>今天不学新内容。</b>复盘日只有一个任务:把 Day 22–27 从「跟着讲义在 psql 里跑通了」变成「合上讲义说得出、画得出、查得出问题」·
+    产出:<code>src/28-week4-review/</code> 下的一张全景图、六张概念卡、一次 SQL 与仓储 review 和一份自测答卷
+  </div>
+</header>
+
+<div class="warn">
+  <span class="tag">⚠️ 复盘日的规矩</span>
+  <p><b>不许翻 Day 22–27 的讲义,也不许打开 nest-lab 的代码和 <code>sql/</code> 目录。</b>先凭记忆写,写完再对照订正。订正的地方用红色或加粗标出来,<b>那些就是你真正的知识缺口</b>,Week 5 会再考。</p>
+  <p>如果某一题完全写不出来,不要跳过。写下「我不会」,然后去看讲义,再用自己的话重写一遍。</p>
+  <p>第三件事(SQL 与仓储 review)是唯一的例外:它本来就要求你读 <code>schema.sql</code> 和仓储代码、连进 psql 验证。但<b>前两件事做完之前不要打开</b>。</p>
+  <p>今天<b>不给 nest-lab 加新功能</b>。review 里发现的问题先记下来,写清楚改法和「计划在哪一周改」。</p>
+</div>
+
+<nav class="toc">
+  <h2>📖 今天的四件事</h2>
+  <ol>
+    <li><a href="#sec1">🗺️ 第一件事:画出「一个带 checklist 的 POST /v2/tasks 从 HTTP 到写进 PostgreSQL 的一生」(约 25 min)</a></li>
+    <li><a href="#sec2">✍️ 第二件事:六张概念卡默写(约 25 min)</a></li>
+    <li><a href="#sec3">🔍 第三件事:给 nest-lab 的 SQL 与仓储做一次 review(约 15 min)</a></li>
+    <li><a href="#sec4">📊 第四件事:改写对照表 + 自测 12 题(约 25 min)</a></li>
+    <li><a href="#sec5">🎯 Week 4 结算、遗留清单与 Week 5 预告</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🗺️ 第一件事:画出「一个带 checklist 的 POST /v2/tasks 从 HTTP 到写进 PostgreSQL 的一生」(约 25 min)</h2>
+
+  <p>Week 2 复盘画的是请求在 Nest 管线里经过哪些站,Week 3 复盘给每一站标上了对外承诺。这两张图都停在 Service 那里:后面是一个内存数组,「存进去」只是一次 <code>push</code>。今天把图<b>往下接</b>:Service 之后,请求还要经过连接池、事务、两条 INSERT、几条约束,最后才真正落到 PostgreSQL 的磁盘上,再原路变成一个 201 响应。</p>
+
+  <h3>任务</h3>
+  <p>在 <code>src/28-week4-review/request-lifecycle.md</code> 里,用文字或 mermaid 画出下面这个过程。Week 2–3 的管线各站可以简写成一行,<b>重点画 Service 之后的部分</b>。每一站标注两个编号:它是 Week 4 哪一天学的(Day 22–27),以及它建在 Week 1–3 的哪个机制上。</p>
+
+  <div class="task">
+    <h3>场景(主线)</h3>
+    <pre><code># .env 里 TASKS_STORAGE=postgres,npm run db:reset 之后 npm run start:dev
+curl -i -X POST localhost:3000/v2/tasks \
+  -H 'content-type: application/json' \
+  -H 'x-demo-key: let-me-in' \
+  -H 'x-request-id: review-4' \
+  -d '{"title":"复盘 Week 4","checklist":[{"text":"画全景图","done":false},{"text":"默写六张卡","done":false}]}'</code></pre>
+    <p>要覆盖这些环节(顺序你自己排):</p>
+    <ul>
+      <li>Service 是怎么拿到 <code>PgTasksRepository</code> 而不是内存版的(谁、在什么时候、根据什么决定的)</li>
+      <li>为什么 Service 的方法要 <code>await</code>;Day 9 的接口在这里改了什么</li>
+      <li>从连接池借连接:借到的是什么,PostgreSQL 那边对应什么;池子满了会怎样</li>
+      <li><code>BEGIN</code> 之后的两条 INSERT 分别写什么、怎么拿到新任务的 id、清单项的 <code>position</code> 从哪来</li>
+      <li>哪几条约束在哪一条 SQL 执行时被检查(模板里有一张专门的表)</li>
+      <li><code>COMMIT</code> 之后、把连接还回去之前,还做了什么(提示:响应里的 <code>checklist</code> 数组是怎么来的)</li>
+      <li><code>created_at</code> 从「Clock 给的时刻」到「数据库里的 timestamptz」再到「响应里的 ISO 字符串」</li>
+      <li>201 和 <code>Location</code> 头是谁、根据什么写的</li>
+    </ul>
+    <p>再写四条支线(模板里已列好):checklist 第二项违反约束;两个请求同时创建同名标签(三种写法对比);数据库在启动时 / 运行中挂掉;同一个请求在内存模式下从哪一站开始走不同的路。</p>
+  </div>
+
+  <h3>写完之后自查:每一站你标出 Day 编号了吗?</h3>
+  <p>参考答案的<b>对应关系</b>(只给 Day 编号,不是完整答案;每一站具体做什么、顺序如何,要你自己写):</p>
+  <table>
+    <tr><th>环节</th><th>Week 4</th><th>建在 Week 1–3 的</th></tr>
+    <tr><td>内容协商、钥匙、DTO 校验、Controller(简写成一行)</td><td>—</td><td>Day 10、11、15、16</td></tr>
+    <tr><td>按配置选仓储实现;异步的仓储接口</td><td>Day 27</td><td>Day 9、Day 12;Day 1–3</td></tr>
+    <tr><td>从连接池借 / 还连接;每个连接对应什么</td><td>Day 22、Day 27</td><td>Day 4、Day 5</td></tr>
+    <tr><td><code>BEGIN</code> / <code>COMMIT</code> / <code>ROLLBACK</code></td><td>Day 22、Day 27</td><td>—</td></tr>
+    <tr><td>写任务、拿回新 id</td><td>Day 24、Day 26</td><td>Day 15</td></tr>
+    <tr><td>批量写清单项、为什么是另一张表</td><td>Day 23、Day 26、Day 27</td><td>Day 16</td></tr>
+    <tr><td>约束检查及其 SQLSTATE</td><td>Day 24</td><td>Day 16</td></tr>
+    <tr><td>读回任务并拼出 <code>checklist</code> 数组</td><td>Day 25、Day 26</td><td>Day 18</td></tr>
+    <tr><td>时间:Clock → timestamptz → ISO 字符串</td><td>Day 26</td><td>Day 9、Day 18</td></tr>
+    <tr><td>支线:约束错误 → problem+json,不泄露原文</td><td>Day 24、Day 27</td><td>Day 17</td></tr>
+    <tr><td>支线:同名标签并发创建</td><td>Day 24、Day 26</td><td>—</td></tr>
+    <tr><td>支线:数据库挂掉时的启动 / 运行</td><td>Day 22、Day 27</td><td>Day 12</td></tr>
+  </table>
+
+  <div class="concept">
+    <span class="tag">为什么这张图值 25 分钟</span>
+    <p>三周前的图回答「框架怎么组织代码」,上周的图回答「调用方能依赖什么」;今天这张图回答<b>「数据到底是在哪一刻、靠什么保证真的存好了」</b>。面试里问「一个请求写数据库时发生了什么」,能从连接池讲到事务、从约束讲到 SQLSTATE 再讲回 problem+json 的人,说明他知道数据的正确性是由哪几层共同保证的。</p>
+    <p>这张图在 ASP.NET Core(EF Core / Npgsql)、Spring(HikariCP / JDBC)、Go(pgxpool)里几乎一样:借连接 → 开事务 → 参数化写入 → 约束检查 → 提交 → 归还连接 → 映射成响应。<b>你画的是「后端怎么把一份数据可靠地写进关系数据库」,不是「nest-lab 的实现细节」。</b></p>
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>✍️ 第二件事:六张概念卡默写(约 25 min)</h2>
+
+  <p>写在 <code>src/28-week4-review/concept-cards.md</code>。<b>每张卡片必须包含三部分</b>:通用定义(不绑定语言)、PostgreSQL 或 Nest 里的样子、.NET / Java / Go 里(或 SQL Server / MySQL 里)的样子。</p>
+
+  <div class="task">
+    <h3>卡片 1:客户端-服务器与每连接一个进程(Day 22)</h3>
+    <ul>
+      <li>为什么后端不把数据放在服务的内存里(至少三个理由)</li>
+      <li>psql、nest-lab、GUI 工具和 PostgreSQL 服务器是什么关系</li>
+      <li>「每连接一个进程」:谁 fork 谁、在哪里能看到、连接断开后会怎样</li>
+      <li>集群 / 数据库 / schema / 表 / 行 / 列;<code>\c</code> 换库时发生了什么;忘写 WHERE 的两种保命办法</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>卡片 2:范式与反范式(Day 23)</h3>
+    <ul>
+      <li>宽表的三类异常</li>
+      <li>函数依赖;1NF / 2NF / 3NF 各消除了什么</li>
+      <li>1:1 / 1:N / N:M 怎么落到表上</li>
+      <li>什么时候故意反范式、代价是什么;为什么 schema 设计是最难改的决定</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>卡片 3:主键与约束(Day 24)</h3>
+    <ul>
+      <li>自然键 vs 代理键;serial / ALWAYS / BY DEFAULT;为什么默认 bigint;UUID v4 vs v7</li>
+      <li>五种约束;ON DELETE 各选项的业务含义</li>
+      <li>DTO 校验和数据库约束各防什么;「先查后插」为什么拦不住并发</li>
+      <li>四个 SQLSTATE 和它们的映射</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>卡片 4:JOIN、聚合、扇出与 NULL(Day 25)</h3>
+    <ul>
+      <li>JOIN 全家各用在什么时候;LEFT JOIN 的条件放 ON 还是 WHERE</li>
+      <li>扇出是什么,怎么识别、怎么修</li>
+      <li>WHERE vs HAVING;<code>COUNT(*)</code> vs <code>COUNT(列)</code>;逻辑执行顺序</li>
+      <li>NULL 的三值逻辑;<code>NOT IN</code> 遇 NULL</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>卡片 5:窗口函数、UPSERT、RETURNING、JSONB、timestamptz(Day 26)</h3>
+    <ul>
+      <li>窗口函数和 GROUP BY 的区别;每组最新的三种写法</li>
+      <li>UPSERT 靠什么判断「已存在」;DO NOTHING 的 RETURNING 坑;RETURNING 在 POST / PATCH / DELETE 里的用处</li>
+      <li>JSONB 何时用、何时别用;checklist 为什么用子表</li>
+      <li>timestamptz 存的是什么;夏令时下 1 day 和 24 hours</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>卡片 6:连接池、参数化查询与换仓储(Day 27)</h3>
+    <ul>
+      <li>连接池解决什么;池子大小怎么定;多副本时怎么算账</li>
+      <li>SQL 注入的原理;参数化为什么能防;哪些部分不能参数化</li>
+      <li>事务为什么必须用同一个连接</li>
+      <li>「换仓储只改一行」实际改了什么;同一套 e2e 两边都通过说明了什么、没说明什么</li>
+    </ul>
+  </div>
+
+  <div class="concept">
+    <span class="tag">写完六张卡,再用一句话收尾</span>
+    <p><b>「数据库是后端的心脏」对你意味着什么?</b>写在 <code>concept-cards.md</code> 末尾,再写下这一周最让你意外的一次实测结果,以及 nest-lab 的数据现在靠哪几层保证不会坏。Week 3 的题眼是「写出去的东西别人会依赖」,Week 4 的题眼是<b>「存进去的东西要比代码活得久,而且不能坏」</b>。</p>
+  </div>
+</section>
+
+<section id="sec3">
+  <h2>🔍 第三件事:给 nest-lab 的 SQL 与仓储做一次 review(约 15 min)</h2>
+
+  <p>这次 review 的对象是<b>数据访问层</b>:<code>nest-lab/sql/schema.sql</code>、<code>src/tasks/pg-tasks.repository.ts</code>、<code>src/database/</code>,以及设计稿 <code>docs/er-diagram.md</code>。用「第一次接手这段代码的人」的眼光看,必要时连进 psql 或发 curl 验证。把发现写在 <code>src/28-week4-review/code-review.md</code>。</p>
+
+  <h3>Review 清单(逐条检查)</h3>
+  <table>
+    <tr><th>检查项</th><th>为什么重要</th><th>对应 Day</th></tr>
+    <tr><td>每条 SQL 里的「值」都走参数了吗?所有模板字符串拼出来的部分,拼进去的是不是都来自代码</td><td>SQL 注入</td><td>Day 27</td></tr>
+    <tr><td>ORDER BY 的列名和方向、schema 名等「SQL 结构」是否只从白名单里选</td><td>结构性注入</td><td>Day 19 / 27</td></tr>
+    <tr><td>每个事务的每条路径(成功、失败、<b>失败时 ROLLBACK 本身也失败</b>)都正确结束了吗?借来的连接一定会还吗?还回去的连接还能用吗</td><td>连接泄漏、池子被借空、坏连接被复用</td><td>Day 27</td></tr>
+    <tr><td>外键列、常用过滤 / 排序列上有没有索引(只写判断和理由)</td><td>Week 5 的实验对象</td><td>Day 24 / Week 5</td></tr>
+    <tr><td>有没有请求能绕过 DTO 把不合法的值送到数据库?数据库拦下后返回了什么</td><td>校验漏洞</td><td>Day 16 / 24 / 27</td></tr>
+    <tr><td>内存版和 PG 版对同一个请求的行为是否一致</td><td>「测试通过」的含义</td><td>Day 27</td></tr>
+    <tr><td>数据库错误有没有把 PG 原文泄露给调用方?没登记的约束违反会变成什么</td><td>信息泄露</td><td>Day 17 / 24 / 27</td></tr>
+    <tr><td>「先查后改」「先查后删」在两个请求同时到达时会怎样</td><td>竞态、丢失更新</td><td>Day 24 / Week 6</td></tr>
+  </table>
+
+  <div class="story">
+    <span class="tag">🔦 找不到问题时的提示(不是答案)</span>
+    <ul>
+      <li>第 1 条:在仓储文件里搜 <code>${</code>。每一处都问一句:这个变量的值可能来自 HTTP 请求吗?</li>
+      <li>第 3 条:看 <code>transaction()</code> 的 <code>catch</code>。如果连接在执行中途断了,<code>await client.query('ROLLBACK')</code> 会怎样?原来的错误还在吗?<code>client.release()</code> 有一个可选参数,它是干什么的?</li>
+      <li>第 4 条:<code>checklist_items</code> 的主键是 <code>(task_id, position)</code>。想一想「按 <code>task_id</code> 查清单项」能不能用上主键自带的那个索引?<code>title ILIKE '%…%'</code> 呢?先写下你的猜测,Week 5 用 <code>EXPLAIN</code> 验证。</li>
+      <li>第 5 条:Day 27 习题 3。你修了吗?修之前和修之后,两种仓储各回什么?</li>
+      <li>第 6 条:Day 27 讲义第 3 张卡的边界 1 列了几个差异。再想想:内存版的 <code>findAll()</code> / <code>findById()</code> 返回的对象,和仓储内部存的是不是同一个?调用方改了它会怎样?PG 版呢?(<code>tasks.service.spec.ts</code> 里有一个 <code>toBe</code>,它在 PG 版上还会成立吗?)</li>
+      <li>第 8 条:<code>replace()</code> 先 <code>findOne</code> 检查 409 规则、再 <code>update</code>,中间隔着一次往返。开两个终端同时 PUT 同一个任务试试(不要求今天能解释清楚,Week 6 讲)。</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>产出要求</h3>
+    <p>每发现一个问题,写成这个格式:</p>
+    <pre><code>## 文件 / 位置:nest-lab/src/tasks/pg-tasks.repository.ts 的 xxx()
+**对应清单第几条:** ……
+**问题:** ……
+**后果(对调用方 / 对数据 / 对安全):** ……
+**改法:** ……
+**计划在哪一周改:** ……
+**当时为什么这么设计:** ……</code></pre>
+    <p><b>最后一行最重要。</b>这一周的很多「问题」是有意的取舍:为了在一天里讲清一个概念、为了不提前引入 Week 5–7 的知识、或者为了让内存版和 PG 版跑同一套测试。把理由写出来,你才能分清<b>「有意欠的债」</b>(记账、排期)和<b>「没想到的坑」</b>(补测试、补设计文档)。</p>
+    <p><b>至少找出 2 个问题。</b>选做:对照 <code>docs/er-diagram.md</code> 和真实的 <code>sql/schema.sql</code>,列出两者不一致的地方。</p>
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📊 第四件事:改写对照表 + 自测 12 题(约 25 min)</h2>
+
+  <h3>4.1 改写跨语言对照表(约 5 min)</h3>
+  <p>打开 <code>roadmap.md</code> 顶部的「后端概念跨语言对照表」。和这周有关的已有行:</p>
+  <ul>
+    <li><b>ORM / 数据访问</b>(Day 25–27)</li>
+    <li><b>DB 迁移</b>(Day 27 的 <code>schema.sql</code> + <code>db:reset</code>,正式工具 Week 9)</li>
+    <li><b>输入校验</b>(Day 24:数据库层的约束)</li>
+    <li><b>声明式事务 / 事务传播</b>(Day 27 只用了最基本的 <code>BEGIN … COMMIT</code>)</li>
+    <li><b>统一错误格式(RFC 9457)</b>(Day 27:SQLSTATE → problem+json)</li>
+  </ul>
+  <p><b>任务一:挑其中 3 行,用你亲手验证过的理解,改写或补充成你自己的一句话。</b>比如「我在 day27 脚本里看到 20 个并发请求只用了 5 个后端进程」「我亲眼看到 <code>'; DROP TABLE …; --</code> 真的删掉了表」。<b>改写的内容必须是你亲手验证过的</b>,不是抄讲义。</p>
+
+  <p><b>任务二:新增三行</b>。这三行前几天的讲义都提过,<b>都要你自己填五列</b>。提示(只是方向):</p>
+  <ul>
+    <li><b>数据库驱动 / 连接池与参数化</b>:Node 那一列你这周用的是什么?.NET 里 ADO.NET 的 PostgreSQL 驱动叫什么、池子默认多大?Java 里 JDBC 的「安全写法」和「危险写法」分别是哪个接口、Spring Boot 默认的池子是哪个?Go 里有哪两种常见的组合?再加一句:PostgreSQL「每连接一个进程」和 MySQL 有什么不同。</li>
+    <li><b>时间与时区</b>:PostgreSQL 里推荐的类型是什么、它存的到底是什么?.NET、Java、Go 里分别用哪个类型表示「一个绝对时刻」?Npgsql 6 起对 <code>DateTime</code> 有什么要求?</li>
+    <li><b>ORM 关系写法</b>:同一个「用户 1:N 任务、任务 N:M 标签」,Prisma、EF Core、JPA、GORM 各怎么声明?它们在数据库里生成的中间表长什么样?(这一行的 Node 列可以先写 Prisma,Week 7 再回来改。)</li>
+  </ul>
+  <p>填完后想一想:这三行里,哪些格子是你<b>实测过</b>的,哪些只是<b>读来</b>的?读来的那些,在旁边标一个「未实测」。</p>
+
+  <h3>4.2 自测 12 题(闭卷,约 20 min,写在 <code>src/28-week4-review/self-test.md</code>)</h3>
+
+  <div class="task">
+    <h3>基础题(每题 1 分)</h3>
+    <ol>
+      <li>PostgreSQL 为每个连接做了什么?在哪里能看到所有连接?psql 的提示符 <code>nest_lab=&gt;</code> 和 <code>nest_lab-&gt;</code> 各表示什么?</li>
+      <li>用一句话各说清 1NF、2NF、3NF。多对多关系为什么一定要有中间表?</li>
+      <li><code>GENERATED ALWAYS AS IDENTITY</code> 和 <code>GENERATED BY DEFAULT AS IDENTITY</code> 有什么区别?新表的主键为什么默认用 <code>bigint</code>?id 出现空洞为什么不是 bug?</li>
+      <li><code>COUNT(*)</code> 和 <code>COUNT(列)</code> 有什么区别?WHERE 和 HAVING 有什么区别?为什么子查询结果里有一个 NULL 时,<code>NOT IN</code> 会返回空?</li>
+      <li><code>timestamptz</code> 存的是什么?<code>timestamp</code> 呢?<code>INSERT … ON CONFLICT DO NOTHING RETURNING id</code> 在冲突时返回什么?</li>
+      <li>什么是 SQL 注入?参数化查询为什么能防住?<code>ORDER BY</code> 的列名能不能用 <code>$1</code>?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>理解题(每题 2 分)</h3>
+    <ol start="7">
+      <li>「每个用户的未完成任务,包括没有任务的用户」:把 <code>t.done = false</code> 放在 LEFT JOIN 的 <code>ON</code> 里和放在 <code>WHERE</code> 里,结果有什么不同?为什么?</li>
+      <li>两个请求同时用同一个邮箱注册。分别用「先查后插(没有唯一约束)」「唯一约束 + 直接插入」「<code>INSERT … ON CONFLICT DO NOTHING RETURNING</code>」三种写法,最后表里各有几行?第二个请求各收到什么?它的事务是提交还是回滚?</li>
+      <li><code>PgTasksRepository</code> 创建任务时为什么必须用 <code>pool.connect()</code> 拿同一个连接?如果 checklist 的第二项违反了约束,数据库里最后会留下什么?nest-lab 为什么把 checklist 放在子表而不是 JSONB 列里?</li>
+      <li>Day 9 说「换仓储只改一行」,Day 27 实际改了哪些地方?为什么说同步的仓储接口是一种「抽象泄漏」?同一套 85 个 e2e 在两种仓储上都通过,说明了什么、没说明什么?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>综合题(每题 5 分)</h3>
+    <ol start="11">
+      <li><b>场景题:</b>报表页显示 Alice 的「任务总工时」是 160 分钟,但她只有 3 个任务,预估分别是 30、20、40 分钟,加起来 90。报表的 SQL 是 <code>users LEFT JOIN tasks LEFT JOIN task_tags … GROUP BY u.id</code> 再 <code>sum(t.estimate_minutes)</code>。<b>请定位原因(说清楚多出来的 70 分钟是怎么来的),给出两种修法,并说明以后写这类报表时用什么办法尽早发现这种错误。</b>如果报表还要显示「Alice 用过几种标签」,你的修法还成立吗?</li>
+      <li><b>场景题:</b>上线后,高峰期日志里出现大量 <code>sorry, too many clients already</code>,部分请求 500,部分请求等了 3 秒后报「获取连接超时」。应用有 6 个副本,每个副本的连接池大小是 20,PostgreSQL 用的是默认配置。<b>请解释原因(算一笔账),并从三个层次给出解法</b>:应用层(池子怎么调、请求为什么占着连接不放)、架构层(在应用和数据库之间加什么)、数据库层(能调什么、代价是什么)。说明每种解法能解决什么、不能解决什么。</li>
+    </ol>
+  </div>
+
+  <p><b>评分:</b>基础题 1 分 × 6 + 理解题 2 分 × 4 + 综合题 5 分 × 2,满分 24。<b>低于 17 分,开始 Week 5 前先把错题对应的那天重看一遍。</b>另外 8 道题在 <code>self-test.md</code> 末尾,留给下周碎片时间选做(安全扫描 <code>' OR 1=1 --</code> 时怎么证明不受影响、每组最新的三种写法、夏令时下的 1 day vs 24 hours、计数缓存的维护、四个 SQLSTATE 的映射、UUID v4 vs v7 的索引大小、DTO 的 null 漏洞、换成 MySQL / SQL Server 要改写哪些 SQL)。</p>
+</section>
+
+<section id="sec5">
+  <h2>🎯 Week 4 结算、遗留清单与 Week 5 预告</h2>
+
+  <h3>这周你从「不知道」到「能讲清楚」的东西</h3>
+  <table>
+    <tr><th>Day</th><th>主题</th><th>核心收获(餐厅版)</th></tr>
+    <tr><td>22</td><td>把 PG 跑起来</td><td>总店的中央账房:每个来窗口办事的人都配一个账房伙计;没有 BEGIN 就没有反悔</td></tr>
+    <tr><td>23</td><td>数据建模与范式</td><td>一本什么都记的大流水账,拆成会员名册、任务本和标签对照表;故意抄一份要有人负责</td></tr>
+    <tr><td>24</td><td>主键与约束</td><td>会员卡号由总部统一发;前台查过了,账房还要按铁规矩再核一次</td></tr>
+    <tr><td>25</td><td>SQL 查询深入 I</td><td>拿会员名册和订单本对着翻,别把一笔账算两遍;「不知道」不是「零」</td></tr>
+    <tr><td>26</td><td>SQL 查询深入 II + PG 类型</td><td>每行旁边记上第几单,办完当场给回执,时间要写清是哪里的几点</td></tr>
+    <tr><td>27</td><td>接回 nest-lab</td><td>门口固定几位伙计,客人的话只写进填写栏,后厨从临时冰柜换成中央仓库</td></tr>
+  </table>
+
+  <div class="concept">
+    <span class="tag">一句话总结 Week 4</span>
+    <p><b>你现在知道数据为什么要交给一个独立的数据库服务器,怎么把业务拆成表、给表定下主键和约束,怎么用 SQL 把拆开的数据正确地拼回来,以及怎么让 nest-lab 安全地(参数化)、高效地(连接池)、一致地(事务)读写它;同一套 85 个 e2e 在内存版和 PostgreSQL 版上都通过。</b></p>
+    <p>Week 1 是「服务器怎么收发字节」,Week 2 是「框架怎么组织代码」,Week 3 是「写出去的东西怎么让别人放心依赖」,Week 4 是「存进去的东西怎么保证不坏、拿得回来」。接下来两周回答两个新问题:<b>数据多了以后怎么还快</b>(Week 5),<b>很多人同时改的时候怎么还对</b>(Week 6)。</p>
+  </div>
+
+  <h3>Week 4 遗留清单(有意欠的债,已排期)</h3>
+  <p>这些问题在 Day 22–27 里都提到过,不是遗漏,而是「正确的做法要等后面的知识」。review 时你可能已经遇到了其中几条。</p>
+  <table>
+    <tr><th>#</th><th>问题</th><th>风险</th><th>计划在哪一周解决</th></tr>
+    <tr><td>1</td><td>DTO 放过 <code>null</code>:<code>PATCH {"title": null}</code> 内存版 200(标题变成 null)、PG 版 422</td><td>内存版会写进坏数据;两种实现行为不一致</td><td>Day 27 习题 3(Week 5 开始前自己修掉,并补一个 e2e 用例)</td></tr>
+    <tr><td>2</td><td>Service「先查后改 / 先查后删」:409 规则的检查和真正的 UPDATE 之间隔着一次往返</td><td>并发下检查结论过时、后写的覆盖先写的(丢失更新)</td><td>Week 6(隔离级别、行锁、乐观锁)</td></tr>
+    <tr><td>3</td><td><code>users</code>、<code>tags</code>、<code>task_tags</code>、<code>tasks.owner_id</code> 还没迁到 PostgreSQL</td><td>用户数据重启即丢;设计稿和真实表结构不一致</td><td>Week 10(登录与用户模型一起做)</td></tr>
+    <tr><td>4</td><td><code>Location</code> 头是 <code>/tasks/{id}</code>,不带版本前缀(Week 3 遗留)</td><td>将来出 v3 时调用方会被悄悄切换</td><td>Week 12(API 质量周)</td></tr>
+    <tr><td>5</td><td>外键列、过滤 / 排序列的索引还没设计;keyset 和 <code>ILIKE</code> 查询还没看过执行计划</td><td>数据量一大就变慢,删除时外键检查要扫全表</td><td>Week 5</td></tr>
+    <tr><td>6</td><td>表结构靠 <code>sql/schema.sql</code> 整个 <code>DROP</code> 重建,没有正式的迁移工具</td><td>不能在有数据的库上安全地改结构</td><td>Week 9(零停机迁移);Week 7 会先看 Prisma Migrate</td></tr>
+    <tr><td>7</td><td>id 用 <code>bigint</code> 存、驱动读成字符串再 <code>Number()</code>;API 仍然暴露自增 id</td><td>超过 2<sup>53</sup> 会丢精度;自增 id 可被枚举</td><td>Week 20(IDOR 与对外 id)</td></tr>
+    <tr><td>8</td><td>PG 版 e2e 靠 <code>DB_RESET_ON_START</code> 和串行执行;有两个用例整体替换了 <code>ConfigService</code>,在 PG 版里实际还是内存仓储</td><td>测试隔离方式粗糙;「全部通过」的覆盖范围比看起来小</td><td>Week 11(测试体系、Testcontainers)</td></tr>
+    <tr><td>9</td><td>连接池大小(默认 10)没有压测过</td><td>高峰期池子被借空或压垮数据库</td><td>Week 17 / Week 19(压测与可观测性)</td></tr>
+    <tr><td>10</td><td>本周跨语言表里有不少条目没有在本机实测(MySQL / SQL Server 的语法差异、ORM 的 API 名称和默认值)</td><td>记错了在面试或换栈时露馅</td><td>用到时实测;ORM 部分在 Week 7 逐条核对</td></tr>
+  </table>
+
+  <h3>Week 5 预告(Day 29–35):索引与查询优化</h3>
+  <p>以 roadmap 的 Phase 2 / Week 5 为准,大致包括(每天的具体拆分以当天讲义为准):</p>
+  <ul>
+    <li><b>B-tree 原理</b>:Day 24 那个「按号码排好的名册,写满就撕成两页」到底长什么样;<b>复合索引的最左前缀</b>;<b>覆盖索引</b>(<code>INCLUDE</code>)</li>
+    <li><b>部分索引 / 表达式索引</b>:Day 24 的 <code>lower(email)</code> 唯一索引就是一个表达式索引</li>
+    <li><b>GIN</b>(JSONB、全文搜索、模糊匹配)/ <b>BRIN</b>(按时间增长的大表)各自的场景</li>
+    <li><b><code>EXPLAIN (ANALYZE, BUFFERS)</code></b> 读执行计划:Seq Scan / Index Scan / Bitmap / Nested Loop / Hash Join(Day 22 看过一眼,Day 25 说过「JOIN 的逻辑结果和实际执行是两回事」);统计信息与 <code>ANALYZE</code>;<b><code>pg_stat_statements</code></b> 找慢查询</li>
+    <li><b>索引的代价</b>:写放大。每多一个索引,每次 INSERT / UPDATE 都要多维护一份</li>
+    <li><b>实验:百万行数据,优化前后 EXPLAIN 对比</b></li>
+  </ul>
+  <p><b>会用 nest-lab 的哪些真实查询做实验</b>(都是这周写进 <code>PgTasksRepository</code> 的,今天 review 时你已经读过它们):</p>
+  <table>
+    <tr><th>查询</th><th>来自</th><th>Week 5 要回答的问题</th></tr>
+    <tr><td>keyset 分页:<code>ORDER BY created_at DESC, id DESC</code> + 行值比较 / OR 展开</td><td>Day 19 / Day 27</td><td>需要什么样的复合索引?行值比较和 OR 展开的执行计划有什么不同?</td></tr>
+    <tr><td>过滤 <code>done = false</code></td><td>Day 19</td><td>值只有两种时,普通索引有没有用?部分索引呢?</td></tr>
+    <tr><td>搜索 <code>title ILIKE '%…%'</code>(<code>q</code> 参数)</td><td>Day 19 / Day 27</td><td>为什么 B-tree 帮不上忙?<code>pg_trgm</code> + GIN 或全文搜索能做什么?</td></tr>
+    <tr><td>按 <code>task_id</code> 读清单项(LATERAL + <code>json_agg</code>)、删除任务时的级联</td><td>Day 26 / Day 27</td><td>主键 <code>(task_id, position)</code> 能不能顺带服务这个查询?</td></tr>
+    <tr><td>按负责人查任务(<code>owner_id</code>,设计稿里的外键)</td><td>Day 23 / Day 24</td><td>外键不会自动建索引,删除一个用户时会发生什么?</td></tr>
+  </table>
+  <p>想一想(不用写):Day 25 的扇出、Day 26 的窗口函数,在百万行上会不会变成问题?你会怎么用 <code>EXPLAIN</code> 去确认?</p>
+
+  <h3>提交今天的产出</h3>
+  <pre><code>git add -A
+git commit -m "docs: week 4 review"</code></pre>
+</section>
+
+<section>
+  <h2>✅ 复盘日自检</h2>
+  <ul class="check">
+    <li>画出了「一个带 checklist 的 <code>POST /v2/tasks</code> 从 HTTP 到写进 PostgreSQL 的一生」,每一站都标了 Week 4 的 Day 和 Week 1–3 的 Day;约束表填完了;四条支线也写了</li>
+    <li>六张概念卡全部默写完,每张都有「通用定义 + PG / Nest + .NET / Java / Go 或 SQL Server / MySQL」三部分,末尾写了「数据库是后端的心脏」意味着什么</li>
+    <li>对 nest-lab 的 SQL 与仓储做了 review,至少找出 2 个问题,写清了改法、计划在哪一周改、「当时为什么这么设计」</li>
+    <li>roadmap 对照表改写了 3 行;新增了「数据库驱动 / 连接池与参数化」「时间与时区」「ORM 关系写法」三行,五列都是自己填的,没实测的格子标了「未实测」</li>
+    <li>自测 12 题做完并打分,低于 17 分的部分已经安排重看</li>
+    <li>看过 Week 4 遗留清单,知道每一条为什么现在不修、在哪一周修;Day 27 习题 3 的 null 漏洞已经修掉(或者已经排进下周第一天)</li>
+    <li>今天的产出已经 commit</li>
+  </ul>
+</section>
+
+<footer>
+  Day 28 · Phase 2 / Week 4 · 复盘日 · 产出:<code>src/28-week4-review/</code> 下的四份文档 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+
+</body>
+</html>
