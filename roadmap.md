@@ -35,6 +35,7 @@
 | 请求管线 / 中间件 | NestJS middleware → guard → interceptor → pipe → exception filter | Middleware pipeline + Filter | Filter / Interceptor (AOP) | middleware(handler 链) |
 | 声明式路由 / 注解 + 元数据 | TS 装饰器 + `reflect-metadata`(`@Controller`、`@Get`) | Attribute(`[ApiController]`、`[HttpGet]`) | Annotation(`@RestController`、`@GetMapping`) | 无注解,手动注册路由(`r.GET(...)`) |
 | 依赖注入(DI) | NestJS IoC 容器 | 内置 DI(Microsoft.Extensions.DI) | Spring IoC | 手动注入 / wire |
+| Provider 作用域 / 生命周期 | Nest `DEFAULT`(单例)/ `REQUEST` / `TRANSIENT`,request 作用域会向上「传染」 | `AddSingleton` / `AddScoped` / `AddTransient`(单例依赖 scoped 时直接报错) | `singleton` / `request` / `prototype`(注入代理对象) | 无容器,手动构造;或 wire / fx |
 | AOP / 横切关注点 | Interceptor + Guard + Pipe + Filter,自定义装饰器 + `Reflector` 读元数据 | Action Filter / Middleware、Castle DynamicProxy | Spring AOP(`@Aspect` / `@Around`) | middleware 装饰 handler |
 | 声明式事务 / 事务传播 | Prisma `$transaction`、`nestjs-cls` + `@Transactional()`(AsyncLocalStorage) | EF Core `DbContext` 工作单元、`TransactionScope` | Spring `@Transactional`(传播行为 REQUIRED / REQUIRES_NEW) | `sql.Tx` 显式传递 |
 | ORM / 数据访问 | Prisma / Drizzle | EF Core(LINQ) | Hibernate / JPA | GORM / sqlx |
@@ -82,7 +83,7 @@
 - Week 1:运行时与并发模型 I(以 Node.js 为例):event loop、流、Buffer、进程模型、worker_threads;**概念卡:单线程事件循环 vs 多线程线程池(.NET/Java)vs 轻量协程(Go),三种并发模型的取舍**
 - Week 2:**NestJS 入门 + IoC/DI + AOP(框架的两大支柱)**——这两个概念是 Spring 和 ASP.NET Core 的灵魂,学透了换框架只是换语法,按天拆:
   - D1 · `nest new nest-lab` 起项目:Module / Controller / Provider 三件套、装饰器在做什么、一个请求在 Nest 里走过的完整生命周期
-  - D2 · **依赖注入(DI)与控制反转(IoC)**:为什么不自己 `new`(可替换、可测试);IoC 容器做了什么(注册 → 解析依赖图 → 实例化 → 注入);Provider 的三种作用域(singleton 默认 / request / transient)及其性能代价;自定义 Provider(`useClass` / `useValue` / `useFactory`)与 injection token;循环依赖与 `forwardRef`;**实验:用 `reflect-metadata` 手写一个 50 行的迷你 IoC 容器**,看清 Nest 的 `@Injectable()` 背后发生了什么
+  - D2 · **依赖注入(DI)与控制反转(IoC)**:为什么不自己 `new`(可替换、可测试);IoC 容器做了什么(注册 → 解析依赖图 → 实例化 → 注入);Provider 的三种作用域(singleton 默认 / request / transient)及其性能代价;自定义 Provider(`useClass` / `useValue` / `useFactory`)与 injection token;循环依赖与 `forwardRef`;**实验:手写一个约 50 行的迷你 IoC 容器**(依赖用 `static inject` 显式声明——因为 tsx 不生成 `design:paramtypes`,顺带讲清 Nest 靠 tsc 输出的元数据才能「看懂」构造函数),看清 Nest 的 `@Injectable()` 背后发生了什么
   - D3 · **面向切面编程(AOP)**:什么是横切关注点(日志、鉴权、计时、缓存、事务、异常处理——每个接口都要,但不属于任何一个接口的业务);Nest 把 AOP 拆成管线五件套:middleware → guard → interceptor → pipe → exception filter,各自在什么时机执行、能拿到什么、适合放什么;**实验:写一个计时 Interceptor + 一个统一响应包装 Interceptor,不改一行业务代码给所有接口加能力**
   - D4 · 自定义装饰器 + 元数据(`SetMetadata` / `Reflector`):`@Public()`、`@Roles()` 这类「给方法贴标签,切面里读标签」的套路——这就是 AOP 在 Nest 里的完整闭环
   - D5 · TypeScript 服务端类型实战:类型安全的 env 配置(`@nestjs/config` + zod 校验)、DI token 的类型安全、zod 推导类型(原独立的 TS 高级类型周已并入此处,语言不是重点)

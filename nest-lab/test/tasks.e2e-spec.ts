@@ -3,6 +3,10 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
+import { CLOCK } from './../src/common/clock.js';
+
+// Day 9:把时钟换成固定时间,createdAt 才能写死断言
+const FIXED = '2026-01-01T00:00:00.000Z';
 
 // e2e 测试:真的起一个 Nest 应用(不占端口,supertest 直接把请求喂给 http.Server),
 // 从 HTTP 这一层验证「路由 → Controller → Service → 状态码 / JSON」整条链路。
@@ -13,7 +17,10 @@ describe('Tasks (e2e)', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {}); // 想看请求流过的顺序就注释掉这一行
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(CLOCK)
+      .useValue({ now: () => new Date(FIXED) })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
@@ -34,7 +41,7 @@ describe('Tasks (e2e)', () => {
     return request(app.getHttpServer())
       .get('/tasks/1')
       .expect(200)
-      .expect({ id: 1, title: '跑通 nest new', done: true });
+      .expect({ id: 1, title: '跑通 nest new', done: true, createdAt: FIXED });
   });
 
   it('GET /tasks/999 → 404(NotFoundException 被翻译成 JSON)', () => {
@@ -53,7 +60,7 @@ describe('Tasks (e2e)', () => {
       .post('/tasks')
       .send({ title: '写 e2e 测试' })
       .expect(201);
-    expect(created.body).toEqual({ id: 3, title: '写 e2e 测试', done: false });
+    expect(created.body).toEqual({ id: 3, title: '写 e2e 测试', done: false, createdAt: FIXED });
 
     await request(app.getHttpServer()).get('/tasks/3').expect(200);
   });

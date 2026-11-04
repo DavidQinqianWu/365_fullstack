@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 9 - 依赖注入与控制反转:前台不招人,总部人事部派人</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 2</div>
+  <h1>Day 9 - 依赖注入与控制反转:前台不招人,总部人事部派人</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>DI(依赖注入)· IoC 容器 · Provider 的登记方式与 token · 三种作用域</b> ·
+    项目:继续在 <code>nest-lab/</code> 里长:仓储抽成接口 + token、注入时钟、作用域实验 ·
+    手写实验:<code>src/09-di-ioc/</code> 约 50 行的迷你 IoC 容器 ·
+    预告:Day 10 AOP 管线(今天不碰 guard / interceptor / pipe)
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🧑‍🍳 接上回:后厨是谁招来的?</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:依赖注入 —— 前台只交「用人申请单」,不自己招人</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:IoC 容器 —— 总部人事部的登记簿和工牌号</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:作用域 —— 制冰机、每桌一套餐具、每人一把刀</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🧑‍🍳 接上回:后厨是谁招来的?</h2>
+  <p>Day 8 我们开了一家连锁店:Module 是部门编制表,Controller 是前台,Service 是后厨。观察脚本第 2 幕还偷看到一张便利贴:</p>
+  <pre><code>构造函数需要的类型      : [ 'TasksService' ]</code></pre>
+  <p>但有个问题一直没回答:<code>TasksController</code> 的构造函数写着 <code>constructor(private readonly tasksService: TasksService)</code>,<b>全项目没有任何地方写过 <code>new TasksService()</code></b>。那这个后厨是谁招来的?</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    街边小店里,老板缺人就自己去门口贴招聘、自己面试、自己发工资。连锁店不这样:前台只填一张<b>用人申请单</b>「我需要一名后厨」,交给<b>总部人事部</b>。人事部翻开<b>登记簿</b>,看「后厨」这个岗位登记的是谁、他自己又需要什么(冰箱、挂钟),把这些先备齐,再把人派到前台手里。前台从头到尾<b>不知道也不关心</b>后厨是怎么招来的。<br>
+    这就是今天的两个词:<b>依赖注入(DI)</b>是「前台交申请单、等人派来」这个动作;<b>控制反转(IoC)</b>是「招人这件事的控制权,从前台手里交给了总部」。
+  </div>
+  <p>今天的地图,老角色都还在:</p>
+  <table>
+    <tr><th>餐厅里的角色</th><th>真实身份</th><th>第几天</th></tr>
+    <tr><td>服务员</td><td>event loop:<b>依然只有他一个人在跑所有代码</b></td><td>Day 1–2</td></tr>
+    <tr><td>分店</td><td>进程:今天会用来提醒「单例只在一家店里唯一」</td><td>Day 4–5</td></tr>
+    <tr><td>部门编制表 / 前台 / 后厨</td><td>Module / Controller / Provider</td><td>Day 8</td></tr>
+    <tr><td><b>总部人事部</b></td><td><b>IoC 容器</b>(Nest 的 injector)</td><td><b>今天</b></td></tr>
+    <tr><td><b>用人申请单</b></td><td><b>构造函数参数</b>(+ <code>design:paramtypes</code> / <code>@Inject</code>)</td><td><b>今天</b></td></tr>
+    <tr><td><b>工牌号 / 登记簿的一行</b></td><td><b>injection token / provider 定义</b></td><td><b>今天</b></td></tr>
+  </table>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <p>按「三步走」先看效果。今天把 Day 8 写死在 <code>TasksService</code> 里的两样东西拆了出去:<b>数据存在哪</b>(内存数组)和<b>现在几点</b>(<code>new Date()</code>)。它们变成了两个可以被替换的依赖。</p>
+  <pre><code>cd nest-lab
+npm test             # 单元测试:用 overrideProvider 换掉时钟 / 仓储
+npm run test:e2e     # e2e:三个任务接口 + 作用域实验
+npm run day09        # 观察脚本:容器的元数据 + 三种作用域各造了几个实例</code></pre>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改</th><th>干什么用(餐厅版)</th></tr>
+    <tr><td><code>src/tasks/tasks.repository.ts</code></td><td>新增</td><td>仓储接口 <code>TasksRepository</code>(进货合同)+ <code>TASKS_REPOSITORY</code>(Symbol token)+ <code>TASKS_SEED</code>(字符串 token)</td></tr>
+    <tr><td><code>src/tasks/in-memory-tasks.repository.ts</code></td><td>新增</td><td>仓储的内存实现(Day 8 的数组搬到这里);样品数据通过 <code>@Inject(TASKS_SEED)</code> 送进来</td></tr>
+    <tr><td><code>src/common/clock.ts</code></td><td>新增</td><td><code>Clock</code> 接口 + <code>CLOCK</code> token + 真实时钟 <code>systemClock</code></td></tr>
+    <tr><td><code>src/tasks/tasks.service.ts</code></td><td>修改</td><td>不再自己持有数组、不再 <code>new Date()</code>;构造函数用 <code>@Inject(TASKS_REPOSITORY)</code>、<code>@Inject(CLOCK)</code> 要依赖</td></tr>
+    <tr><td><code>src/tasks/tasks.module.ts</code></td><td>修改</td><td>登记簿:<code>useClass</code> / <code>useValue</code> / <code>useFactory + inject</code> 三种写法各一行</td></tr>
+    <tr><td><code>src/tasks/task.ts</code></td><td>修改</td><td>加 <code>createdAt</code> 字段(由注入的时钟决定)</td></tr>
+    <tr><td><code>src/scope-demo/</code>(4 个文件)</td><td>新增</td><td>作用域实验:三个计数员 + 被「传染」的 <code>ReportService</code> + <code>GET /scope-demo</code>。<b>不挂进 AppModule</b>,只在脚本和测试里临时组装</td></tr>
+    <tr><td><code>src/tasks/tasks.service.spec.ts</code></td><td>改写</td><td>从 Day 8 的 <code>new TasksService()</code> 改成 <code>Test.createTestingModule</code> + <code>overrideProvider</code></td></tr>
+    <tr><td><code>test/tasks.e2e-spec.ts</code></td><td>修改</td><td>e2e 里也换成固定时钟,断言里加 <code>createdAt</code></td></tr>
+    <tr><td><code>test/scope-demo.e2e-spec.ts</code></td><td>新增</td><td>用测试把三种作用域的规律钉死</td></tr>
+    <tr><td><code>scripts/day09-try.mjs</code> + <code>package.json</code> 的 <code>day09</code></td><td>新增</td><td>观察脚本</td></tr>
+    <tr><td><code>README.md</code></td><td>修改</td><td>成长日志加 Day 9 一行</td></tr>
+  </table>
+  <p>(Day 8 的 <code>npm run day08</code> 照样能跑,只是任务 JSON 里多了 <code>createdAt</code>,和 Day 8 讲义里贴的输出差这一个字段。)</p>
+
+  <p>今天最关键的一个文件 —— 登记簿:</p>
+  <pre><code>// src/tasks/tasks.module.ts
+@Module({
+  controllers: [TasksController],
+  providers: [
+    TasksService,                                                     // 简写 = { provide: TasksService, useClass: TasksService }
+    { provide: TASKS_REPOSITORY, useClass: InMemoryTasksRepository }, // Week 4 换 PostgreSQL:只改这一行
+    { provide: CLOCK, useValue: systemClock },                        // 现成的对象直接放进去
+    {
+      provide: TASKS_SEED,                                            // 开业样品菜
+      useFactory: (clock: Clock): Task[] =&gt; [ /* 两条任务,createdAt = clock.now() */ ],
+      inject: [CLOCK],                                                // 先把 CLOCK 造好,传给工厂函数
+    },
+  ],
+})
+export class TasksModule {}
+
+// src/tasks/tasks.service.ts
+@Injectable()
+export class TasksService {
+  constructor(
+    @Inject(TASKS_REPOSITORY) private readonly repo: TasksRepository,  // 申请单:我要一个「仓储」
+    @Inject(CLOCK) private readonly clock: Clock,                      // 申请单:我要一个「时钟」
+  ) {}
+  create(title: string): Task {
+    return this.repo.insert({ title, done: false, createdAt: this.clock.now().toISOString() });
+  }
+}</code></pre>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:依赖注入 —— 前台只交「用人申请单」,不自己招人</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    一个对象需要别的对象帮忙时,<b>不自己 <code>new</code></b>,而是在构造函数里说「我需要一个 X」,由外面的人造好递进来。
+  </div>
+
+  <h3>② 生活类比:用人申请单</h3>
+  <p>对比两种开店方式:</p>
+  <table>
+    <tr><th></th><th>街边小店:自己 new</th><th>连锁店:依赖注入</th></tr>
+    <tr><td>代码</td><td><code>private service = new TasksService(new InMemoryTasksRepository(seed), systemClock);</code></td><td><code>constructor(private readonly tasksService: TasksService) {}</code></td></tr>
+    <tr><td>前台要知道什么</td><td>后厨叫什么、后厨需要冰箱和挂钟、冰箱要放什么样品菜……<b>整条依赖链</b></td><td>只知道「我需要一名后厨」</td></tr>
+    <tr><td>两个前台都要后厨</td><td>各招各的,<b>各自一台冰箱</b>,A 前台收的单 B 前台看不到</td><td>人事部派同一个后厨(默认单例),数据只有一份</td></tr>
+    <tr><td>测试 / 换实现</td><td>改前台的代码</td><td>只改登记簿(或在测试里 <code>overrideProvider</code>)</td></tr>
+  </table>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th></tr>
+    <tr><td>用人申请单</td><td>构造函数的参数列表(依赖声明)</td></tr>
+    <tr><td>「招人」这件事</td><td>创建依赖对象(<code>new</code>)并把它交给使用者</td></tr>
+    <tr><td>招人的权力从前台交给总部</td><td><b>Inversion of Control</b>:创建和组装对象的控制权从业务代码移交给框架</td></tr>
+    <tr><td>人事部把人派到前台</td><td><b>Dependency Injection</b>:框架调用构造函数时把依赖作为参数传进去</td></tr>
+    <tr><td>进货合同(只认合同,不认供应商)</td><td>接口 <code>TasksRepository</code>:Service 只依赖接口,不依赖具体实现</td></tr>
+  </table>
+
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    <b>React Context</b> 就是一种轻量的依赖注入:组件不 import 一个全局 store,而是 <code>useContext(ThemeContext)</code> 说「我要主题」,由树上方的 <code>&lt;ThemeContext.Provider value={...}&gt;</code> 提供。测试时包一个不同的 Provider,组件代码不用改 —— 和今天的 <code>overrideProvider</code> 一个道理,连 <b>Provider</b> 这个词都一样。<b>Angular</b> 的 DI 则和 Nest 几乎一字不差(<code>providers</code>、<code>useClass</code>、<code>useValue</code>、<code>useFactory</code>、<code>InjectionToken</code>)。区别:React Context 按<b>组件树的位置</b>找提供者,Nest 按<b>模块的登记簿</b>找。
+  </div>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「人事部一直坐在办公室里,随叫随到」——不是。</b>对默认的单例来说,人事部只在<b>开业那一刻</b>工作一次:扫描所有登记簿、排好依赖图、把人全部造好、派到位,然后就「下班」了。之后请求来了,前台手里早就有后厨,不会再去申请。所以<b>缺人在开业当天就会报错</b>(<code>Nest can't resolve dependencies...</code>,启动直接失败),而不是等第一个客人进门才发现。</li>
+      <li><b>「有了 DI,换任何人都不用改前台」——前提是前台依赖的是「岗位」,不是「某个具体的人」。</b>今天 <code>TasksService</code> 依赖的是 <code>TASKS_REPOSITORY</code> 这个岗位(接口 + token),所以换实现只改登记簿;如果它写的是 <code>constructor(repo: InMemoryTasksRepository)</code>,虽然也是注入,但它已经和「内存实现」这个具体的人绑死了。</li>
+      <li><b>「DI 必须有人事部」——不必。</b>你在 <code>main</code> 函数里手动 <code>new</code> 好所有对象、再通过构造函数传进去,这同样是依赖注入(Go 圈就这么干)。容器只是把「手动接线」自动化了。DI 是一种<b>设计方式</b>,IoC 容器是实现它的<b>一种工具</b>。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>Dependency</b>(依赖):一个对象完成工作需要用到的另一个对象;<b>Dependency Injection(DI)</b>:依赖由外部传入,而不是自己创建,最常见的是<b>构造函数注入(constructor injection)</b>;<b>Inversion of Control(IoC)</b>:控制权反转,Day 8 说过框架「调用你」,今天是框架「替你创建并组装对象」;<b>依赖倒置原则(DIP,SOLID 里的 D)</b>:高层(Service)和低层(内存仓储 / PG 仓储)都依赖抽象(接口)。<br>
+    DI 带来的两件实在好处:<b>可替换</b>(Week 4 换 PostgreSQL 只改一行登记)和<b>可测试</b>(测试里把时钟换成固定时间、把仓储换成假的)。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:迷你容器的第 1 幕里,两个前台各自 <code>new</code> 了一个后厨。A 前台建了一个任务,B 前台能看到几个?第 4 幕把仓储换成 <code>FakeRepo</code>,<code>TasksController</code> / <code>TasksService</code> 的代码要改几行?</p>
+  <pre><code>npx tsx src/09-di-ioc/ex1-mini-ioc.ts</code></pre>
+  <p>真实运行结果(第 1 幕和第 4 幕):</p>
+  <pre><code>========== 第 1 幕:自己 new ==========
+A 看到的任务数: 1 | B 看到的任务数: 0
+
+========== 第 4 幕:把仓储换成 FakeRepo ==========
+  🆕 造好 TASKS_REPOSITORY(为了 TasksService)
+  🆕 造好 CLOCK(为了 TasksService)
+  🆕 造好 TasksService(为了 TasksController)
+  🆕 造好 TasksController
+{ id: 999, title: '[假] 测试单', createdAt: '2026-01-01T00:00:00.000Z' }</code></pre>
+  <p>在 nest-lab 里,同一件事是这样写的(<code>src/tasks/tasks.service.spec.ts</code>):用和生产<b>完全相同</b>的 <code>TasksModule</code>,只把时钟换掉:</p>
+  <pre><code>const moduleRef = await Test.createTestingModule({ imports: [TasksModule] })
+  .overrideProvider(CLOCK)
+  .useValue({ now: () =&gt; new Date('2026-01-01T00:00:00.000Z') })
+  .compile();
+const task = moduleRef.get(TasksService).create('写单元测试');
+// → { id: 3, title: '写单元测试', done: false, createdAt: '2026-01-01T00:00:00.000Z' }</code></pre>
+  <p><code>npx vitest run --reporter=verbose</code> 的真实结果:</p>
+  <pre><code> ✓ src/app.controller.spec.ts &gt; AppController &gt; root &gt; should return "Hello World!" 82ms
+ ✓ src/tasks/tasks.service.spec.ts &gt; TasksService(用真实的 TasksModule,只换掉时钟) &gt; findAll 返回两条样品任务,开业时间来自注入的时钟 119ms
+ ✓ src/tasks/tasks.service.spec.ts &gt; TasksService(用真实的 TasksModule,只换掉时钟) &gt; findOne 找不到时抛 NotFoundException 5ms
+ ✓ src/tasks/tasks.service.spec.ts &gt; TasksService(用真实的 TasksModule,只换掉时钟) &gt; create 分配自增 id,createdAt = 时钟的时间 5ms
+ ✓ src/tasks/tasks.service.spec.ts &gt; TasksService(把仓储换成假的,只测业务逻辑) &gt; create 把 title + 时钟时间交给仓储,不关心仓储怎么存 6ms
+      Tests  5 passed (5)</code></pre>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:IoC 容器 —— 总部人事部的登记簿和工牌号</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    IoC 容器就是一本<b>登记簿</b> + 一个<b>按簿派人的流程</b>:先登记「要 X 时怎么造」,开业时顺着「谁需要谁」把所有对象按正确顺序造好、塞到位。
+  </div>
+
+  <h3>② 生活类比:人事部的四步工作</h3>
+  <ol>
+    <li><b>登记</b>:各部门编制表(<code>@Module</code> 的 <code>providers</code>)里每一行都是「某个工牌号的岗位,怎么找人」。</li>
+    <li><b>排依赖图</b>:翻看每个人的用人申请单(构造函数),画出「谁需要谁」的关系图。</li>
+    <li><b>造人</b>:按图<b>从最底层开始</b>造:挂钟没有依赖,先造;冰箱要样品菜,样品菜要挂钟……最后才是前台。</li>
+    <li><b>派人</b>:把造好的对象作为构造函数参数递进去,并记在花名册上(单例缓存),下次有人要同一个工牌号就直接给这个人。</li>
+  </ol>
+  <figure style="margin:20px 0;">
+  <svg viewBox="0 0 680 290" width="100%" role="img" aria-label="nest-lab 的依赖图与创建顺序" style="background:#fff;border:1px solid #e5e1d8;border-radius:12px;">
+    <defs>
+      <marker id="arr9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/>
+      </marker>
+    </defs>
+    <g font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="13">
+      <rect x="16" y="118" width="150" height="50" rx="8" fill="#fff3ec" stroke="#c2410c" stroke-width="2"/>
+      <text x="91" y="139" text-anchor="middle" fill="#1f2430" font-weight="700">⑤ TasksController</text>
+      <text x="91" y="157" text-anchor="middle" fill="#6b7280" font-size="12">前台</text>
+
+      <rect x="216" y="118" width="150" height="50" rx="8" fill="#fff3ec" stroke="#c2410c" stroke-width="2"/>
+      <text x="291" y="139" text-anchor="middle" fill="#1f2430" font-weight="700">④ TasksService</text>
+      <text x="291" y="157" text-anchor="middle" fill="#6b7280" font-size="12">后厨</text>
+
+      <rect x="420" y="20" width="244" height="54" rx="8" fill="#fff" stroke="#6b7280"/>
+      <text x="542" y="42" text-anchor="middle" fill="#1f2430" font-weight="700">③ TASKS_REPOSITORY</text>
+      <text x="542" y="62" text-anchor="middle" fill="#6b7280" font-size="12">useClass: InMemoryTasksRepository</text>
+
+      <rect x="420" y="116" width="244" height="54" rx="8" fill="#fff" stroke="#6b7280"/>
+      <text x="542" y="138" text-anchor="middle" fill="#1f2430" font-weight="700">② 'TASKS_SEED'</text>
+      <text x="542" y="158" text-anchor="middle" fill="#6b7280" font-size="12">useFactory(clock) + inject: [CLOCK]</text>
+
+      <rect x="420" y="212" width="244" height="54" rx="8" fill="#fff" stroke="#6b7280"/>
+      <text x="542" y="234" text-anchor="middle" fill="#1f2430" font-weight="700">① CLOCK</text>
+      <text x="542" y="254" text-anchor="middle" fill="#6b7280" font-size="12">useValue: systemClock</text>
+
+      <line x1="166" y1="143" x2="214" y2="143" stroke="#6b7280" stroke-width="2" marker-end="url(#arr9)"/>
+      <line x1="366" y1="130" x2="418" y2="60" stroke="#6b7280" stroke-width="2" marker-end="url(#arr9)"/>
+      <line x1="366" y1="156" x2="418" y2="228" stroke="#6b7280" stroke-width="2" marker-end="url(#arr9)"/>
+      <line x1="542" y1="74" x2="542" y2="114" stroke="#6b7280" stroke-width="2" marker-end="url(#arr9)"/>
+      <line x1="542" y1="170" x2="542" y2="210" stroke="#6b7280" stroke-width="2" marker-end="url(#arr9)"/>
+      <text x="16" y="270" fill="#6b7280" font-size="12">箭头 = 「需要」;编号 = 一种合法的创建顺序(依赖总是先于使用者被造好)</text>
+    </g>
+  </svg>
+  <figcaption style="color:#6b7280;font-size:14px;text-align:center;">图:nest-lab 今天的依赖图。人事部从右往左造,从左往右派。</figcaption>
+  </figure>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>nest-lab 里</th></tr>
+    <tr><td>工牌号(岗位编号)</td><td><b>injection token</b>:登记簿里的 key。可以是类本身、Symbol、字符串</td><td><code>TasksService</code>、<code>TASKS_REPOSITORY</code>、<code>'TASKS_SEED'</code></td></tr>
+    <tr><td>「这个岗位招 X 类型的人」</td><td><code>useClass</code>:要这个 token 时 <code>new</code> 这个类</td><td><code>TASKS_REPOSITORY → InMemoryTasksRepository</code></td></tr>
+    <tr><td>「直接配送一台校准好的挂钟」</td><td><code>useValue</code>:现成的值,不用造</td><td><code>CLOCK → systemClock</code></td></tr>
+    <tr><td>「按配方现场组装,配料清单写在旁边」</td><td><code>useFactory</code> + <code>inject</code>:先解析 <code>inject</code> 里的依赖,再调工厂函数</td><td><code>TASKS_SEED</code>(要用 CLOCK 标开业时间)</td></tr>
+    <tr><td>用人申请单上写「我要工牌号 X」</td><td><code>@Inject(TOKEN)</code>:构造函数参数上明确写要哪个 token</td><td><code>TasksService</code> 的两个参数</td></tr>
+    <tr><td>申请单上只写了「职业」</td><td><code>design:paramtypes</code>:tsc 根据参数的<b>类</b>自动写的元数据</td><td><code>TasksController</code> 要 <code>TasksService</code></td></tr>
+    <tr><td>花名册</td><td>容器里的实例缓存(默认单例)</td><td><code>app.get(TasksService) === app.get(TasksService)</code></td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「人事部看得懂申请单上写的职业」——只看得懂「类」,看不懂「接口」。</b>TypeScript 的 <code>interface</code> 编译后<b>完全消失</b>,所以 <code>constructor(repo: TasksRepository)</code> 被 tsc 写进 <code>design:paramtypes</code> 的只是一个 <code>Object</code>。人事部拿到「Object」就懵了 —— 所以接口类型的依赖必须配一个 token,并用 <code>@Inject(TOKEN)</code> 写清楚。观察脚本第 2 幕能亲眼看到这一点。</li>
+      <li><b>「申请单是人写的」——其实是编译器写的。</b><code>design:paramtypes</code> 只有开着 <code>emitDecoratorMetadata</code> 的 <b>tsc</b> 会生成。tsx / esbuild 不生成,所以 <code>src/09-di-ioc/</code> 里的迷你容器改用<b>显式声明</b>:类上写 <code>static inject = [TASKS_REPOSITORY, CLOCK]</code>。这和 <code>@Inject(TOKEN)</code>、<code>useFactory</code> 的 <code>inject: [...]</code> 是同一个思路:把「我需要谁」变成运行时看得见的数据。</li>
+      <li><b>「两个岗位互相等对方先到岗,总能商量出来」——容器商量不出来。</b>A 的构造函数要 B,B 的构造函数要 A:谁都没法先造,容器只能报<b>循环依赖</b>。Nest 提供 <code>forwardRef(() =&gt; B)</code> 当「先给个占位工牌」的补丁,但循环依赖通常说明职责没拆清楚,优先改设计(比如抽出第三个 Service),不要先上 <code>forwardRef</code>。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>IoC container / injector</b>:负责创建对象和接线的组件;<b>provider</b>:登记簿里的一行「token → 怎么造」;<b>injection token</b>:provider 的 key;<b>custom provider</b>:<code>useClass</code> / <code>useValue</code> / <code>useFactory</code>(还有 <code>useExisting</code> 起别名,今天不展开);<b>dependency graph</b>(依赖图)与<b>拓扑顺序</b>(依赖先造)。<br>
+    <b>字符串 token vs Symbol token</b>:字符串简单直观(<code>'TASKS_SEED'</code>),但全应用里两个模块恰好起了同名字符串就会互相覆盖;<code>Symbol('CLOCK')</code> 每次创建都独一无二,更安全。<br>
+    <b>模块可见性</b>:每个 Module 有自己的登记簿,别的模块想用这里的 provider,要在这里 <code>exports</code>、在那边 <code>imports</code>。今天所有东西都在 <code>TasksModule</code> 里,所以还用不到。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:</p>
+  <ol>
+    <li>迷你容器第 2 幕 <code>resolve(TasksController)</code>:「🆕 造好」是 Controller 第一个打印,还是最后一个?</li>
+    <li>第 3 幕再要一次 Controller:还会打印「🆕」吗?</li>
+    <li>第 5 幕 A 要 B、B 要 A:报错信息长什么样?</li>
+    <li>nest-lab 观察脚本第 2 幕:<code>TasksService</code> 的 <code>design:paramtypes</code> 会打印出 <code>TasksRepository</code> 吗?</li>
+  </ol>
+  <p>迷你容器的真实运行结果(第 2、3、5 幕):</p>
+  <pre><code>========== 第 2 幕:注册 + resolve(TasksController) ==========
+  🆕 造好 TASKS_REPOSITORY(为了 TasksService)
+  🆕 造好 CLOCK(为了 TasksService)
+  🆕 造好 TasksService(为了 TasksController)
+  🆕 造好 TasksController
+  🆕 造好 'APP_NAME'
+APP_NAME = nest-lab@2026
+
+========== 第 3 幕:再要一次 ==========
+同一个 Controller 吗? true
+另一个入口拿到的 TasksService 看到的任务数: 1
+
+========== 第 5 幕:循环依赖 &amp; 忘了注册 ==========
+❌ 循环依赖:A → B → A
+❌ 没有注册 TASKS_REPOSITORY(被 TasksService 需要)</code></pre>
+  <p>容器的核心就是 <code>resolve</code> 里这几行(完整版在 <code>src/09-di-ioc/mini-container.ts</code>,约 50 行):</p>
+  <pre><code>resolve(token, path = []) {
+  if (this.instances.has(token)) return this.instances.get(token);       // 花名册上有:直接给
+  if (path.includes(token)) throw new Error(`循环依赖:...`);              // 自己等自己:死结
+  const p = this.providers.get(token);                                   // 翻登记簿
+  if (!p) throw new Error(`没有注册 ...`);
+  const deps = (list = []) =&gt; list.map((d) =&gt; this.resolve(d, [...path, token]));  // 递归:先造依赖
+  let instance;
+  if ("useValue" in p) instance = p.useValue;
+  else if ("useFactory" in p) instance = p.useFactory(...deps(p.inject));
+  else instance = new p.useClass(...deps(p.useClass.inject));            // 注入 = 当参数传进去
+  this.instances.set(token, instance);                                   // 记花名册(单例)
+  return instance;
+}</code></pre>
+  <p>nest-lab 观察脚本(<code>npm run day09</code>)第 2、3 幕的真实输出(时间每次不同):</p>
+  <pre><code>========== 第 2 幕:构造函数元数据 ==========
+TasksController  design:paramtypes: [ 'TasksService' ]
+TasksService     design:paramtypes: [ 'Object', 'Object' ]
+TasksService     @Inject 贴的标签  : [ '#1 → Symbol(CLOCK)', '#0 → Symbol(TASKS_REPOSITORY)' ]
+
+========== 第 3 幕:app.get() 向容器要人 ==========
+两次要 TasksService 是同一个吗? true
+TASKS_REPOSITORY 实际是谁      : InMemoryTasksRepository
+CLOCK 现在几点                 : 2026-11-04T08:52:56.912Z</code></pre>
+  <p>两个接口参数在 <code>design:paramtypes</code> 里都成了 <code>'Object'</code>,Nest 真正用的是 <code>@Inject</code> 贴的标签(存在 <code>self:paramtypes</code> 里,<code>#0</code>、<code>#1</code> 是参数位置;顺序倒过来是因为参数装饰器从后往前执行)。</p>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:作用域 —— 制冰机、每桌一套餐具、每人一把刀</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    作用域回答「<b>同一个 provider,容器要造几个</b>」:全店一个、每个请求一个,还是每个要它的人各一个。
+  </div>
+
+  <h3>② 生活类比:三种东西的配发规则</h3>
+  <ul>
+    <li><b>制冰机(singleton,默认)</b>:全店就一台,开业时装好,所有员工共用。</li>
+    <li><b>每桌一套餐具(request)</b>:每来一桌客人,发一套新的;客人走了就收掉。这桌的东西不会混到别的桌。</li>
+    <li><b>每人一把刀(transient)</b>:不管是不是同一桌,只要有一个员工要刀,就给他一把新的。两个员工同时要,就是两把。</li>
+  </ul>
+  <p>麻烦在于「<b>传染</b>」:如果后厨某个岗位要用「这桌的餐具」,这个岗位就没法全店共用一个人了 —— 人事部只能<b>每来一桌就重新派一个</b>。再往上,需要这个岗位的前台,也得每桌重新派。一个小小的 request 作用域依赖,会把整条链路都拖成「每个请求重新造一遍」。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>Nest 写法</th><th>造几个</th><th>典型用途</th></tr>
+    <tr><td>制冰机</td><td><code>@Injectable()</code>(默认 <code>Scope.DEFAULT</code>)</td><td>整个应用 1 个,开业时造</td><td>绝大多数 Service、仓储、数据库连接池、配置</td></tr>
+    <tr><td>每桌一套餐具</td><td><code>@Injectable({ scope: Scope.REQUEST })</code></td><td>每个 HTTP 请求 1 个</td><td>多租户:每个请求带着不同的租户 ID / 数据库连接</td></tr>
+    <tr><td>每人一把刀</td><td><code>@Injectable({ scope: Scope.TRANSIENT })</code></td><td>每个注入点 1 个</td><td>带「主人名字」的 logger(每个类一个,打印时带上类名)</td></tr>
+    <tr><td>岗位被「传染」</td><td>依赖了 REQUEST 作用域的 provider</td><td>自己也变成每请求 1 个</td><td>—— 这是代价,不是用途</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「单例 = 全店只有一台」——只在<u>一家店</u>里成立。</b>Day 4 的 cluster、Day 5 提醒过的多副本(k8s replicas):每个进程都有自己的一整套容器,<b>每个进程各一台制冰机</b>。所以 <code>InMemoryTasksRepository</code> 在两个副本里是两份互不相通的数据,第一个副本建的任务,打到第二个副本上就查不到 —— 这正是 Week 4 要把数据搬进 PostgreSQL 的原因。</li>
+      <li><b>「每桌一套餐具 = 每桌一个服务员」——不是。</b>request 作用域只是「每个请求造一套新<b>对象</b>」,不是每个请求一个<b>线程</b>。所有请求依然是同一个 event loop 在跑。反过来,单例是被<b>所有同时进行的请求共用</b>的:千万别把「当前请求的用户」这种数据存在单例的字段上,两个请求在 <code>await</code> 处交错时(Day 1),A 的数据会被 B 覆盖。</li>
+      <li><b>「传染了也没关系,反正自动的」——代价是实打实的。</b>传染在代码里<b>完全看不见</b>(<code>ReportService</code> 一个字都没写 scope),但每个请求都要重新解析依赖图、<code>new</code> 一串对象、请求结束再交给 GC 回收。流量大时这是可测量的 CPU 和内存开销。默认用单例,只有确实需要「每个请求一份状态」时才用 request。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>scope</b>(作用域 / 生命周期,.NET 里叫 <b>service lifetime</b>):<code>Scope.DEFAULT</code>(singleton)、<code>Scope.REQUEST</code>、<code>Scope.TRANSIENT</code>;<b>scope bubbling up / scope hierarchy</b>:REQUEST 作用域沿依赖链向上「冒泡」,使用者也变成请求作用域(Nest 文档里的说法);transient <b>不会</b>向上冒泡。请求作用域的对象不能用 <code>app.get()</code> 拿,要用 <code>app.resolve()</code>。另外,request 作用域的 provider 可以注入 <code>REQUEST</code> 拿到当前请求对象(多租户就靠这个),今天不展开。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>实验部门 <code>src/scope-demo/</code> 的结构:</p>
+  <pre><code>ScopeDemoController(没写 scope)
+ ├─ SingletonCounter   (默认单例)
+ ├─ TransientCounter   (TRANSIENT)
+ └─ ReportService      (没写 scope!)
+     ├─ RequestCounter (REQUEST)
+     └─ TransientCounter (TRANSIENT)</code></pre>
+  <p>✍️ <b>预测(先写再运行)</b>:连发 3 个 <code>GET /scope-demo</code> 后,下面每个类一共被 <code>new</code> 了几次?把数字先填在 <code>notes.md</code> 的预测区:</p>
+  <table>
+    <tr><th>类</th><th>你的预测</th></tr>
+    <tr><td>SingletonCounter</td><td>?</td></tr>
+    <tr><td>RequestCounter</td><td>?</td></tr>
+    <tr><td>TransientCounter</td><td>?</td></tr>
+    <tr><td>ReportService</td><td>?</td></tr>
+    <tr><td>ScopeDemoController</td><td>?</td></tr>
+  </table>
+  <p>还有一题:<b>开店后、第一个请求来之前</b>,会打印哪几行「🆕」?</p>
+  <pre><code>cd nest-lab
+npm run day09</code></pre>
+  <p>真实运行结果(第 1、4、5 幕):</p>
+  <pre><code>========== 第 1 幕:开店(请求还没来) ==========
+  🆕 new SingletonCounter #1
+
+========== 第 4 幕:第 1 个请求 GET /scope-demo ==========
+  🆕 new TransientCounter #1
+  🆕 new RequestCounter #1
+  🆕 new TransientCounter #2
+  🆕 new ReportService #1
+  🆕 new ScopeDemoController #1
+  响应: {"controller":1,"singleton":1,"request":1,"transientInController":1,"transientInReport":2,"report":1}
+
+========== 第 4 幕:第 2 个请求 GET /scope-demo ==========
+  🆕 new TransientCounter #3
+  🆕 new RequestCounter #2
+  🆕 new TransientCounter #4
+  🆕 new ReportService #2
+  🆕 new ScopeDemoController #2
+  响应: {"controller":2,"singleton":1,"request":2,"transientInController":3,"transientInReport":4,"report":2}
+
+========== 第 4 幕:第 3 个请求 GET /scope-demo ==========
+  🆕 new TransientCounter #5
+  🆕 new RequestCounter #3
+  🆕 new TransientCounter #6
+  🆕 new ReportService #3
+  🆕 new ScopeDemoController #3
+  响应: {"controller":3,"singleton":1,"request":3,"transientInController":5,"transientInReport":6,"report":3}
+
+========== 第 5 幕:3 个请求之后,每个类一共被 new 了几次 ==========
+┌─────────────────────┬────────┐
+│ (index)             │ Values │
+├─────────────────────┼────────┤
+│ SingletonCounter    │ 1      │
+│ RequestCounter      │ 3      │
+│ TransientCounter    │ 6      │
+│ ReportService       │ 3      │
+│ ScopeDemoController │ 3      │
+└─────────────────────┴────────┘</code></pre>
+  <p>逐行解读:</p>
+  <ul>
+    <li><b>SingletonCounter 1 次,而且在请求之前</b>:开业时造好,之后 3 个请求共用 1 号。</li>
+    <li><b>RequestCounter 3 次</b>:每个请求一个,符合定义。</li>
+    <li><b>ReportService 3 次、ScopeDemoController 3 次</b>:它们都没写 scope,却被 <code>RequestCounter</code> 一路<b>传染</b>成了请求作用域。第 3 幕里 <code>app.get(ReportService)</code> 直接报 <code>InvalidClassScopeException</code>,也说明容器已经把它当成请求作用域对待了。</li>
+    <li><b>TransientCounter 6 次</b>:每个请求里有两个地方要它(Controller 和 ReportService),各给一把新刀(<code>transientInController</code> 和 <code>transientInReport</code> 永远不同);又因为这两个使用者每个请求都被重造,于是 2 × 3 = 6。</li>
+  </ul>
+  <p>对比:Day 8 的 <code>TasksController</code> 链路全是单例,不管来多少请求都是开业时造的那 1 套。<code>test/scope-demo.e2e-spec.ts</code> 把上面的规律写成了断言,以后谁改坏了作用域,测试会报红。</p>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p>DI 和 IoC 容器是 Spring、ASP.NET Core 的灵魂。Nest 的三种作用域和 .NET 的三种 lifetime <b>一一对应</b>:</p>
+  <table>
+    <tr><th>命题</th><th>NestJS(教具)</th><th>C# / ASP.NET Core</th><th>Java / Spring Boot</th><th>Go</th></tr>
+    <tr>
+      <td>登记 provider</td>
+      <td><code>@Module({ providers: [...] })</code></td>
+      <td><code>builder.Services.AddScoped&lt;ITasksRepository, InMemoryTasksRepository&gt;()</code></td>
+      <td><code>@Component</code> / <code>@Service</code> / <code>@Repository</code> 自动扫描;或 <code>@Configuration</code> 里写 <code>@Bean</code> 方法</td>
+      <td>没有容器:在 <code>main</code> 里手动 <code>NewTasksService(repo, clock)</code></td>
+    </tr>
+    <tr>
+      <td>要依赖</td>
+      <td>构造函数参数 + <code>@Inject(TOKEN)</code></td>
+      <td>构造函数参数(按接口类型 <code>ITasksRepository</code>,C# 接口运行时存在,不需要 token)</td>
+      <td>构造函数参数(推荐)或 <code>@Autowired</code>;同类型多个实现用 <code>@Qualifier</code></td>
+      <td>构造函数(<code>NewXxx</code> 函数)参数,参数类型是 interface</td>
+    </tr>
+    <tr>
+      <td>单例</td>
+      <td><code>Scope.DEFAULT</code></td>
+      <td><code>AddSingleton</code></td>
+      <td>默认 singleton</td>
+      <td>在 <code>main</code> 里只 new 一次</td>
+    </tr>
+    <tr>
+      <td>每请求一个</td>
+      <td><code>Scope.REQUEST</code></td>
+      <td><code>AddScoped</code>(scope = 一个 HTTP 请求)</td>
+      <td><code>@Scope("request")</code>(<code>@RequestScope</code>)</td>
+      <td>在 handler 里 new,或放进 <code>context.Context</code></td>
+    </tr>
+    <tr>
+      <td>每次注入一个</td>
+      <td><code>Scope.TRANSIENT</code></td>
+      <td><code>AddTransient</code></td>
+      <td><code>@Scope("prototype")</code></td>
+      <td>每次调用 <code>NewXxx()</code></td>
+    </tr>
+    <tr>
+      <td>单例依赖了请求作用域</td>
+      <td><b>自动传染</b>:单例被升级成请求作用域</td>
+      <td><b>直接报错</b>(开发环境默认开启作用域校验:不能从 singleton 里消费 scoped 服务,俗称 captive dependency)</td>
+      <td>注入一个<b>代理对象</b>(scoped proxy),每次调用时再去找当前请求的那一个</td>
+      <td>不存在这个问题(没有容器)</td>
+    </tr>
+    <tr>
+      <td>替换实现做测试</td>
+      <td><code>Test.createTestingModule().overrideProvider()</code></td>
+      <td><code>WebApplicationFactory</code> + <code>ConfigureTestServices</code> 里替换注册</td>
+      <td><code>@MockitoBean</code>(旧版 <code>@MockBean</code>)、<code>@TestConfiguration</code></td>
+      <td>构造时直接传一个假的 struct</td>
+    </tr>
+    <tr>
+      <td>自动化接线工具</td>
+      <td>Nest injector(运行时,反射元数据)</td>
+      <td>Microsoft.Extensions.DependencyInjection(运行时)</td>
+      <td>Spring IoC 容器(运行时,反射)</td>
+      <td><b>wire</b>(编译期生成接线代码)/ uber <b>fx</b>(运行时容器)</td>
+    </tr>
+  </table>
+  <p>📌 同一个问题(单例依赖了请求作用域)三个框架给出三种答案:Nest 自动传染、.NET 报错拦住、Spring 塞代理。面试时能说出这个差异,说明你真的理解作用域,而不是背 API。</p>
+  <p>📌 roadmap 顶部对照表的「依赖注入(DI)」行已经有了;建议你在 Day 14 复盘时自己补一行<b>「Provider 作用域 / 生命周期」</b>(Nest 三种 scope ↔ .NET AddSingleton/AddScoped/AddTransient ↔ Spring singleton/request/prototype ↔ Go 手动)。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"What is dependency injection, and why would you use an IoC container?"</b>(或者:「什么是依赖注入?为什么不直接 new?」)你可以答:<br>
+    <b>"依赖注入就是一个类不自己创建它依赖的对象,而是通过构造函数从外面接收。好处有两个:一是可替换,类只依赖接口,换实现(比如从内存存储换成 PostgreSQL)只改注册的地方;二是可测试,测试时可以注入假的仓储或固定时间的时钟。IoC 容器把接线自动化:启动时读取注册信息和每个类的构造函数依赖,按依赖图从底层往上创建对象并注入,默认是单例。还可以配置作用域:每个请求一个,或者每次注入一个;要注意请求作用域会沿依赖链向上传染,有性能代价。这和 ASP.NET Core 的 AddSingleton / AddScoped / AddTransient、Spring 的 singleton / request / prototype 是一回事。"</b><br>
+    自己练一遍:合上文档 45 秒说完。卡在哪,就回去重看哪一节。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+  <p>预测都写进 <code>src/09-di-ioc/notes.md</code> 的预测区,先写,再运行,再批改。</p>
+
+  <div class="task">
+    <h3>习题 1:读懂并跑通迷你 IoC 容器(动手,约 8 min)</h3>
+    <p>文件:<code>src/09-di-ioc/mini-container.ts</code>(容器本体)+ <code>src/09-di-ioc/ex1-mini-ioc.ts</code>(五幕演示,顶部有 ✍️ 预测题)。</p>
+    <pre><code>npx tsx src/09-di-ioc/ex1-mini-ioc.ts</code></pre>
+    <p>先回答文件顶部的 5 道预测题,再运行对答案。然后读 <code>resolve()</code>,用一句话指出「注册 / 解析依赖图 / 实例化 / 注入 / 单例缓存 / 循环检测」分别是哪几行。</p>
+    <p>进阶(可选):给容器加一个 <code>transient</code> 选项,<code>{ provide, useClass, transient: true }</code> 时每次 <code>resolve</code> 都造新的。✍️ 先预测:要改哪一行?</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:作用域实验,数实例(动手,约 8 min)</h3>
+    <p>✍️ <b>预测(先写再运行)</b>:先把第 5 节那张五个类的表填满,再跑 <code>npm run day09</code>,逐个批改。</p>
+    <p>然后改一处再预测一次:把 <code>src/scope-demo/counters.ts</code> 里 <code>RequestCounter</code> 的 <code>{ scope: Scope.REQUEST }</code> 删掉(变回单例)。<b>先猜</b> 3 个请求后五个数字分别变成多少、开店时会多打印哪几行「🆕」,再运行验证。做完把 <code>Scope.REQUEST</code> 加回去,跑 <code>npm run test:e2e</code> 确认全绿。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:撕掉一张申请单 + 写一个可控时间的测试(动手,约 9 min)</h3>
+    <p>(a)打开 <code>src/tasks/tasks.service.ts</code>,删掉 <code>@Inject(CLOCK)</code>(保留参数本身)。✍️ <b>预测</b>:<code>npm run start:dev</code> 是启动就失败,还是第一个 <code>POST /tasks</code> 才失败?报错里 <code>?</code> 会出现在第几个参数?运行验证(真实报错的第一行是 <code>Nest can't resolve dependencies of the TasksService (Symbol(TASKS_REPOSITORY), ?). Please make sure that the argument at index [1] is available in the current module.</code>)。想一想:为什么 <code>TasksController</code> 不需要 <code>@Inject</code>,<code>TasksService</code> 却需要?改回来。</p>
+    <p>(b)在 <code>src/tasks/tasks.service.spec.ts</code> 里加一个测试:用 <code>overrideProvider(CLOCK)</code> 把时间固定在 <code>2030-12-31T23:59:59.000Z</code>,断言新建任务的 <code>createdAt</code> <b>和</b>样品任务的 <code>createdAt</code> 都是这个时间。✍️ 先预测:样品任务的时间会跟着变吗?(提示:样品是谁造的、用了谁?)跑 <code>npm test</code>。</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/09-di-ioc/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事问你:「Nest 的依赖注入是啥?和 React 的 Context、Angular 的 DI 像吗?为什么不直接 import 一个实例来用?」用餐厅比喻给他讲清楚,并说出比喻在哪里会骗人。</li>
+      <li>IoC 容器启动时做了哪几步?为什么 <code>TasksService</code> 的构造函数必须写 <code>@Inject(TASKS_REPOSITORY)</code>,而 <code>TasksController</code> 不用写?</li>
+      <li>singleton / request / transient 各造几个?什么叫作用域「传染」,代价是什么?为什么「单例」在两个副本里其实是两个?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里补上你自己做的改动,确认 <code>git status</code> 里没有 <code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>DI = 前台只交用人申请单(构造函数参数),不自己招人;IoC = 招人的权力交给总部。</b>好处是可替换(只改登记簿)和可测试(<code>overrideProvider</code>)。DI 是设计方式,容器只是自动化工具。</li>
+    <li><b>IoC 容器 = 登记簿 + 开业时按依赖图从底层往上造、再把对象当参数递进去</b>,默认记在花名册上(单例)。缺人在启动时就报错;循环依赖容器解不开,先改设计,<code>forwardRef</code> 是最后的补丁。</li>
+    <li><b>token 是工牌号</b>:类可以直接当 token;接口在运行时不存在,要配 Symbol / 字符串 token 并用 <code>@Inject</code> 写明。登记方式三种:<code>useClass</code> / <code>useValue</code> / <code>useFactory + inject</code>。</li>
+    <li><b>作用域 = 造几个</b>:singleton 全应用 1 个(但只在一个进程里)、request 每请求 1 个、transient 每注入点 1 个;request 会沿依赖链向上传染,看不见但有代价。默认用单例,而且别在单例字段上存「当前请求」的数据。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>不看代码,画出 nest-lab 今天的依赖图,并标出一种合法的创建顺序</li>
+    <li><code>design:paramtypes</code> 是谁写的?为什么 <code>TasksService</code> 的那一份是 <code>[Object, Object]</code>?为什么迷你容器不用它?</li>
+    <li>把 <code>useClass</code>、<code>useValue</code>、<code>useFactory</code> 各举一个 nest-lab 里的例子,并说出 Week 4 换 PostgreSQL 时要改哪一行</li>
+    <li>3 个请求后 TransientCounter 为什么是 6 而不是 3?如果 ReportService 不依赖 RequestCounter,这个数字会变成多少?</li>
+    <li>同样是「单例依赖了请求作用域」,Nest、ASP.NET Core、Spring 分别怎么处理?</li>
+  </ul>
+  <p>🔮 明天 Day 10:每个接口都想加日志、计时、鉴权,但不想在每个方法里复制粘贴 —— 这叫「横切关注点」。Day 8 那张生命周期图上空着的 ② 和 ⑤ 号站(Guard / Interceptor / Pipe / Exception Filter)明天一站站填上。你会发现它们本身也是 Provider,也由今天这个容器造出来、注入进去。</p>
+</section>
+
+<footer>
+  Day 9 · Phase 1 / Week 2 · 产出:<code>docs/09-di-ioc/</code> 本文档 + <code>nest-lab/</code>(仓储 token、时钟注入、作用域实验、overrideProvider 测试、<code>npm run day09</code>)+ <code>src/09-di-ioc/</code> 迷你 IoC 容器与 notes 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

@@ -3,4 +3,5 @@ export interface Task {
   id: number;
   title: string;
   done: boolean;
+  createdAt: string; // Day 9 新增:ISO 时间字符串,由注入的 Clock 决定(测试里可以固定)
 }

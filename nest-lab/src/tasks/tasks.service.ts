@@ -1,25 +1,26 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { CLOCK, type Clock } from '../common/clock.js';
 import type { Task } from './task.js';
+import { TASKS_REPOSITORY, type TasksRepository } from './tasks.repository.js';
 
-// Provider / Service = 后厨:只管「把菜做出来」(业务逻辑 + 数据),不关心 HTTP。
-// @Injectable() 是一张标签:「这个类交给 Nest 管,需要的人由 Nest 送过去」(怎么送的,Day 9 拆开讲)。
+// Provider / Service = 后厨:只管「把菜做出来」(业务逻辑),不关心 HTTP。
+// Day 9 起:数据存哪、现在几点,都不自己决定,而是在构造函数里「声明我需要什么」,由 Nest 的 IoC 容器送来。
 @Injectable()
 export class TasksService {
-  // 今天先用内存数组当「冰箱」:进程一重启就清空,Week 4 换成 PostgreSQL。
-  private readonly tasks: Task[] = [
-    { id: 1, title: '跑通 nest new', done: true },
-    { id: 2, title: '看懂 Module / Controller / Provider', done: false },
-  ];
-  private nextId = 3;
+  constructor(
+    // 参数类型是接口,运行时会被擦成 Object,Nest 认不出来 → 必须用 @Inject(token) 明确告诉它要哪个
+    @Inject(TASKS_REPOSITORY) private readonly repo: TasksRepository,
+    @Inject(CLOCK) private readonly clock: Clock,
+  ) {}
 
   findAll(): Task[] {
     console.log('   ④ Service    后厨做菜:findAll');
-    return this.tasks;
+    return this.repo.findAll();
   }
 
   findOne(id: number): Task {
     console.log(`   ④ Service    后厨做菜:findOne(${id})`);
-    const task = this.tasks.find((t) => t.id === id);
+    const task = this.repo.findById(id);
     if (!task) {
       // 不用自己 res.writeHead(404):抛一个「带状态码的异常」,
       // Nest 内置的 exception filter 会把它翻译成 404 + JSON。
@@ -30,8 +31,10 @@ export class TasksService {
 
   create(title: string): Task {
     console.log(`   ④ Service    后厨做菜:create("${title}")`);
-    const task: Task = { id: this.nextId++, title, done: false };
-    this.tasks.push(task);
-    return task;
+    return this.repo.insert({
+      title,
+      done: false,
+      createdAt: this.clock.now().toISOString(), // 不写 new Date():时间也是注入的
+    });
   }
 }

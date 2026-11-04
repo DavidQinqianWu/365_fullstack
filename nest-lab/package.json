@@ -15,6 +15,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "day08": "nest build && node scripts/day08-try.mjs",
+    "day09": "nest build && node scripts/day09-try.mjs",
     "lint": "oxlint src/ test/",
     "test": "vitest run",
     "test:watch": "vitest",
