@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="day" content="7">
+<meta name="phase" content="Phase 1 / Week 1">
+<meta name="summary" content="复盘日,不学新内容。画出「一个 HTTP 请求的一生」把六天串起来,默写六张概念卡,给本周代码做一次 review,自测 12 题。">
+<title>Day 14 - 复盘日:把 Week 2 的 NestJS 六天连成一个请求</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 2 · 复盘日</div>
+  <h1>Day 14 - 复盘日:把 Week 2 的 NestJS 六天连成一个请求</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(画图 25 min + 默写 25 min + code review 15 min + 对照表与自测 25 min)·
+    <b>今天不学新内容。</b>复盘日的唯一任务是:把 Day 8–13 从「跟着讲义跑通了」变成「合上讲义说得出、画得出」·
+    产出:<code>src/14-week2-review/</code> 下的一张请求全景图 + 六张概念卡 + 一次 nest-lab 代码 review + 自测答卷
+  </div>
+</header>
+
+<div class="warn">
+  <span class="tag">⚠️ 复盘日的规矩</span>
+  <p><b>不许翻 Day 8–13 的讲义,也不许打开 nest-lab 的代码。</b>先凭记忆写,写完再对照订正。订正的地方用红色或加粗标出来——<b>那些就是你真正的知识缺口</b>,Week 3 会再考。</p>
+  <p>如果某一题完全写不出来,不要跳过。写下「我不会」,然后去看讲义,再用自己的话重写一遍。</p>
+  <p>今天<b>不给 nest-lab 加新功能</b>。review 里发现的问题先记下来,改法写清楚,真正动手放到 Week 3。</p>
+</div>
+
+<nav class="toc">
+  <h2>📖 今天的四件事</h2>
+  <ol>
+    <li><a href="#sec1">🗺️ 第一件事:画出「一个 POST /tasks 请求在 nest-lab 里的一生」</a></li>
+    <li><a href="#sec2">✍️ 第二件事:六张概念卡默写</a></li>
+    <li><a href="#sec3">🔍 第三件事:给 nest-lab 做一次 self-review</a></li>
+    <li><a href="#sec4">📊 第四件事:改写对照表 + 自测 12 题</a></li>
+    <li><a href="#sec5">🎯 Week 2 结算与 Week 3 预告</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🗺️ 第一件事:画出「一个 POST /tasks 请求在 nest-lab 里的一生」(约 25 min)</h2>
+
+  <p>Week 1 复盘时你画的是「一个 HTTP 请求在 Node 服务器里的一生」。今天把同一张图<b>往上盖一层</b>:同一个请求,进了 NestJS 以后又经过了哪些站。<b>六天学的东西,串成一条线。</b></p>
+
+  <h3>任务</h3>
+
+  <p>在 <code>src/14-week2-review/request-lifecycle.md</code> 里,用文字或 mermaid 画出下面这个过程。<b>每一站标注两个编号</b>:它是 Week 2 哪一天学的(Day 8–13),以及它建在 Week 1 的哪个机制之上(Day 1–6)。</p>
+
+  <div class="task">
+    <h3>场景</h3>
+    <pre><code>curl -i -X POST localhost:3000/tasks \
+  -H 'content-type: application/json' \
+  -H 'x-demo-key: let-me-in' \
+  -H 'x-request-id: review-1' \
+  -d '{"title":"复盘 Week 2"}'</code></pre>
+    <p>要覆盖这些环节(顺序你自己排):</p>
+    <ul>
+      <li>TCP 连接进来、报文被解析成 <code>req</code> 和 <code>res</code></li>
+      <li>请求 ID 从哪里来、存在哪、怎么回写到响应头</li>
+      <li>「进门 / 出门」两行日志是谁打的,为什么它们都带着 <code>review-1</code></li>
+      <li>全局保安怎么判断这个接口要不要钥匙,钥匙的值从哪来</li>
+      <li>计时从哪里开始、在哪里结束、计时头在哪里写</li>
+      <li>请求体怎么变成 <code>body</code> 参数,<code>@RequestId()</code> 参数从哪拿值</li>
+      <li>Controller 怎么拿到 Service,Service 怎么拿到仓储和时钟(谁 new 的?)</li>
+      <li>返回值怎么变成 <code>{ data, timestamp }</code>,状态码为什么是 201</li>
+      <li>如果中途抛了异常,从哪一站跳到哪一站,错误体长什么样</li>
+    </ul>
+    <p>再写三条支线:换成 <code>DELETE /tasks/1</code>(钥匙 + <code>x-demo-role: admin</code>)多经过哪几站;<code>GET /tasks/999</code> 从哪一站开始短路;开店时、第一个请求到来之前已经发生了哪些事。</p>
+  </div>
+
+  <h3>写完之后自查:每一站你标出 Day 编号了吗?</h3>
+
+  <p>参考答案的<b>对应关系</b>(不是完整答案,只是给你对一下 Day 编号;每一站具体做什么、顺序如何,要你自己写):</p>
+
+  <table>
+    <tr><th>环节</th><th>Week 2</th><th>建在 Week 1 的</th></tr>
+    <tr><td>TCP 连接、报文解析成 <code>req</code> / <code>res</code>、<code>res</code> 的 <code>'finish'</code> 事件</td><td>Day 8(Nest 底下是 Express)</td><td>Day 2、3、6</td></tr>
+    <tr><td>请求 ID 的读取 / 生成 / 回写,以及它为什么能跟着请求走</td><td>Day 13</td><td>Day 1、2</td></tr>
+    <tr><td>进出门日志、它在管线里的位置</td><td>Day 8、10、13</td><td>Day 3</td></tr>
+    <tr><td>全局保安、<code>@Public()</code>、钥匙从哪来</td><td>Day 11、12</td><td>Day 6(403)</td></tr>
+    <tr><td>RolesGuard、<code>@AdminOnly()</code>(DELETE 支线)</td><td>Day 11</td><td>Day 6(401 vs 403)</td></tr>
+    <tr><td>计时 interceptor、包装 interceptor、为什么是「洋葱」</td><td>Day 10、13</td><td>—</td></tr>
+    <tr><td>pipe(DELETE / GET :id 支线)、参数装饰器</td><td>Day 10、11、13</td><td>—</td></tr>
+    <tr><td>Controller 拿到 Service、Service 拿到仓储和时钟</td><td>Day 8、9、12</td><td>—</td></tr>
+    <tr><td>异常短路、统一错误体</td><td>Day 10、13</td><td>Day 6</td></tr>
+    <tr><td>开店时:配置检查、容器造对象、读装饰器标签排路由</td><td>Day 8、9、12</td><td>Day 4(进程退出码)</td></tr>
+  </table>
+
+  <div class="concept">
+    <span class="tag">为什么这张图值 25 分钟</span>
+    <p>面试官问「你用过 NestJS 吗」,背 API 的人说「我写过 Controller 和 Service」;<b>能把这张图从 TCP 画到响应头的人,会被追问到 Spring 和 ASP.NET Core——而你能接得住。</b></p>
+    <p>这张图在 Spring Boot 和 ASP.NET Core 里<b>结构几乎一样</b>:Filter / Middleware → 鉴权 → 拦截器 / Action Filter → 参数绑定与校验 → Controller → Service → 异常处理。你画的是「企业级后端框架」,不是「NestJS」。</p>
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>✍️ 第二件事:六张概念卡默写(约 25 min)</h2>
+
+  <p>写在 <code>src/14-week2-review/concept-cards.md</code>。<b>每张卡片必须包含三部分</b>:通用定义(不绑定语言)、Nest 里的样子、.NET / Java / Go 里的样子。</p>
+
+  <div class="task">
+    <h3>卡片 1:框架三件套与装饰器(Day 8)</h3>
+    <ul>
+      <li>framework 和 library 的区别,用「谁调用谁」一句话说清</li>
+      <li>Module / Controller / Provider 各管什么,为什么要分开</li>
+      <li>装饰器「贴」和「读」分别发生在什么时候;只贴不读会怎样</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>卡片 2:依赖注入与作用域(Day 9)</h3>
+    <ul>
+      <li>为什么不自己 <code>new</code>(两个好处)</li>
+      <li>IoC 容器启动时的四步</li>
+      <li>token 是什么;为什么接口类型的依赖要 <code>@Inject(TOKEN)</code></li>
+      <li>singleton / request / transient 各造几个;「传染」是什么,代价是什么</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>卡片 3:AOP 与管线五件套(Day 10)</h3>
+    <ul>
+      <li>横切关注点举 4 个例子;aspect / advice / pointcut 各是什么</li>
+      <li>五件套的执行顺序,每一站「能拿到什么」</li>
+      <li>异常短路:为什么被 guard 拦下的响应没有计时头,错误体为什么没被包装</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>卡片 4:自定义装饰器与默认上锁(Day 11)</h3>
+    <ul>
+      <li><code>SetMetadata</code> vs <code>Reflector.createDecorator</code>;拼错 key 会怎样</li>
+      <li><code>get</code> / <code>getAllAndOverride</code> / <code>getAllAndMerge</code> 的区别</li>
+      <li>元数据装饰器 vs 参数装饰器:各在什么时候执行、执行几次</li>
+      <li>为什么「默认拦、<code>@Public()</code> 放」比「默认放、贴了才拦」安全</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>卡片 5:类型 ≠ 校验与 fail fast(Day 12)</h3>
+    <ul>
+      <li><code>unknown</code> vs <code>any</code>;<code>as</code> 为什么不安全</li>
+      <li>zod「一份定义两用」是哪两用;校验该放在哪里,为什么不到处校验</li>
+      <li><code>process.env</code> 的坑(数字、布尔各一个例子)</li>
+      <li>fail fast 是什么;nest-lab 配置错时在哪一步、以什么方式失败</li>
+    </ul>
+  </div>
+
+  <div class="task">
+    <h3>卡片 6:请求上下文与全局切面的 DI 版(Day 13)</h3>
+    <ul>
+      <li>为什么并发请求的日志会交错</li>
+      <li>AsyncLocalStorage 跟着什么走;哪些地方拿不到它的值</li>
+      <li>为什么单例字段存 requestId 会串号</li>
+      <li><code>useGlobalXxx(new X())</code> vs <code>APP_*</code>:能不能注入、e2e 里自不自动生效</li>
+    </ul>
+  </div>
+
+  <div class="concept">
+    <span class="tag">写完六张卡,再用两句话收尾</span>
+    <p><b>IoC 解决了什么问题?AOP 解决了什么问题?</b>各用一句话写在 <code>concept-cards.md</code> 末尾,再举一个它俩在 nest-lab 里合作的例子。这两句话就是 Week 2 的题眼:Spring 和 ASP.NET Core 的灵魂也是这两样,学透了换框架只是换语法。</p>
+  </div>
+</section>
+
+<section id="sec3">
+  <h2>🔍 第三件事:给 nest-lab 做一次 self-review(约 15 min)</h2>
+
+  <p>打开 <code>nest-lab/src/</code>、<code>nest-lab/test/</code>、<code>nest-lab/scripts/</code>,<b>用「别人写的代码」的眼光看一遍</b>。把发现写在 <code>src/14-week2-review/code-review.md</code>。</p>
+
+  <h3>Review 清单(逐条检查)</h3>
+
+  <p>每一条都是这周真实踩过、或者讲义里专门演示过的坑:</p>
+
+  <table>
+    <tr><th>检查项</th><th>为什么重要</th><th>对应 Day</th></tr>
+    <tr><td>有没有单例 Service / guard / interceptor 把「请求级数据」存在字段上</td><td>并发时串号</td><td>Day 9 / 13</td></tr>
+    <tr><td>有没有接口忘了贴 <code>@Public()</code>(该公开却 403),或忘了贴 <code>@AdminOnly()</code>(该限制却放行)</td><td>可用性 / 越权</td><td>Day 11</td></tr>
+    <tr><td>元数据 key 有没有手写字符串,而不是常量或 <code>Reflector.createDecorator</code></td><td>静默失效</td><td>Day 11</td></tr>
+    <tr><td>有没有直接读 <code>process.env.XXX</code>,绕过了 zod 校验和 <code>ConfigService</code></td><td>半夜才炸</td><td>Day 12</td></tr>
+    <tr><td>有没有需要依赖的全局切面还在用 <code>app.useGlobalXxx(new X())</code></td><td>拿不到依赖、测试测不到</td><td>Day 10 / 13</td></tr>
+    <tr><td>有没有日志用了 <code>console.log</code> 而没走 <code>ctxLog</code></td><td>出事时找不到是哪个请求</td><td>Day 13</td></tr>
+    <tr><td>有没有把可伪造的请求头当成可信身份(<code>x-demo-role</code>、<code>x-request-id</code>)</td><td>越权 / 日志注入</td><td>Day 11 / 13</td></tr>
+    <tr><td>有没有不必要的 REQUEST 作用域 Provider</td><td>整条链每请求重造,性能代价</td><td>Day 9</td></tr>
+  </table>
+
+  <div class="task">
+    <h3>产出要求</h3>
+    <p>每发现一个问题,写成这个格式:</p>
+    <pre><code>## 文件:nest-lab/src/xxx/yyy.ts 第 N 行
+**问题:** ……
+**后果:** ……
+**改法:** ……
+**我当时为什么这么写:** ……</code></pre>
+    <p><b>最后一行最重要。</b>这周很多代码是讲义给的示范,但「当时为什么这么写」仍然有答案:为了演示、为了今天先跑通、或者那时还不知道有更好的写法。把它写出来,才能看清自己的思维盲区。</p>
+    <p><b>至少找出 2 个问题。</b>一个都没发现,说明 review 得不够仔细——再看一遍,特别看:请求体有没有校验、哪些 <code>console.log</code> 漏网了、哪些「演示用」的东西如果上了生产会出事。</p>
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📊 第四件事:改写对照表 + 自测 12 题(约 25 min)</h2>
+
+  <h3>4.1 改写跨语言对照表(约 5 min)</h3>
+
+  <p>打开 <code>roadmap.md</code> 顶部的「后端概念跨语言对照表」。这周相关的七行已经填好了参考版本:</p>
+
+  <ul>
+    <li><b>声明式路由 / 注解 + 元数据</b>(Day 8 / 11)</li>
+    <li><b>依赖注入(DI)</b>(Day 9)</li>
+    <li><b>Provider 作用域 / 生命周期</b>(Day 9)</li>
+    <li><b>AOP / 横切关注点</b>(Day 10)</li>
+    <li><b>声明式鉴权(默认上锁 + 白名单)</b>(Day 11)</li>
+    <li><b>配置与环境(类型安全 + 启动即校验)</b>(Day 12)</li>
+    <li><b>请求上下文 / 关联 ID</b>(Day 13)</li>
+  </ul>
+
+  <p><b>任务:挑其中 3 行,用你亲手验证过的理解,改写成你自己的一句话</b>,写进对应行的 Node.js / TS 那一列(或在行尾补一句)。比如「我在 day09 脚本里亲眼看到 RequestCounter 被 new 了 3 次、ReportService 也被传染成了 3 次」比任何抄来的定义都记得牢。</p>
+  <p><b>要求:改写的内容必须是你亲手验证过的</b>,不是抄讲义。抄的东西记不住。</p>
+
+  <h3>4.2 自测 12 题(闭卷,约 20 min,写在 <code>src/14-week2-review/self-test.md</code>)</h3>
+
+  <div class="task">
+    <h3>基础题(每题 1 分)</h3>
+    <ol>
+      <li>Module、Controller、Provider 各管什么?为什么 Controller 不直接操作数据?</li>
+      <li>为什么 <code>TasksService</code> 的构造函数要写 <code>@Inject(TASKS_REPOSITORY)</code>,而 <code>TasksController</code> 注入 <code>TasksService</code> 时不用写?</li>
+      <li>Nest 默认的 Provider 作用域是什么?REQUEST 作用域的「传染」是什么意思?</li>
+      <li>按执行顺序写出 Nest 请求管线的五种站(出错时走哪一站)。</li>
+      <li><code>@Public()</code> 这张标签是什么时候贴上去的?谁在什么时候读它?</li>
+      <li>为什么不能用 <code>z.coerce.boolean()</code> 解析环境变量 <code>LOG_REQUESTS=false</code>?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>理解题(每题 2 分)</h3>
+    <ol start="7">
+      <li>没带钥匙的 <code>POST /tasks</code> 被拦下后,响应里为什么没有 <code>X-Response-Time</code>?错误体为什么没有被包装成 <code>{ data, timestamp }</code>?</li>
+      <li>类上贴 <code>@Roles(['staff'])</code>、方法上贴 <code>@Roles(['admin'])</code>:<code>getAllAndOverride</code> 和 <code>getAllAndMerge</code> 各读出什么?为什么拼错 <code>SetMetadata</code> 的 key 不报错,而拼错 <code>config.get('DEMO_KEI', { infer: true })</code> 会编译报错?</li>
+      <li>为什么单例 Service 的字段存 requestId 会串号,而 AsyncLocalStorage 不会?举出两个拿不到 ALS 值的地方。</li>
+      <li><code>app.useGlobalInterceptors(new X())</code> 和 <code>{ provide: APP_INTERCEPTOR, useClass: X }</code> 有什么区别?为什么这个区别在写 e2e 测试时特别要紧?</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>综合题(每题 5 分)</h3>
+    <ol start="11">
+      <li><b>场景题:</b>新同事给 nest-lab 加了导出功能,上线后出了三件怪事:① 他新建了 <code>ExportController</code>,为了让导出接口公开,在<b>类上</b>贴了 <code>@Public()</code>,又在同一个类里顺手加了 <code>DELETE /export/cache</code>,结果任何人不带钥匙都能清缓存;② 他在 <code>TasksController</code> 的<b>末尾</b>加了 <code>GET /tasks/stats</code>,调用却返回 400 <code>Validation failed (numeric string is expected)</code>;③ 有人反馈日志里同一个请求的 requestId 对不上,有几行是别的请求的 ID,还有几行干脆没有 ID。<b>请定位每个现象最可能的原因,并给出修法。</b></li>
+      <li><b>场景题:</b>Week 4 要把内存仓储换成 PostgreSQL。<b>列出哪些文件需要改、哪些文件完全不用改,并解释为什么不用改。</b>再说明:单元测试和 e2e 测试分别怎么保证「换仓储」没有改坏业务逻辑?数据库地址这个配置应该怎么接入,才能做到 fail fast?</li>
+    </ol>
+  </div>
+
+  <p><b>评分:</b>基础题 1 分 × 6 + 理解题 2 分 × 4 + 综合题 5 分 × 2,满分 24。<b>低于 17 分,开始 Week 3 前先把错题对应的那天重看一遍。</b>另外 8 道题留在 <code>self-test.md</code> 末尾,作为下周碎片时间的选做题(装饰器执行时机、<code>design:paramtypes</code>、循环依赖、interceptor 的去程回程、默认上锁、类型与校验、fail fast 与退出码、Go 的 <code>context.Context</code>)。</p>
+</section>
+
+<section id="sec5">
+  <h2>🎯 Week 2 结算与 Week 3 预告</h2>
+
+  <h3>这周你从「不知道」到「能讲清楚」的东西</h3>
+
+  <table>
+    <tr><th>Day</th><th>主题</th><th>核心收获(餐厅版)</th></tr>
+    <tr><td>8</td><td>NestJS 入门</td><td>从街边小店到连锁餐厅:编制表、前台、后厨,装饰器是岗位便利贴</td></tr>
+    <tr><td>9</td><td>DI / IoC</td><td>前台不招人,总部人事部按登记簿派人;制冰机、每桌餐具、每人一把刀</td></tr>
+    <tr><td>10</td><td>AOP</td><td>不改一道菜谱,给全店立规矩:登记员、保安、领班、核单员、投诉台</td></tr>
+    <tr><td>11</td><td>自定义装饰器</td><td>贴「免检」标签,保安按标签放行;所有门默认上锁</td></tr>
+    <tr><td>12</td><td>服务端 TypeScript</td><td>菜单上的说明不等于进货验过货;开店检查单不过就不开门</td></tr>
+    <tr><td>13</td><td>请求上下文</td><td>每桌一张隐形桌号牌,并发再乱也能把小票归好组</td></tr>
+  </table>
+
+  <div class="concept">
+    <span class="tag">一句话总结 Week 2</span>
+    <p><b>你现在知道企业级后端框架的两根支柱:IoC(谁来创建、谁来接线)和 AOP(横切的事放在哪一站),并且在 nest-lab 里亲手搭出了一条完整的请求管线。</b></p>
+    <p>Week 1 是「一个后端服务器从接到字节到发出字节」;Week 2 是「在这条字节流之上,框架怎么帮你把代码组织好」。接下来的 API 设计、数据库、缓存、认证,都会挂在这条管线上。</p>
+  </div>
+
+  <h3>Week 3 预告(Day 15–21):API 设计 + DTO 与验证</h3>
+
+  <p>以 roadmap 的 Week 3 为准,大致包括(每天的具体拆分以当天讲义为准):</p>
+  <ul>
+    <li><b>HTTP 语义深入</b>:方法、状态码、<b>幂等性</b>、内容协商(接 Day 6:Day 6 你对 <code>DELETE /tasks</code> 回了 405,Day 8 发现 Nest 默认回的是 404)</li>
+    <li><b>REST 约束、版本化、分页</b>:资源怎么命名、<code>/v1</code> 放哪、游标分页 vs 偏移分页</li>
+    <li><b>统一错误格式 RFC 9457 / 7807 problem+json</b>:把 Day 10 和 Day 13 的 <code>AllExceptionsFilter</code> 升级成标准格式(<code>requestId</code> 怎么放进去?)</li>
+    <li><b>DTO 与验证专题</b>:DTO 是接口的「进出口报关单」,和数据库 Entity 分开的原因;<code>class-validator</code> + <code>class-transformer</code> + 全局 <code>ValidationPipe</code>(<code>whitelist</code>、<code>transform</code>、嵌套与数组校验、自定义校验器);<b>和 Day 12 的 zod 方案对比取舍</b>。Day 8 留下的那个坑「<code>POST {}</code> 被收下还回了 201」终于要补上了</li>
+    <li><b>响应 DTO</b>:<code>ClassSerializerInterceptor</code> + <code>@Exclude()</code>,防止把密码哈希这类字段返回给前端</li>
+    <li><b>OpenAPI</b>:<code>@nestjs/swagger</code> 从 DTO 自动生成文档(会用到 Day 13 留给 <code>configureApp</code> 的那个位置)</li>
+    <li><b>实战</b>:在 <code>nest-lab/</code> 里实现完整的任务管理 REST API,设计文档按语言无关的方式写;对照 ASP.NET Core DataAnnotations / FluentValidation、Spring Bean Validation(<code>@Valid</code>)</li>
+  </ul>
+
+  <h3>提交今天的产出</h3>
+
+  <pre><code>git add -A
+git commit -m "docs: week 2 review"</code></pre>
+</section>
+
+<section>
+  <h2>✅ 复盘日自检</h2>
+  <ul class="check">
+    <li>画出了「一个 POST /tasks 请求在 nest-lab 里的一生」,每一站都标了 Week 2 的 Day 和 Week 1 的 Day,三条支线也写了</li>
+    <li>六张概念卡全部默写完,每张都有「通用定义 + Nest + .NET / Java / Go」三部分,末尾写了 IoC 和 AOP 各一句话</li>
+    <li>对 nest-lab 做了 review,至少找出 2 个问题,写清了改法和「当时为什么这么写」</li>
+    <li>roadmap 对照表改写了 3 行,内容是自己验证过的</li>
+    <li>自测 12 题做完并打分,低于 17 分的部分已经安排重看</li>
+    <li>今天的产出已经 commit</li>
+  </ul>
+</section>
+
+<footer>
+  Day 14 · Phase 1 / Week 2 · 复盘日 · 产出:<code>src/14-week2-review/</code> 下的四份文档 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+
+</body>
+</html>

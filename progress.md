@@ -1,7 +1,7 @@
 # 365 天全栈成长 · 进度记录
 
 - 计数方式:**只按 Day N 计数,不写具体日期**——不要求每天连续学习,完成一天才算一天,Day N 永远 = 已完成天数 + 1。
-- 当前进度:Day 5(进行中;Day 6–13 材料已备)
+- 当前进度:Day 5(进行中;Day 6–14 材料已备)
 - 时间标准:按 `roadmap.md` 每天 1.5 小时。注:另一仓库的路线图 v2(3 小时/天、Hetzner 部署、365 平台主线项目)在合并时被覆盖,已确认**以当前 `roadmap.md` 为准**;v2 原文可在提交 `8ac8470` 中查看,Day 6–7 讲义按 v2 节奏编写,使用时酌情删减。⚠️ `hetzner` 主机是公司测试环境(Coolify + Traefik),不要部署学习项目,需要服务器时另租独立 VPS。
 - 水平测试(Day 4 完成):**1 / 46**,全部 7 个领域从零起步,React/TS 深层知识为真实缺口。每个 Phase 结束重答对应题目,见 `docs/00-level-check/level-check.md`。
 - 说明:第一轮(Day 1–8)的旧文件已归档至 `archive/round-1/`,供对照参考。
@@ -21,3 +21,4 @@
 | Day 11 | Phase 1 / Week 2 | 自定义装饰器与元数据(AOP 闭环):门上的贴纸 + 会看贴纸的保安(`SetMetadata` / `Reflector.createDecorator`,`get` / `getAllAndOverride` / `getAllAndMerge`)+ 参数装饰器 = 前台自动填表员(`@RequestId()`)+ 组合装饰器 `applyDecorators`(`@AdminOnly()`)+ 默认上锁(`APP_GUARD` 全局保安 + `@Public()` 免检);实验:手写迷你 Reflector;nest-lab:RolesGuard、`DELETE /tasks/:id`、decorator-demo(就近覆盖 vs 合并、拼错 key 静默失效)、`npm run day11` | `docs/11-custom-decorators/Day 11 - 自定义装饰器与元数据:贴「免检」标签,保安按标签放行.html` + `src/11-custom-decorators/`(ex1、notes)+ `nest-lab/`(common/decorators、roles.guard、decorator-demo、`npm run day11`) | 待开始 |
 | Day 12 | Phase 1 / Week 2 | 服务端 TypeScript 实战:类型 ≠ 校验(菜单说明 vs 进货验货:`as` / `any` / `unknown`、类型守卫、discriminated union、zod 一份定义两用 `z.infer`)+ 类型安全的 env 配置 = 开店检查单(`@nestjs/config` + zod,fail fast、`z.coerce` / `z.stringbool`、生产禁用默认钥匙、`ConfigService<Env, true>`)+ 带类型的 DI token(工牌号上印岗位);nest-lab:钥匙改从配置读、`.env.example`、`npm run day12` 演示三种启动失败 | `docs/12-typescript-server/Day 12 - 服务端 TypeScript 实战:菜单上的说明不等于进货验过货.html` + `src/12-typescript-server/`(ex1、ex2、notes)+ `nest-lab/`(config/、typed-token、`npm run day12`) | 待开始 |
 | Day 13 | Phase 1 / Week 2 | 小实战:请求 ID 贯穿日志 = 每桌一张桌号牌(沿用或生成 `x-request-id`,回写响应头,写进日志和错误体)+ AsyncLocalStorage = 跟着这桌客人走的隐形桌号牌(手写 RequestContextService + 发牌 middleware + `ctxLog`,Service 深处不传参)+ 全局切面 DI 版 = 编制内员工(`APP_INTERCEPTOR` / `APP_FILTER` 可注入依赖)+ Week 2 能力总览表;实验:全局变量串号 vs ALS 不串号、5 个并发请求 45 行日志自动归组校验、单例字段串号反例 | `docs/13-request-context/Day 13 - 小实战:请求 ID 贯穿日志,给每桌客人一张隐形桌号牌.html` + `src/13-request-context/`(ex1、notes)+ `nest-lab/`(common/request-context、request-context-demo、`npm run day13`) | 待开始 |
+| Day 14 | Phase 1 / Week 2 | **复盘日(1.5h,不学新内容)**:画出「一个 POST /tasks 请求在 nest-lab 里的一生」,每站标注 Week 2 的 Day 与 Week 1 的底层机制(25 min)+ Day 8–13 六张概念卡闭卷默写(25 min)+ nest-lab self-review 8 条清单(15 min)+ 对照表挑 3 行改写成自己的话 + 自测 12 题(满分 24,低于 17 分重看;另 8 题选做) | `docs/14-week2-review/Day 14 - 复盘日:把 Week 2 的 NestJS 六天连成一个请求.html` + `src/14-week2-review/`(request-lifecycle / concept-cards / code-review / self-test 四份模板) | 待开始 |
