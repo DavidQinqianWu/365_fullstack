@@ -1,6 +1,8 @@
 import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { validateEnv } from './../src/config/env.schema.js';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { DemoKeyGuard } from './../src/common/demo-key.guard.js';
@@ -14,7 +16,8 @@ describe('自定义装饰器 (e2e)', () => {
   beforeAll(async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     const moduleRef = await Test.createTestingModule({
-      imports: [DecoratorDemoModule],
+      // Day 12:DemoKeyGuard 要 ConfigService;ignoreEnvFile 保证不读本机 .env
+      imports: [ConfigModule.forRoot({ isGlobal: true, validate: validateEnv, ignoreEnvFile: true }), DecoratorDemoModule],
       providers: [{ provide: APP_GUARD, useClass: DemoKeyGuard }], // 和 AppModule 一样挂上全局保安
     }).compile();
     app = moduleRef.createNestApplication();

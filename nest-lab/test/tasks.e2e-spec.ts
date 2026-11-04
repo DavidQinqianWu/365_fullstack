@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
@@ -116,5 +117,32 @@ describe('Tasks (e2e)', () => {
       .expect(200);
     expect(res.body.data).toEqual({ id: 1, title: '跑通 nest new', done: true, createdAt: FIXED });
     await request(app.getHttpServer()).get('/tasks/1').expect(404);
+  });
+});
+
+// ---------- Day 12:测试里覆盖配置 ----------
+describe('Tasks (e2e) · 覆盖配置', () => {
+  let app: INestApplication<App>;
+
+  beforeAll(async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
+      // 把整个 ConfigService 换成一个只认这几项配置的实例(Day 9 的 overrideProvider,换的是配置)
+      .overrideProvider(ConfigService)
+      .useValue(new ConfigService({ NODE_ENV: 'test', PORT: 0, DEMO_KEY: 'e2e-secret-key', LOG_REQUESTS: false }))
+      .compile();
+    app = moduleFixture.createNestApplication();
+    configureApp(app);
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+    vi.restoreAllMocks();
+  });
+
+  it('钥匙来自配置:默认的 let-me-in 不再好使,配置里的 e2e-secret-key 才行', async () => {
+    await request(app.getHttpServer()).post('/tasks').set('x-demo-key', 'let-me-in').send({ title: 'x' }).expect(403);
+    await request(app.getHttpServer()).post('/tasks').set('x-demo-key', 'e2e-secret-key').send({ title: 'x' }).expect(201);
   });
 });

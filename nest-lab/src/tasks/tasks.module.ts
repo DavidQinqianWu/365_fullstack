@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
+import { classProvider, valueProvider } from '../common/typed-token.js';
 import { InMemoryTasksRepository } from './in-memory-tasks.repository.js';
 import type { Task } from './task.js';
 import { TasksController } from './tasks.controller.js';
@@ -15,10 +16,12 @@ import { TasksService } from './tasks.service.js';
     TasksService,
 
     // useClass:要「仓储」时,用内存实现来造。Week 4 换 PostgreSQL 只改这一行。
-    { provide: TASKS_REPOSITORY, useClass: InMemoryTasksRepository },
+    // Day 12:用 classProvider 登记 —— 如果这个类不满足 TasksRepository,编译直接报错
+    classProvider(TASKS_REPOSITORY, InMemoryTasksRepository),
 
     // useValue:现成的对象直接放进去,不用造
-    { provide: CLOCK, useValue: systemClock },
+    // Day 12:valueProvider 会检查 systemClock 是不是一个 Clock
+    valueProvider(CLOCK, systemClock),
 
     // useFactory + inject:先把 CLOCK 造好传给工厂函数,再用它的返回值当 provider
     {

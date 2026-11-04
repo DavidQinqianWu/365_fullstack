@@ -43,7 +43,7 @@
 | DB 迁移 | Prisma Migrate | EF Core Migrations | Flyway / Liquibase | goose / migrate |
 | 认证授权 / 安全框架 | Passport + NestJS Guard、helmet | ASP.NET Core Identity + Authorization Policy、Data Protection | Spring Security | middleware + golang-jwt / casbin |
 | 输入校验 | zod / class-validator | DataAnnotations / FluentValidation | Bean Validation | validator |
-| 配置与环境 | dotenv + 类型安全 env | appsettings.json + Options 模式 | application.yml + @ConfigurationProperties | env / viper |
+| 配置与环境(类型安全 + 启动即校验) | `@nestjs/config` + zod `validate`(fail fast)、`ConfigService<Env, true>` | appsettings.json + Options 模式(`ValidateDataAnnotations().ValidateOnStart()`,不加则懒校验) | application.yml + `@ConfigurationProperties` + `@Validated` | envconfig / viper |
 | 结构化日志 | pino / winston | Serilog / ILogger | SLF4J + Logback | slog / zap |
 | 测试 | Vitest / Jest / supertest | xUnit + WebApplicationFactory | JUnit + MockMvc | testing + httptest |
 | API 文档 | OpenAPI/Swagger(语言无关标准) | Swashbuckle / Scalar | springdoc | swag |

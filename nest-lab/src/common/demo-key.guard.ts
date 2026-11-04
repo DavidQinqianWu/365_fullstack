@@ -1,17 +1,27 @@
 import { type CanActivate, type ExecutionContext, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
+import type { Env } from '../config/env.schema.js';
 import { IS_PUBLIC_KEY } from './decorators/public.decorator.js';
 
-// 门口保安(Day 10 版升级):现在是「全局默认要钥匙」,贴了 @Public() 的接口免检。
-// 在 AppModule 里用 APP_GUARD 注册(在 DI 容器里,所以能注入 Reflector)。
+// 门口保安:全局默认要钥匙,贴了 @Public() 的接口免检(Day 11)。
+// Day 12:钥匙不再写死在代码里,从配置 DEMO_KEY 读(开发 / 测试默认 'let-me-in',生产必须自己设)。
 // 真正的 JWT 鉴权在 Week 10。
 export const DEMO_KEY_HEADER = 'x-demo-key';
-export const DEMO_KEY = 'let-me-in';
 
 @Injectable()
 export class DemoKeyGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  private readonly demoKey: string;
+
+  constructor(
+    private readonly reflector: Reflector,
+    // ConfigService<Env, true>:第二个参数 true = 「已经校验过」,get() 的返回值不再带 undefined
+    config: ConfigService<Env, true>,
+  ) {
+    // infer: true → 返回类型从 Env 里推出来(这里是 string);key 拼错是编译错误
+    this.demoKey = config.get('DEMO_KEY', { infer: true });
+  }
 
   canActivate(context: ExecutionContext): boolean {
     const where = `${context.getClass().name}.${context.getHandler().name}`;
@@ -25,7 +35,7 @@ export class DemoKeyGuard implements CanActivate {
       return true;
     }
     const req = context.switchToHttp().getRequest<Request>();
-    const ok = req.headers[DEMO_KEY_HEADER] === DEMO_KEY;
+    const ok = req.headers[DEMO_KEY_HEADER] === this.demoKey;
     console.log(`  ②-1 Guard 保安查 ${DEMO_KEY_HEADER} → ${where}:${ok ? '放行' : '拦下'}`);
     return ok;
   }

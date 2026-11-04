@@ -1,5 +1,7 @@
 import { Controller, type ExecutionContext } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
+import type { Env } from '../config/env.schema.js';
 import { Public } from './decorators/public.decorator.js';
 import { DemoKeyGuard } from './demo-key.guard.js';
 
@@ -21,8 +23,10 @@ function contextWith(handler: () => void, headers: Record<string, string>): Exec
   } as unknown as ExecutionContext;
 }
 
-describe('DemoKeyGuard(Day 11:全局默认要钥匙,@Public() 免检)', () => {
-  const guard = new DemoKeyGuard(new Reflector()); // Reflector 不依赖任何东西,直接 new
+describe('DemoKeyGuard(Day 11:全局默认要钥匙,@Public() 免检;Day 12:钥匙来自配置)', () => {
+  // Reflector 不依赖任何东西,直接 new;ConfigService 也能直接 new,传进去的对象就是「配置」
+  const config = new ConfigService<Env, true>({ DEMO_KEY: 'unit-test-key' });
+  const guard = new DemoKeyGuard(new Reflector(), config);
 
   beforeEach(() => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -35,8 +39,12 @@ describe('DemoKeyGuard(Day 11:全局默认要钥匙,@Public() 免检)', () => {
     expect(guard.canActivate(contextWith(TasksController.prototype.open, {}))).toBe(true);
   });
 
-  it('没贴 @Public():带对的 x-demo-key → 放行', () => {
-    expect(guard.canActivate(contextWith(TasksController.prototype.create, { 'x-demo-key': 'let-me-in' }))).toBe(true);
+  it('没贴 @Public():带上配置里的钥匙 → 放行', () => {
+    expect(guard.canActivate(contextWith(TasksController.prototype.create, { 'x-demo-key': 'unit-test-key' }))).toBe(true);
+  });
+
+  it('钥匙以配置为准:代码里不再认写死的 let-me-in', () => {
+    expect(guard.canActivate(contextWith(TasksController.prototype.create, { 'x-demo-key': 'let-me-in' }))).toBe(false);
   });
 
   it('没贴 @Public():没带或带错 → 拦下', () => {
