@@ -31,15 +31,15 @@ describe('REST 语义 (e2e)', () => {
     const res = await request(app.getHttpServer()).post('/tasks').set(KEY).send({ title: '学 REST' }).expect(201);
     expect(res.headers.location).toBe('/tasks/3');
     const got = await request(app.getHttpServer()).get(res.headers.location).expect(200);
-    expect(got.body.data.title).toBe('学 REST');
+    expect(got.body.title).toBe('学 REST');
   });
 
   it('POST 不幂等:同一个请求发两次,建出两条', async () => {
     const server = app.getHttpServer();
     const a = await request(server).post('/tasks').set(KEY).send({ title: '买牛奶' }).expect(201);
     const b = await request(server).post('/tasks').set(KEY).send({ title: '买牛奶' }).expect(201);
-    expect(a.body.data.id).not.toBe(b.body.data.id);
-    expect((await request(server).get('/tasks')).body.data).toHaveLength(4);
+    expect(a.body.id).not.toBe(b.body.id);
+    expect((await request(server).get('/tasks')).body).toHaveLength(4);
   });
 
   it('PUT 是整体替换:缺字段 422(Day 16 起);完整表示 200;同一请求重复发结果不变(幂等)', async () => {
@@ -48,13 +48,13 @@ describe('REST 语义 (e2e)', () => {
     const body = { title: '整体替换', done: true };
     const first = await request(server).put('/tasks/2').set(KEY).send(body).expect(200);
     const second = await request(server).put('/tasks/2').set(KEY).send(body).expect(200);
-    expect(second.body.data).toEqual(first.body.data);
-    expect(first.body.data).toEqual({ id: 2, title: '整体替换', done: true, checklist: [], createdAt: FIXED });
+    expect(second.body).toEqual(first.body);
+    expect(first.body).toEqual({ id: 2, title: '整体替换', done: true, checklist: [], createdAt: FIXED });
   });
 
   it('PATCH 是部分更新:只给 done,标题不变', async () => {
     const res = await request(app.getHttpServer()).patch('/tasks/2').set(KEY).send({ done: true }).expect(200);
-    expect(res.body.data).toEqual({
+    expect(res.body).toEqual({
       id: 2,
       title: '看懂 Module / Controller / Provider',
       done: true,

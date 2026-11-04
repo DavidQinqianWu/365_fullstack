@@ -13,6 +13,7 @@ import { TimingInterceptor } from './common/timing.interceptor.js';
 import { validationPipeOptions } from './common/validation/validation.options.js';
 import { type Env, validateEnv } from './config/env.schema.js';
 import { TasksModule } from './tasks/tasks.module.js';
+import { UsersModule } from './users/users.module.js';
 
 // 根模块 = 总部:把各个部门(TasksModule……)登记进来,Nest 从这里开始顺藤摸瓜组装整个应用。
 // Day 13:全局店规全部搬进来(都在 DI 容器里,都能注入依赖;e2e / 脚本只要 imports AppModule 就自动生效)
@@ -22,6 +23,7 @@ import { TasksModule } from './tasks/tasks.module.js';
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     RequestContextModule, // Day 13:请求上下文(ALS)
     TasksModule,
+    UsersModule, // Day 18:演示响应 DTO 的 users 模块
   ],
   controllers: [AppController],
   providers: [

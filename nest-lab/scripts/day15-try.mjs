@@ -56,11 +56,12 @@ await call('PUT    /tasks/1 同一请求再发一次', 'PUT', '/tasks/1', { head
 await call('PUT    /tasks/999(不存在)', 'PUT', '/tasks/999', { headers: { ...KEY, ...JSON_BODY }, body: { title: 'x', done: false } });
 
 line('第 3 幕:POST 不幂等 —— 同一个请求发两次');
-const before = (await (await fetch(`${base}/tasks`)).json()).data.length;
+// Day 18 起成功响应不再包装 { data, timestamp },响应体就是资源本身
+const before = (await (await fetch(`${base}/tasks`)).json()).length;
 const a = await call('POST   /tasks {title:"买牛奶"} 第 1 次', 'POST', '/tasks', { headers: { ...KEY, ...JSON_BODY }, body: { title: '买牛奶' } });
 const b = await call('POST   /tasks {title:"买牛奶"} 第 2 次', 'POST', '/tasks', { headers: { ...KEY, ...JSON_BODY }, body: { title: '买牛奶' } });
-const after = (await (await fetch(`${base}/tasks`)).json()).data.length;
-out(`任务数:${before} → ${after};两次拿到的 id:${a.data.id} 和 ${b.data.id}(用户手一抖点了两下,就多了一条)`);
+const after = (await (await fetch(`${base}/tasks`)).json()).length;
+out(`任务数:${before} → ${after};两次拿到的 id:${a.id} 和 ${b.id}(用户手一抖点了两下,就多了一条)`);
 
 line('第 4 幕:405 / 406 / 415 / 400');
 await call('PATCH  /tasks(集合不支持 PATCH)', 'PATCH', '/tasks', { headers: KEY });

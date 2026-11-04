@@ -35,20 +35,23 @@ describe('Tasks (e2e)', () => {
     vi.restoreAllMocks();
   });
 
-  it('GET /tasks → 200 + { data: 任务数组, timestamp }', async () => {
+  it('GET /tasks → 200 + 任务数组本身(Day 18 起不再包装)', async () => {
     const res = await request(app.getHttpServer()).get('/tasks').expect(200);
     expect(res.headers['content-type']).toMatch(/application\/json/);
-    expect(res.body.data).toHaveLength(2);
-    expect(res.body.timestamp).toBe(FIXED);
+    expect(res.body).toHaveLength(2);
+    expect(res.body).not.toHaveProperty('timestamp');
   });
 
-  it('GET /tasks/1 → 200 + 包装后的单个任务', () => {
+  it('GET /tasks/1 → 200 + 任务本身(Day 18 起不再包装)', () => {
     return request(app.getHttpServer())
       .get('/tasks/1')
       .expect(200)
       .expect({
-        data: { id: 1, title: '跑通 nest new', done: true, checklist: [], createdAt: FIXED },
-        timestamp: FIXED,
+        id: 1,
+        title: '跑通 nest new',
+        done: true,
+        checklist: [],
+        createdAt: FIXED,
       });
   });
 
@@ -104,7 +107,7 @@ describe('Tasks (e2e)', () => {
       .set(KEY)
       .send({ title: '写 e2e 测试' })
       .expect(201);
-    expect(created.body.data).toEqual({ id: 3, title: '写 e2e 测试', done: false, checklist: [], createdAt: FIXED });
+    expect(created.body).toEqual({ id: 3, title: '写 e2e 测试', done: false, checklist: [], createdAt: FIXED });
 
     await request(app.getHttpServer()).get('/tasks/3').expect(200);
   });

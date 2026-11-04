@@ -1,7 +1,7 @@
 # 365 天全栈成长 · 进度记录
 
 - 计数方式:**只按 Day N 计数,不写具体日期**——不要求每天连续学习,完成一天才算一天,Day N 永远 = 已完成天数 + 1。
-- 当前进度:Day 5(进行中;Day 6–17 材料已备)
+- 当前进度:Day 5(进行中;Day 6–18 材料已备)
 - 时间标准:按 `roadmap.md` 每天 1.5 小时。注:另一仓库的路线图 v2(3 小时/天、Hetzner 部署、365 平台主线项目)在合并时被覆盖,已确认**以当前 `roadmap.md` 为准**;v2 原文可在提交 `8ac8470` 中查看,Day 6–7 讲义按 v2 节奏编写,使用时酌情删减。⚠️ `hetzner` 主机是公司测试环境(Coolify + Traefik),不要部署学习项目,需要服务器时另租独立 VPS。
 - 水平测试(Day 4 完成):**1 / 46**,全部 7 个领域从零起步,React/TS 深层知识为真实缺口。每个 Phase 结束重答对应题目,见 `docs/00-level-check/level-check.md`。
 - 说明:第一轮(Day 1–8)的旧文件已归档至 `archive/round-1/`,供对照参考。
@@ -25,3 +25,4 @@
 | Day 15 | Phase 1 / Week 3 | HTTP 语义与 REST 资源设计:菜单编号体系 = URI(集合 / 单个 / 子资源,动词不进 URI,命令型操作的取舍)+「再来一份」vs「换成这份」= 方法语义(安全 / 幂等、PUT vs PATCH、POST 不幂等)+ 回执单上的章 = 状态码与内容协商(201 + Location、204、400 vs 422、405 + Allow、409、406 / 415);nest-lab:补齐 PUT / PATCH、DELETE 204、409 规则、405 兜底路由、内容协商 middleware、`npm run day15` | `docs/15-http-rest/Day 15 - HTTP 语义与 REST 资源设计:菜单编号、点单动作和回执单上的章.html` + `src/15-http-rest/notes.md` + `nest-lab/`(tasks REST 改造、content-negotiation、`npm run day15`) | 待开始 |
 | Day 16 | Phase 1 / Week 3 | DTO 与输入校验:DTO = 进出口报关单(与内部 Task 分开、防批量赋值)+ ValidationPipe 海关三道工序(transform 誊写 → validate 核对含嵌套 checklist → whitelist + forbidNonWhitelisted 划掉多余栏目)+ 自定义 `@IsNotBlank` + `PickType` / `PartialType`(POST / PUT / PATCH 三种 DTO)+ 决定:校验失败统一 422、主线 class-validator(zod 版 `ZodValidationPipe` 保留对照,一致性测试 + 性能粗测);删除 Day 15 手写检查,补上 Day 8 的 `POST {}` 坑 | `docs/16-dto-validation/Day 16 - DTO 与输入校验:每个请求都要过一道海关.html` + `src/16-dto-validation/notes.md` + `nest-lab/`(tasks/dto、common/validation、`npm run day16`) | 待开始 |
 | Day 17 | Phase 1 / Week 3 | 统一错误格式 problem+json:所有分店用同一张投诉回执单(RFC 9457 五个字段 type / title / status / detail / instance、`about:blank`、扩展字段)+ 投诉类别编号表 = 错误类型目录(type URI 是对外契约,`nest-lab/docs/problems.md`)+ `exceptionFactory` 字段级 errors(JSON Pointer)+ 全部错误走同一个 filter(500 不泄露)+ 修复 JSON 语法错时 requestId 为 null(filter 兜底补发桌号);day17 对 12 种错误自动校验结构 | `docs/17-problem-json/Day 17 - 统一错误格式 problem+json:所有分店用同一张投诉回执单.html` + `src/17-problem-json/notes.md` + `nest-lab/`(common/problems、docs/problems.md、`npm run day17`) | 待开始 |
+| Day 18 | Phase 1 / Week 3 | 响应 DTO 与序列化:外卖盒里只装菜单上写了的东西(出口也要报关,过度暴露,响应是对外契约)+ 禁带清单 vs 装箱清单(`ClassSerializerInterceptor` + `@Exclude` / `@Expose` / `@Transform` / groups,只认 class 实例的坑)+ 决定:主线用显式映射函数 `toUserResponse` / `toTaskResponse`、成功响应去掉 `{data, timestamp}` 包装;新增 users 模块(passwordHash、两种视图);day18 自动判定新增敏感字段后谁泄露。⚠️ Day 10 的响应包装 interceptor 已在今天删除,学 Day 10 时请用 `git show d355c56` 查看当时的代码 | `docs/18-response-dto/Day 18 - 响应 DTO 与序列化:外卖盒里只装菜单上写了的东西.html` + `src/18-response-dto/notes.md` + `nest-lab/`(users 模块、tasks/dto/task-response、serialization-demo、`npm run day18`) | 待开始 |

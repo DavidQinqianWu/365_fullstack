@@ -52,16 +52,16 @@ describe('DTO 校验 (e2e)', () => {
 
   it('合法请求:@Transform 去掉了首尾空格,checklist 原样保存', async () => {
     const res = await post({ title: '  带清单  ', checklist: [{ text: '买菜', done: false }] }).expect(201);
-    expect(res.body.data).toMatchObject({ title: '带清单', done: false, checklist: [{ text: '买菜', done: false }] });
+    expect(res.body).toMatchObject({ title: '带清单', done: false, checklist: [{ text: '买菜', done: false }] });
   });
 
   it('PUT 不给 checklist = 清空;PATCH 不给 checklist = 保留', async () => {
     const server = app.getHttpServer();
     await post({ title: '带清单', checklist: [{ text: '买菜', done: false }] }).expect(201);
     const patched = await request(server).patch('/tasks/3').set(KEY).send({ done: true }).expect(200);
-    expect(patched.body.data.checklist).toHaveLength(1);
+    expect(patched.body.checklist).toHaveLength(1);
     const put = await request(server).put('/tasks/3').set(KEY).send({ title: '带清单', done: false }).expect(200);
-    expect(put.body.data.checklist).toEqual([]);
+    expect(put.body.checklist).toEqual([]);
   });
 
   it('业务规则不归 DTO 管:格式合法但违反规则 → 409(Service 抛)', () => {

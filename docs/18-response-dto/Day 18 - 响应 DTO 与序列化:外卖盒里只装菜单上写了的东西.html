@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 18 - 响应 DTO 与序列化:外卖盒里只装菜单上写了的东西</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 1 · WEEK 3</div>
+  <h1>Day 18 - 响应 DTO 与序列化:外卖盒里只装菜单上写了的东西</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>为什么不能直接返回内部对象 · <code>ClassSerializerInterceptor</code> + <code>@Exclude</code> / <code>@Expose</code> / <code>@Transform</code> / groups · 显式映射函数 · 成功响应要不要包装</b> ·
+    项目:<code>nest-lab/</code> 新增 <code>users</code> 模块(带 <code>passwordHash</code>);任务和用户都改成显式映射;<b>去掉 <code>{ data, timestamp }</code> 包装</b> ·
+    今天没有新依赖(<code>class-transformer</code> Day 16 已装)
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🥡 接上回:进口报了关,出口还没人管</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天 nest-lab 改了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:响应 DTO —— 出餐口的打包检查</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:黑名单 vs 白名单 —— 「禁带清单」和「装箱清单」</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:显式映射 + 去掉包装 —— nest-lab 的两个决定</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🥡 接上回:进口报了关,出口还没人管</h2>
+  <p>Day 16 给每个请求配了「进口报关单」(输入 DTO):客户端不能填 <code>id</code>、<code>createdAt</code>。但「出口」一直是这样写的:</p>
+  <pre><code>@Get(':id')
+findOne(@Param('id') id: number) {
+  return this.tasksService.findOne(id);   // 内部对象原样出门
+}</code></pre>
+  <p>任务现在的内部字段刚好都能给人看,所以一直没出事。可一旦内部模型多了一个敏感字段,问题就来了。今天给 nest-lab 加一个 <code>users</code> 模块,内部的 <code>User</code> 长这样:</p>
+  <pre><code>export interface User {
+  id: number;
+  email: string;
+  displayName: string;
+  role: 'user' | 'admin';
+  passwordHash: string;   // ❌ 绝对不能出门(scrypt 哈希,真正的密码存储 Week 10 / 20 再讲)
+  internalNote: string;   // ⚠️ 只给管理员看的内部备注
+  createdAt: Date;
+}</code></pre>
+  <p>如果照老习惯 <code>return user</code>,<code>passwordHash</code> 和 <code>internalNote</code> 就会原样出现在响应里。更隐蔽的是:<b>半年后有人往 User 里加了一个 <code>resetToken</code></b>(能重置密码的令牌),没人改 Controller,它也会自动出门。另一个问题是<b>响应结构被内部结构绑死</b>:后端把 <code>displayName</code> 改名成 <code>nickname</code>,所有前端页面立刻崩掉。</p>
+  <div class="story">
+    <span class="tag">💡 生活翻译:</span>
+    后厨里有半成品、内部配料单、员工写的备注(「这位客人上次投诉过」)。外卖打包时,<b>只能装菜单上写了的东西</b>;配料单和备注留在店里。VIP 客人的外卖盒里可以多一张会员卡,但普通客人的盒子里没有。出餐口站着一位<b>打包检查员</b>:盒子封口之前,照着清单检查一遍。
+  </div>
+  <p>今天还要解决 Day 17 留下的问题:<b>成功响应的 <code>{ data, timestamp }</code> 包装要不要保留?</b>分页、过滤、版本化是 Day 19,swagger 是 Day 20,今天都不碰。</p>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天 nest-lab 改了什么</h2>
+  <pre><code>cd nest-lab
+npm test             # 单元测试:toUserResponse 的视图与「新字段不泄露」
+npm run test:e2e     # e2e:新增 test/users.e2e-spec.ts(响应里绝不出现 password)
+npm run day18        # 观察脚本:四种装盒方式、新增敏感字段、两种视图、普通对象坑、去掉包装
+
+# 手动试:普通访客 vs 管理员视图
+curl -s localhost:3000/users/1
+curl -s localhost:3000/users/1 -H 'x-demo-role: admin'</code></pre>
+
+  <h3>📂 今天在 nest-lab 里新增 / 修改 / 删除了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>新增 / 修改 / 删除</th><th>干什么用(出餐口版)</th></tr>
+    <tr><td><code>src/users/user.ts</code></td><td>新增</td><td>内部模型 <code>User</code>(有 <code>passwordHash</code>、<code>internalNote</code>)</td></tr>
+    <tr><td><code>src/users/users.repository.ts</code>、<code>in-memory-users.repository.ts</code></td><td>新增</td><td>和 Day 9 一样的仓储接口 + 带类型的 token(Day 12)</td></tr>
+    <tr><td><code>src/users/password.ts</code></td><td>新增</td><td>用 <code>node:crypto</code> 的 <code>scrypt</code> 算哈希(只为造一个「绝对不能出门」的字段)</td></tr>
+    <tr><td><code>src/users/dto/create-user.dto.ts</code></td><td>新增</td><td>进口报关单:<code>email</code>(去空格、转小写)、<code>displayName</code>、明文 <code>password</code>、可选 <code>role</code></td></tr>
+    <tr><td><code>src/users/dto/user-response.ts</code></td><td>新增</td><td><b>出口报关单 + 显式映射</b>:<code>UserResponse</code> 接口、<code>toUserResponse(user, viewer)</code>、<code>maskEmail()</code></td></tr>
+    <tr><td><code>src/users/users.service.ts</code>、<code>users.controller.ts</code>、<code>users.module.ts</code></td><td>新增</td><td><code>GET /users</code>、<code>GET /users/:id</code>(公开)、<code>POST /users</code>(要钥匙,201 + Location);样品用户用异步 <code>useFactory</code> 预先算好哈希</td></tr>
+    <tr><td><code>src/tasks/dto/task-response.ts</code></td><td>新增</td><td>任务的出口报关单 <code>toTaskResponse()</code></td></tr>
+    <tr><td><code>src/tasks/tasks.controller.ts</code></td><td>修改</td><td>每个方法返回 <code>toTaskResponse(...)</code>;去掉 <code>@UseInterceptors(WrapResponseInterceptor)</code></td></tr>
+    <tr><td><code>src/common/wrap-response.interceptor.ts</code> 及其 spec</td><td><b>删除</b></td><td>Day 10 的包装 interceptor,今天决定不再包装(想回顾它,看 Day 10 的提交)</td></tr>
+    <tr><td><code>src/app.module.ts</code></td><td>修改</td><td>导入 <code>UsersModule</code></td></tr>
+    <tr><td><code>src/serialization-demo/</code>(3 个文件)</td><td>新增</td><td>对照组:<code>ClassSerializerInterceptor</code> + 黑名单 / 白名单实体类、groups、返回普通对象的坑;不挂进 AppModule</td></tr>
+    <tr><td><code>src/users/dto/user-response.spec.ts</code>、<code>test/users.e2e-spec.ts</code></td><td>新增</td><td>映射函数单测;「响应里绝不出现 password」等 e2e</td></tr>
+    <tr><td><code>test/tasks.e2e-spec.ts</code>、<code>test/rest.e2e-spec.ts</code>、<code>test/validation.e2e-spec.ts</code></td><td>修改</td><td><code>.body.data</code> 改成 <code>.body</code>(去掉包装)</td></tr>
+    <tr><td><code>scripts/day15-try.mjs</code>、<code>scripts/day16-try.mjs</code></td><td>修改(小)</td><td>读响应时不再取 <code>.data</code></td></tr>
+    <tr><td><code>scripts/day18-try.mjs</code> + <code>package.json</code> 的 <code>day18</code>、<code>README.md</code></td><td>新增 / 修改</td><td>观察脚本;README 加「响应格式」一节和成长日志</td></tr>
+  </table>
+  <p>(<code>npm run day08</code>–<code>day17</code> 都照样能跑。变化:所有成功响应不再有 <code>data</code> / <code>timestamp</code> 外壳;Day 10 观察脚本里「⑤-1 Interceptor(后) 包装成 { data, timestamp }」那一行没有了,计时那一行还在。)</p>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:响应 DTO —— 出餐口的打包检查</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    Controller 不直接返回内部对象,而是返回一份专门的「出口报关单」(响应 DTO):<b>只列出允许给外面看的字段</b>,以及它们对外的格式。
+  </div>
+
+  <h3>② 生活类比:出餐口的打包检查</h3>
+  <p>后厨的盘子(内部对象)上什么都有;外卖盒(响应体)里只放菜单上写了的东西。打包员按清单装盒,检查员封口前再核对一遍。菜单(响应 DTO)印出去以后,顾客就按它点餐,所以<b>菜单上的菜名不能说改就改</b>。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th><th>nest-lab 里</th></tr>
+    <tr><td>后厨盘子里的全部东西</td><td>内部模型 / Entity</td><td><code>User</code>、<code>Task</code></td></tr>
+    <tr><td>外卖盒</td><td>HTTP 响应体</td><td>JSON</td></tr>
+    <tr><td>菜单上写了的东西</td><td><b>响应 DTO</b></td><td><code>UserResponse</code>、<code>TaskResponse</code></td></tr>
+    <tr><td>按清单装盒</td><td><b>序列化</b>(把内部对象变成对外的表示)</td><td><code>toUserResponse()</code>、<code>toTaskResponse()</code></td></tr>
+    <tr><td>VIP 盒子多一张会员卡</td><td>同一资源的不同<b>视图</b></td><td>admin 视图多 <code>internalNote</code>、email 不打码</td></tr>
+    <tr><td>装盒前的加工(切块、去骨)</td><td>格式化</td><td><code>Date</code> → ISO 字符串、email 打码</td></tr>
+  </table>
+
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    前端常有的想法是「接口返回什么,我就渲染什么;页面上没显示 <code>passwordHash</code>,就不算泄露」。可是浏览器 DevTools 的 Network 面板里,<b>整个 JSON 一览无余</b>,任何用户都能看到。页面不渲染不等于不泄露,必须在<b>后端出门之前</b>就拿掉。GraphQL 让客户端「只查需要的字段」,但那只是省流量;服务端照样要对每个字段做权限控制,否则客户端多写一个字段名就查到了。
+  </div>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「检查员会看是谁来取外卖」——不会,他只管盒子里装什么。</b>序列化决定「出门的样子」,不决定「谁有资格拿」。今天 admin 视图靠请求头 <code>x-demo-role</code> 判断,而这个头<b>谁都能伪造</b>:任何人带上 <code>x-demo-role: admin</code> 就能看到 <code>internalNote</code>。「谁能看」是 guard / 认证的事(Day 11、Week 10 的 JWT),序列化只能在「已经确认身份」之后选择视图。</li>
+      <li><b>「外卖盒检查过了,就不会泄露」——响应体只是其中一个出口。</b>日志、错误详情、消息队列、缓存、导出文件,都可能把内部对象原样带出去。Day 17 的观察脚本里,数据库密码就出现在了日志里。今天的 <code>UsersService.create</code> 只记 <code>email</code>,不记整个 <code>dto</code>(里面有明文密码),也不记 <code>passwordHash</code>。</li>
+      <li><b>「菜单换个菜名无所谓」——响应 DTO 是对外契约。</b>字段只能<b>增加</b>,不能悄悄删除或改名:前端、移动端、第三方集成都按它解析。确实要改,就走版本化(Day 19),或者新旧字段并存一段时间、先标记弃用。所以响应 DTO 和内部模型要分开:内部改名不该波及外部。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>response DTO / view model</b>(响应 DTO / 视图模型);<b>serialization</b>(序列化:内部对象 → 对外表示);<b>excessive data exposure</b>(过度数据暴露,OWASP API Security Top 10 的 <i>API3:2023 Broken Object Property Level Authorization</i> 的一半,另一半是 Day 16 的批量赋值);<b>projection</b>(投影:只取需要的字段)。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:同一个用户(Alice,id=1)用四种方式出门:A 直接返回内部对象、B 黑名单、C 白名单、D 显式映射(主线的 <code>GET /users/1</code>)。各自会带出哪些不该出门的字段?</p>
+  <pre><code>cd nest-lab
+npm run day18</code></pre>
+  <p>真实运行结果(第 1 幕):</p>
+  <pre><code>========== 第 1 幕:同一个用户(id=1)经过 HTTP 出门的样子 ==========
+A. 直接 return 内部对象
+    字段:id, email, displayName, role, passwordHash, internalNote, createdAt
+    带出了不该出门的:passwordHash, internalNote
+B. 黑名单(class 实例 + @Exclude)
+    字段:id, email, displayName, role, internalNote, createdAt
+    带出了不该出门的:internalNote
+C. 白名单(excludeAll + @Expose)
+    字段:id, email, displayName, role, createdAt
+    带出了不该出门的:(没有)
+D. 显式映射 toUserResponse(主线:GET /users/1)
+    字段:id, email, displayName, role, createdAt
+    带出了不该出门的:(没有)</code></pre>
+  <p>B 只记得把 <code>passwordHash</code> 列进「禁带清单」,忘了 <code>internalNote</code> —— 这正是下一张卡要讲的黑名单的通病。</p>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:黑名单 vs 白名单 —— 「禁带清单」和「装箱清单」</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    Nest 自带的做法是在类的属性上贴 class-transformer 的装饰器,由 <code>ClassSerializerInterceptor</code> 在出门前统一转换。贴法有两种:<b>黑名单</b>(默认都出门,<code>@Exclude</code> 的不出)和<b>白名单</b>(默认都不出门,<code>@Expose</code> 的才出)。<b>应该用白名单。</b>
+  </div>
+
+  <h3>② 生活类比:「禁带清单」和「装箱清单」</h3>
+  <p>黑名单是贴在出餐口的「<b>禁止装盒:配料单</b>」。后厨哪天新添了一样不该带走的东西(比如一张写着顾客地址的便签),禁带清单上没有,检查员就照装不误。白名单是一张「<b>装箱清单:米饭、主菜、汤、筷子</b>」,清单上没写的一律不装,后厨新添什么都不会被误装。</p>
+  <pre><code>// src/serialization-demo/user-entities.ts
+// ① 黑名单:默认全部出门
+export class UserBlacklistEntity {
+  @Exclude() passwordHash!: string;          // 只点名拦这一个
+  internalNote!: string;                       // 忘了拦 → 出门
+  constructor(user: User) { Object.assign(this, user); }
+}
+
+// ② 白名单:配合 strategy: 'excludeAll',只有 @Expose 的出门
+export class UserWhitelistEntity {
+  @Expose() id!: number;
+  @Expose()
+  @Transform(({ value, options }) =&gt; (options.groups?.includes('admin') ? value : maskEmail(String(value))))
+  email!: string;                               // @Transform:出门前格式化(非 admin 打码)
+  passwordHash!: string;                        // 没有 @Expose → 不出门
+  @Expose({ groups: ['admin'] }) internalNote!: string;   // groups:只有 admin 视图才出门
+  @Expose() @Transform(({ value }) =&gt; (value instanceof Date ? value.toISOString() : value)) createdAt!: Date;
+  // …
+}
+
+// Controller
+@UseInterceptors(ClassSerializerInterceptor)
+@SerializeOptions({ strategy: 'excludeAll', groups: ['admin'] })
+@Get('whitelist-admin')
+whitelistAdmin() { return new UserWhitelistEntity(this.users.findOne(1)); }   // 必须 new 出 class 实例</code></pre>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实组件</th></tr>
+    <tr><td>出餐口的检查员</td><td><code>ClassSerializerInterceptor</code>(Day 10 的 interceptor 回程:<code>map</code> 里调用 <code>instanceToPlain</code>)</td></tr>
+    <tr><td>禁带清单</td><td><code>@Exclude()</code>(默认 <code>exposeAll</code> 策略)</td></tr>
+    <tr><td>装箱清单</td><td><code>@Expose()</code> + <code>@SerializeOptions({ strategy: 'excludeAll' })</code></td></tr>
+    <tr><td>装盒前的加工</td><td><code>@Transform()</code>(在序列化方向上执行)</td></tr>
+    <tr><td>VIP 盒子的会员卡</td><td><code>@Expose({ groups: ['admin'] })</code> + 序列化时带 <code>groups</code></td></tr>
+    <tr><td>检查员按哪张清单查</td><td>返回值的 <b>class</b>:装饰器的元数据挂在类上(Day 11)</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「检查员会检查所有出门的盒子」——他只认得 class 实例。</b>装饰器贴在类上,如果你返回的是<b>普通对象</b>(比如手滑写了 <code>{ ...entity }</code>,或者直接返回仓储查出来的普通对象),检查员找不到任何清单。结果是两个方向的失败:黑名单版<b>全部出门</b>(<code>passwordHash</code> 泄露),白名单版<b>什么都不出门</b>(返回 <code>{}</code>)。修法是 <code>@SerializeOptions({ type: UserWhitelistEntity })</code>,告诉检查员「把普通对象当成这个类来查」(第 4 幕实测)。</li>
+      <li><b>「禁带清单写全就安全」——写全的只是<u>今天</u>的字段。</b>黑名单的安全取决于每个新增字段都被人记得加上 <code>@Exclude</code>;忘一次就泄露一次,而且没有任何报错(第 2 幕的 <code>resetToken</code>)。白名单把默认值反过来:忘了加 <code>@Expose</code>,后果只是「前端少了一个字段」,发现后补上就行。和 Day 11 的「默认上锁」是同一个思路:<b>出错时宁可少给,不可多给</b>。</li>
+      <li><b>「VIP 会员卡的规则写在清单上,一目了然」——规则分散在一堆装饰器里。</b>groups 是字符串,拼错一个(<code>'admim'</code>)不会报错,只会静默失效(Day 11 拼错元数据 key 的老问题);<code>@Transform</code> 里还要从 <code>options.groups</code> 判断视图。规则一多,就要在类、装饰器、Controller 的 <code>@SerializeOptions</code> 三处来回看。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <code>ClassSerializerInterceptor</code>、<code>@SerializeOptions()</code>(<code>strategy</code>、<code>groups</code>、<code>type</code>);class-transformer 的 <code>instanceToPlain</code>、<code>@Exclude</code> / <code>@Expose</code> / <code>@Transform</code>、<code>strategy: 'excludeAll' | 'exposeAll'</code>、<code>excludeExtraneousValues</code>(<code>plainToInstance</code> 方向上的白名单开关);<b>allowlist vs denylist</b>(白名单 / 黑名单,安全领域通用原则:默认拒绝)。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:① 内部模型新增一个敏感字段 <code>resetToken</code>,四种方式各自会不会泄露?② 白名单的 groups 和显式映射,对普通访客和管理员分别给出什么?③ 黑名单和白名单都返回普通对象 <code>{ ...实例 }</code> 时,各出门几个字段?</p>
+  <p>真实运行结果(第 2、3、4 幕):</p>
+  <pre><code>========== 第 2 幕:内部模型新增敏感字段 resetToken 后,谁会泄露? ==========
+❌ 直接返回内部对象                       泄露了 passwordHash, resetToken, internalNote
+❌ 黑名单 @Exclude(passwordHash)     泄露了 resetToken, internalNote
+✅ 白名单 excludeAll + @Expose       没有泄露
+✅ 显式映射 toUserResponse            没有泄露
+
+========== 第 3 幕:同一个资源,不同视图(groups / 显式映射里的 if) ==========
+白名单 groups: []         → email=a***@example.com  internalNote=(没有)
+白名单 groups: ["admin"]  → email=alice@example.com  internalNote=创始成员,负责审批
+显式映射 普通访客         → email=a***@example.com  internalNote=(没有)
+显式映射 x-demo-role: admin → email=alice@example.com  internalNote=创始成员,负责审批
+
+========== 第 4 幕:返回普通对象时,打包检查员看不见装饰器 ==========
+黑名单 class 实例           → 字段数 6,❌ 带出了 internalNote
+黑名单 但返回了 {...实例}   → 字段数 7,❌ 带出了 passwordHash, internalNote
+白名单 class 实例           → 字段数 5
+白名单 但返回了 {...实例}   → 字段数 0(什么都没出门)
+白名单 普通对象 + @SerializeOptions({ type }) → 字段数 5</code></pre>
+  <p>第 2 幕是今天最重要的一张表:<b>黑名单和直接返回,都在新字段出现的那一刻就泄露了</b>,而且没有人改过一行 Controller。第 4 幕的 <code>{ ...实例 }</code> 在真实代码里很常见,比如 <code>return { ...task, extra: 1 }</code>,一个展开运算符就让检查员失明。</p>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:显式映射 + 去掉包装 —— nest-lab 的两个决定</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    写一个普通函数 <code>toUserResponse(user, viewer)</code>,<b>一个字段一个字段地</b>拼出响应对象;没写进去的字段不可能出门。另外,成功响应不再包一层 <code>{ data, timestamp }</code>,资源本身就是响应体。
+  </div>
+
+  <h3>② 生活类比:打包员照着装箱单亲手装盒</h3>
+  <p>与其请一位检查员对着各种贴纸检查(装饰器),不如让打包员<b>拿着装箱单,一样一样亲手放进盒子</b>:米饭、主菜、汤。VIP 就多放一张会员卡(一个 <code>if</code>)。盒子也不再套一层「外包装袋」写着「这是您的外卖 + 打包时间」:顾客拿到的就是饭盒本身,打包时间印在小票上(响应头)。</p>
+  <pre><code>// src/users/dto/user-response.ts —— 主线做法
+export interface UserResponse {
+  id: number; email: string; displayName: string; role: UserRole; createdAt: string;
+  internalNote?: string;            // 只有 admin 视图有
+}
+
+export function toUserResponse(user: User, viewer: Viewer): UserResponse {
+  const base: UserResponse = {
+    id: user.id,
+    email: viewer === 'admin' ? user.email : maskEmail(user.email),
+    displayName: user.displayName,
+    role: user.role,
+    createdAt: user.createdAt.toISOString(),
+  };
+  return viewer === 'admin' ? { ...base, internalNote: user.internalNote } : base;   // 视图差异就是一个 if
+}
+
+// Controller:永远只返回映射后的结果
+@Public() @Get(':id')
+findOne(@Param('id', TracedParseIntPipe) id: number, @Headers('x-demo-role') role?: string): UserResponse {
+  return toUserResponse(this.users.findOne(id), viewerOf(role));
+}</code></pre>
+
+  <h3>比喻 ↔ 真实 对照:两种做法怎么选</h3>
+  <table>
+    <tr><th>维度</th><th>显式映射函数(主线)</th><th><code>ClassSerializerInterceptor</code> 白名单(对照)</th></tr>
+    <tr><td>默认安全吗</td><td>✅ 天然白名单:没写的字段不会出现</td><td>✅ 要记得开 <code>excludeAll</code>(默认是黑名单)</td></tr>
+    <tr><td>依赖 class 实例吗</td><td>不依赖,输入是什么都行</td><td><b>依赖</b>:返回普通对象就失效(第 4 幕)</td></tr>
+    <tr><td>视图差异</td><td>普通的 <code>if</code>,类型检查得到</td><td><code>groups</code> 字符串,拼错静默失效</td></tr>
+    <tr><td>能不能单测</td><td>纯函数,直接测(<code>user-response.spec.ts</code>)</td><td>要走 interceptor 或手动 <code>instanceToPlain</code></td></tr>
+    <tr><td>样板代码</td><td>多:每个字段写一行</td><td>少:贴装饰器</td></tr>
+    <tr><td>和 swagger(Day 20)</td><td>需要给响应类型写一个带 <code>@ApiProperty</code> 的类(只用来写文档)</td><td>同一个类既管序列化也管文档</td></tr>
+  </table>
+  <p><b>决定 1:主线用显式映射,<code>ClassSerializerInterceptor</code> 保留在 <code>src/serialization-demo/</code> 做对照。</b>理由:它天然是白名单,不依赖「返回值必须是 class 实例」这个容易被一个展开运算符打破的前提;视图差异是普通代码,读一个函数就知道出门的完整样子;纯函数好测。代价是样板代码多一点,以及 Day 20 要为文档另写响应类。这也和 .NET 的「返回 record DTO + 手动映射 / Mapster」、Java 的 MapStruct 是同一个思路。</p>
+  <p><b>决定 2:去掉 <code>{ data, timestamp }</code> 包装,资源本身就是响应体。</b>理由:</p>
+  <ul>
+    <li><b>HTTP 已经有放元信息的地方</b>:状态码说成功还是失败,响应头里已经有 <code>Date</code>(服务器时间)、<code>X-Response-Time</code>、<code>x-request-id</code>、<code>Location</code>,不需要在 body 里再包一层 <code>timestamp</code>。</li>
+    <li><b>成功和失败本来就分得开</b>:Day 17 起错误是 <code>application/problem+json</code>,成功是 <code>application/json</code>,再加上状态码,客户端不需要靠「有没有 <code>data</code> 字段」判断。</li>
+    <li><b>调用方和文档都更简单</b>:<code>const task = await res.json()</code> 直接用;Day 20 的 OpenAPI 里响应 schema 就是 <code>TaskResponse</code>,不用为每个接口再套一层泛型外壳。</li>
+    <li><b>集合响应留到 Day 19</b>:分页时响应会变成类似 <code>{ items: [...], nextCursor: "…" }</code> 的结构,那是「一页任务」这个资源本身的表示,有明确的语义,不是一个通用的外壳。</li>
+  </ul>
+  <p>代价:这是一次<b>破坏性变更</b>,所有调用方都要从 <code>.data</code> 改成直接读(今天 nest-lab 里改了 3 个测试文件和 2 个脚本)。nest-lab 目前没有外部调用方,所以可以直接改;真实 API 要走版本化或提前通知。</p>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「写了返回类型 <code>TaskResponse</code>,编译器就会拦住多出来的字段」——拦不住。</b>TypeScript 是<b>结构类型</b>:一个对象只要<b>包含</b>目标类型要求的字段就算合格,多出来的字段(非字面量时)不报错。我实测了一下:把带着 <code>deletedAt</code>、<code>ownerToken</code> 的任务直接当成 <code>TaskResponse</code> 返回,<code>tsc</code> 一声不吭;<code>User</code> 当成 <code>UserResponse</code> 返回时报错了,但报错的原因是 <code>createdAt</code> 一个是 <code>Date</code>、一个是 <code>string</code>,<b>纯属碰巧</b>。所以映射函数必须<b>新建一个对象字面量</b>,不能 <code>return task</code>。</li>
+      <li><b>「有了映射函数,就不会漏」——新接口可能忘了调用它。</b>某天有人新写了一个 <code>GET /users/me</code>,顺手 <code>return this.users.findOne(id)</code>,前面的一切都白费。兜底靠测试:<code>users.e2e-spec.ts</code> 对每个用户接口、每种视图都断言「响应文本里不出现 <code>password</code>」。</li>
+      <li><b>「去掉外包装袋只是换个样子」——它会打断所有已经按旧格式写好的客户端。</b>今天所有 <code>.body.data</code> 都要改。真实项目里,这类变化要和 Day 19 的版本化一起规划,而不是某天悄悄上线。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>mapper / mapping function</b>(映射函数,手写或用 AutoMapper、MapStruct 这类工具生成);<b>structural typing</b>(结构类型)与 <b>excess property check</b>(多余属性检查,只对对象字面量生效);<b>envelope</b>(响应外壳:<code>{ data, meta }</code> 这类包装,JSON:API 等规范会用;nest-lab 选择不用);<b>breaking change</b>(破坏性变更)。
+  </div>
+
+  <p><b>⑤ 动手验证:</b>✍️ <b>预测(先写再运行)</b>:去掉包装后 <code>GET /tasks/1</code> 的响应体长什么样?「打包时间」还能在哪里找到?<code>POST /users</code> 发 <code>email: " Carol@Example.com "</code>,响应里的 email 是什么、有没有 password 相关字段?</p>
+  <p>真实运行结果(第 5 幕;时间每次不同):</p>
+  <pre><code>========== 第 5 幕:Day 18 起成功响应不再包装 ==========
+GET /tasks/1 → 200  Content-Type: application/json; charset=utf-8  Date: Wed, 04 Nov 2026 11:27:20 GMT
+  {"id":1,"title":"跑通 nest new","done":true,"checklist":[],"createdAt":"2026-11-04T11:27:19.936Z"}
+POST /users → 201  Location: /users/3
+  {"id":3,"email":"c***@example.com","displayName":"Carol","role":"user","createdAt":"2026-11-04T11:27:20.228Z"}
+  响应里出现了 password / passwordHash 吗?✅ 没有</code></pre>
+  <p>(<code>POST /users</code> 没带 <code>x-demo-role: admin</code>,所以返回的是普通视图,email 打了码;带上 admin 就能看到规范化后的 <code>carol@example.com</code>,<code>users.e2e-spec.ts</code> 里有这个用例。)</p>
+  <p>结构类型那个坑,我用一个临时文件实测(测完已删除),<code>npx tsc --noEmit -p tsconfig.json</code> 的真实输出只有一条报错,而且是第 7 行:</p>
+  <pre><code>// 临时文件 src/zz-tmp.ts
+type TaskWithSecret = Task &amp; { deletedAt: string; ownerToken: string };
+export const a = (t: TaskWithSecret): TaskResponse =&gt; t;   // 第 6 行:没有报错!
+export const b = (u: User): UserResponse =&gt; u;              // 第 7 行
+
+src/zz-tmp.ts(7,45): error TS2322: Type 'User' is not assignable to type 'UserResponse'.
+  Types of property 'createdAt' are incompatible.
+    Type 'Date' is not assignable to type 'string'.</code></pre>
+  <p>测试的真实结果:<code>npm test</code> 37 个通过(含 <code>user-response.spec.ts</code> 4 个),<code>npm run test:e2e</code> 62 个通过(含新增的 <code>users.e2e-spec.ts</code> 9 个用例)。</p>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <p>「不要直接返回实体」是所有后端生态的共识;差别只在于用黑名单注解、视图注解,还是专门的 DTO + 映射:</p>
+  <table>
+    <tr><th>命题</th><th>NestJS(教具)</th><th>C# / ASP.NET Core</th><th>Java / Spring Boot</th><th>Go</th></tr>
+    <tr>
+      <td>黑名单(某字段不出门)</td>
+      <td><code>@Exclude()</code></td>
+      <td><code>[JsonIgnore]</code></td>
+      <td><code>@JsonIgnore</code>(Jackson)</td>
+      <td>结构体 tag <code>json:"-"</code></td>
+    </tr>
+    <tr>
+      <td>白名单 / 专门的响应类型</td>
+      <td><code>@Expose()</code> + <code>excludeAll</code>;或响应接口 + 映射函数(nest-lab 主线)</td>
+      <td><b>专门的 Response DTO / <code>record</code></b>(最常见的做法,不直接返回 EF 实体)</td>
+      <td>专门的响应 DTO / <code>record</code></td>
+      <td><b>专门的响应结构体</b>(Go 的惯用法)</td>
+    </tr>
+    <tr>
+      <td>同一资源不同视图</td>
+      <td><code>groups</code>;或映射函数里的 <code>if</code></td>
+      <td>不同的 DTO 类型(System.Text.Json 没有视图概念)</td>
+      <td><b><code>@JsonView(Views.Admin.class)</code></b>(和 groups 一一对应)</td>
+      <td>不同的结构体</td>
+    </tr>
+    <tr>
+      <td>映射工具</td>
+      <td>手写函数</td>
+      <td><b>AutoMapper</b> / <b>Mapster</b>,或手写扩展方法 <code>user.ToResponse()</code></td>
+      <td><b>MapStruct</b>(编译期生成映射代码)</td>
+      <td>手写(结构体字面量,编译器检查字段名)</td>
+    </tr>
+    <tr>
+      <td>成功响应外壳</td>
+      <td>nest-lab 不包装</td>
+      <td>默认不包装(<code>Ok(dto)</code>)</td>
+      <td>默认不包装(<code>ResponseEntity.ok(dto)</code>)</td>
+      <td>不包装</td>
+    </tr>
+  </table>
+  <p>📌 roadmap 顶部对照表建议你在 Day 21 复盘时补一行<b>「响应序列化 / 防过度暴露」</b>(显式映射 / <code>@Expose</code> ↔ Response DTO + Mapster / <code>[JsonIgnore]</code> ↔ MapStruct / <code>@JsonView</code> ↔ 响应结构体 / <code>json:"-"</code>)。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"How do you make sure sensitive fields like password hashes never leak through your API?"</b>(或者 .NET 面试:「为什么不直接返回 EF 实体?」)你可以答:<br>
+    <b>"我不直接返回内部模型或数据库实体,而是为每个资源定义响应 DTO,用映射函数一个字段一个字段地构造响应,这天然是白名单:内部模型以后新增的字段,包括敏感字段,不会自动出现在响应里。如果用 Nest 的 ClassSerializerInterceptor,我会选默认排除、显式 @Expose 的白名单策略,而不是 @Exclude 黑名单,因为黑名单在新字段出现时会悄悄泄露;同时要注意它只对类实例生效,返回普通对象时装饰器不起作用。同一个资源对不同角色返回不同字段时,用 groups 或者在映射函数里按角色分支,但前提是角色来自已经认证过的身份。另外,响应 DTO 是对外契约,字段只增不减,改名要走版本化;测试里我会断言响应文本中绝不出现 passwordHash 这类字段,日志里也同样不记录它们。这和 ASP.NET Core 返回专门的 DTO 加 Mapster、Spring 的 MapStruct 或 @JsonView 是一个思路。"</b><br>
+    自己练一遍:合上文档 45 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+  <p>预测都写进 <code>src/18-response-dto/notes.md</code> 的预测区,先写,再运行,再批改。</p>
+
+  <div class="task">
+    <h3>习题 1:四种装盒方式(动手,约 8 min)</h3>
+    <p>✍️ <b>预测(先写再运行)</b>:观察脚本第 1–4 幕每一行的结果(带出了哪些字段、字段数)。然后:</p>
+    <pre><code>cd nest-lab
+npm run day18</code></pre>
+    <p>逐行批改。特别想清楚第 4 幕:为什么同样是「返回普通对象」,黑名单版是多出门,白名单版是全都不出门?</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:后厨新添了一样东西(动手,约 10 min)</h3>
+    <p>给内部模型 <code>User</code> 加一个字段 <code>lastLoginIp: string</code>(样品数据里随便填一个 IP)。</p>
+    <ol>
+      <li>✍️ <b>预测</b>:不改任何映射、实体类,<code>GET /users/1</code>、<code>/serialization-demo/raw</code>、<code>/serialization-demo/blacklist</code>、<code>/serialization-demo/whitelist</code> 四个接口,哪几个会带出 <code>lastLoginIp</code>?运行验证。</li>
+      <li>需求变了:管理员视图要能看到 <code>lastLoginIp</code>。在 <code>toUserResponse</code> 里加上,并在 <code>user-response.spec.ts</code> 里补一个断言(普通视图没有、admin 视图有)。</li>
+      <li>做完后把 <code>lastLoginIp</code> 相关改动全部撤回(今天不保留),跑 <code>npm test</code> 和 <code>npm run test:e2e</code> 确认全绿。</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:三个「看起来没问题」的写法(思考,约 7 min)</h3>
+    <ol>
+      <li>有人写了 <code>findOne(...): TaskResponse { const task = this.tasksService.findOne(id); return task; }</code>,编译通过、测试也过了。它有什么隐患?为什么 TypeScript 没拦住?</li>
+      <li>有人为了「方便调试」,在 <code>UsersService.create</code> 里加了一行 <code>ctxLog(JSON.stringify(dto))</code>。会出什么事?</li>
+      <li>前端同事说:「去掉 <code>{ data, timestamp }</code> 以后我拿不到服务器时间了。」你会怎么回答?(提示:看一眼第 5 幕的响应头。)</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/18-response-dto/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事说:「接口返回什么我就渲染什么,页面上又没显示 <code>passwordHash</code>,有什么关系?GraphQL 不是只查需要的字段吗?」用外卖打包的比喻讲清楚,并说出这个比喻在哪里会骗人。</li>
+      <li>黑名单和白名单有什么区别?为什么新增一个敏感字段时黑名单会泄露?<code>ClassSerializerInterceptor</code> 遇到普通对象会怎样?</li>
+      <li>nest-lab 为什么主线选显式映射而不是 <code>ClassSerializerInterceptor</code>?为什么去掉了 <code>{ data, timestamp }</code> 包装?去掉它的代价是什么?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里补上你自己做的改动;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>进口要报关,出口也要</b>:Controller 不直接返回内部对象,而是返回响应 DTO;响应 DTO 是对外契约,字段只增不减,改名走版本化。</li>
+    <li><b>用白名单,不用黑名单</b>:黑名单在新字段出现时会自动泄露;白名单出错时只是少给一个字段。<code>ClassSerializerInterceptor</code> 只认 class 实例,返回普通对象时黑名单全漏、白名单全空。</li>
+    <li><b>nest-lab 主线是显式映射函数</b>:天然白名单、不依赖 class 实例、视图差异就是一个 <code>if</code>、纯函数好测;TypeScript 的结构类型拦不住多余字段,所以映射函数必须新建对象。</li>
+    <li><b>成功响应不再包装</b>:资源本身就是响应体,元信息在状态码和响应头里;错误是 problem+json;集合的结构由 Day 19 的分页决定。序列化只管出门的样子,不管谁能看;日志等其他出口同样要防泄露。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>不看代码,写出 <code>toUserResponse</code> 的完整实现(含 admin 视图和 email 打码)</li>
+    <li>第 2 幕里哪两种方式泄露了 <code>resetToken</code>?为什么另外两种没有?</li>
+    <li>白名单实体类返回 <code>{ ...entity }</code> 时为什么会得到 <code>{}</code>?<code>@SerializeOptions({ type })</code> 是怎么修好它的?</li>
+    <li>为什么 <code>(t: TaskWithSecret): TaskResponse =&gt; t</code> 能通过编译?什么情况下 TypeScript 会报「多余属性」?</li>
+    <li>把 <code>UserWhitelistEntity</code> 的 groups 翻译成 Spring 的 <code>@JsonView</code> 写法;Go 里怎么表达「同一资源两种视图」?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 19</b>:分页、过滤、排序与版本化。<code>GET /tasks</code> 不能一次把所有任务都吐出来:offset 和 cursor 两种分页各有什么坑、过滤 / 排序参数怎么设计白名单、响应 DTO 要改名时怎么用版本化(<code>/v1</code> vs 请求头)平滑过渡。</p>
+</section>
+
+<footer>
+  Day 18 · Phase 1 / Week 3 · 产出:<code>docs/18-response-dto/</code> 本文档 + <code>nest-lab/</code>(<code>src/users/</code> 与显式映射 <code>toUserResponse</code> / <code>toTaskResponse</code>、去掉成功响应包装、<code>src/serialization-demo/</code> 对照组、<code>npm run day18</code>)+ <code>src/18-response-dto/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>

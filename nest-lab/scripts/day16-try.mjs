@@ -24,7 +24,7 @@ async function call(label, method, path, body) {
   const res = await fetch(base + path, { method, headers: H, body: body === undefined ? undefined : JSON.stringify(body) });
   const json = await res.json();
   // Day 17 起错误体是 problem+json:字段错误在 errors 里,其他错误看 detail
-  const detail = res.ok ? JSON.stringify(json.data) : JSON.stringify(json.errors?.length ? json.errors : json.detail);
+  const detail = res.ok ? JSON.stringify(json) : JSON.stringify(json.errors?.length ? json.errors : json.detail);
   out(`${label}\n    → ${res.status} ${detail}`);
 }
 
