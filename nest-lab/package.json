@@ -40,6 +40,7 @@
     "day34": "nest build && node scripts/day34-try.mjs",
     "day36": "nest build && node scripts/day36-try.mjs",
     "day37": "node scripts/day37-try.mjs",
+    "day38": "node scripts/day38-try.mjs",
     "db:reset": "node scripts/db-reset.mjs",
     "db:seed:big": "node scripts/db-reset.mjs --big",
     "load": "node scripts/load-tasks.mjs",

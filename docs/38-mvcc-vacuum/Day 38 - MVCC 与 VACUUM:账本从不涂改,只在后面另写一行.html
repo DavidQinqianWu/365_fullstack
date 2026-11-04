@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 38 - MVCC 与 VACUUM:账本从不涂改,只在后面另写一行</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #c2410c;
+    --accent-soft: #fff3ec;
+    --paper: #fdfcf9;
+    --line: #e5e1d8;
+    --code-bg: #282c34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { border-bottom: 3px double var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+  h1 { font-size: 32px; margin: 8px 0 12px; line-height: 1.35; }
+  .meta { color: var(--muted); font-size: 14px; }
+  .meta b { color: var(--ink); }
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 28px; margin: 0 0 40px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 16px; }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  section { margin: 48px 0; }
+  h2 { font-size: 24px; border-left: 6px solid var(--accent); padding-left: 14px; }
+  h3 { font-size: 18px; margin-top: 28px; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 24px; margin: 16px 0;
+  }
+  .concept {
+    background: var(--accent-soft); border: 1px dashed var(--accent);
+    border-radius: 12px; padding: 18px 22px; margin: 20px 0;
+  }
+  .concept .tag { font-weight: 700; color: var(--accent); }
+  .story { background: #f4f7f4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .story .tag { font-weight: 700; color: #2f7d4f; }
+  .warn { background: #fdf2f2; border: 1px solid #e5b4b4; border-radius: 12px; padding: 18px 22px; margin: 16px 0; }
+  .warn .tag { font-weight: 700; color: #b03030; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background:#fff; }
+  th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  th { background: #faf8f3; }
+  code {
+    background: #f0ede6; padding: 2px 6px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg); color: #e6e6e6; padding: 18px 20px;
+    border-radius: 12px; overflow-x: auto; font-size: 14px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .task {
+    border: 2px solid var(--accent); border-radius: 12px; padding: 20px 24px; margin: 16px 0; background:#fff;
+  }
+  .task h3 { margin-top: 0; color: var(--accent); }
+  ul.check { list-style: none; padding-left: 4px; }
+  ul.check li::before { content: "☐ "; color: var(--accent); font-weight: 700; }
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">365 天全栈成长 · PHASE 2 · WEEK 6</div>
+  <h1>Day 38 - MVCC 与 VACUUM:账本从不涂改,只在后面另写一行</h1>
+  <div class="meta">
+    今日时长:<b>1.5 小时</b>(学习约 50 min + 习题约 30 min + 整理约 10 min)·
+    主题:<b>行版本与系统列 <code>xmin</code> / <code>xmax</code> / <code>ctid</code> · pageinspect 看死元组和 HOT 链 · 快照的组成与可见性规则 · 读不阻塞写、写不阻塞读 · 死元组与表膨胀 · VACUUM vs VACUUM FULL · autovacuum 的触发线与按表调参 · 长事务挡住清理 · 冻结与事务号回卷</b> ·
+    项目:<code>nest-lab/</code> 新增 <code>sql/day38/</code>(schema <code>day38</code>)、<code>npm run day38</code>(约 50 秒,最后在等 autovacuum);nest-lab 的 <code>src</code> 不改 ·
+    autovacuum 参数只设在 day38 的表上,没有改全局配置;pageinspect 那一段用了 <code>postgres</code> 超级用户 · 所有输出来自 PostgreSQL 16.15 的真实运行,跑了 3 遍
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>📖 目录</h2>
+  <ol>
+    <li><a href="#sec1">🎫 接上回:「账本照片」到底是怎么拍出来的</a></li>
+    <li><a href="#sec2">🚀 先跑起来:今天新增了什么</a></li>
+    <li><a href="#sec3">📇 概念卡 #1:行版本与快照 —— 账本从不涂改</a></li>
+    <li><a href="#sec4">📇 概念卡 #2:死元组与 VACUUM —— 清洁工、誊抄新册子</a></li>
+    <li><a href="#sec5">📇 概念卡 #3:长事务与冻结 —— 拿着旧照片不走的伙计</a></li>
+    <li><a href="#sec6">🌍 跨语言对照 + 面试翻译练习</a></li>
+    <li><a href="#sec7">🛠️ 今日习题(约 30 min)</a></li>
+    <li><a href="#sec8">✅ 总结与自测</a></li>
+  </ol>
+</nav>
+
+<section id="sec1">
+  <h2>🎫 接上回:「账本照片」到底是怎么拍出来的</h2>
+  <p>Day 37 用「账本照片」解释了隔离级别:Read Committed 每条语句拍一张,Repeatable Read 整个事务一张。可是数据库不可能真的给每个事务复制一份数据。它的做法叫 <b>MVCC</b>(多版本并发控制):<b>同一行同时存在好几个版本</b>,每个事务按自己的「照片名单」挑出该看的那个版本。</p>
+  <p>Week 5 有几件事一直没解释,今天都有答案:</p>
+  <ul>
+    <li>Day 29 看到 UPDATE 之后 <code>ctid</code> 变了;</li>
+    <li>Day 31 的 <code>Heap Fetches</code> 要等 VACUUM 之后才归零;</li>
+    <li>Day 32 的 HOT 更新「留下了旧行」;</li>
+    <li>Day 36 的 <code>pg_current_xact_id()</code> 是个越来越大的数。</li>
+  </ul>
+  <p>最后还有一个线上最常见的事故:一个忘了提交的事务,让整个库的清理工作停下来,表越来越大。</p>
+  <div class="story">
+    <span class="tag">🖥️ 前端翻译:</span>
+    React 里你从不直接改 state:<code>setTasks(tasks.map(t =&gt; t.id === id ? { ...t, done: true } : t))</code> 生成一个<b>新对象</b>,旧对象原封不动。正在渲染的组件还拿着旧对象,不受影响;等没人再引用旧对象了,垃圾回收器才把它回收。git 也一样:改文件就产生新的提交,旧版本一直留在历史里。PostgreSQL 的 MVCC 就是这个思路:UPDATE 写一个新版本,旧版本留着给还在用它的事务看,等没人需要了,由 VACUUM 回收。
+  </div>
+</section>
+
+<section id="sec2">
+  <h2>🚀 先跑起来:今天新增了什么</h2>
+  <pre><code>cd nest-lab
+npm run day38                     # 行版本 → pageinspect → 快照(两个连接)→ 膨胀与 VACUUM → 长事务 → 冻结 → 等 autovacuum(约 50 秒)
+sudo npm run day38                # 以 root 运行时,pageinspect 那一段会用 sudo -u postgres 执行
+
+psql postgresql://nest_lab:nest_lab_dev@localhost:5432/nest_lab
+nest_lab=&gt; SET search_path = day38;</code></pre>
+  <p><b>pageinspect 要超级用户</b>(和 Day 29 一样):本机用 <code>sudo -u postgres psql -d nest_lab -f sql/day38/03-pageinspect.sql</code>;普通用户运行观察脚本时会跳过这一段并打印命令。讲义里那一段的输出是用 <code>postgres</code> 超级用户真实执行的。</p>
+  <p>autovacuum 的实验只在 <code>day38.av_demo</code> 这张表上设了参数(<code>ALTER TABLE … SET (…)</code> 的写法放在 <code>CREATE TABLE … WITH (…)</code> 里),其余几张表关掉了它们自己的 autovacuum,<b>没有改任何全局配置</b>。</p>
+
+  <h3>📂 今天新增了哪些文件</h3>
+  <table>
+    <tr><th>文件</th><th>干什么用</th></tr>
+    <tr><td><code>sql/day38/01-setup.sql</code></td><td>schema <code>day38</code>:<code>items</code>(3 行)、<code>bloat</code>(20 万行)、<code>av_demo</code>(阈值调小)、<code>longtx</code></td></tr>
+    <tr><td><code>sql/day38/02-versions.sql</code></td><td>INSERT / UPDATE / 回滚的 UPDATE / DELETE 之后的 <code>xmin</code>、<code>xmax</code>、<code>ctid</code></td></tr>
+    <tr><td><code>sql/day38/03-pageinspect.sql</code></td><td>超级用户:直接看数据页上的每个版本、VACUUM 前后</td></tr>
+    <tr><td><code>sql/day38/04-snapshot.sql</code></td><td><code>pg_current_snapshot()</code>、事务号什么时候分配;两个窗口的手动步骤</td></tr>
+    <tr><td><code>sql/day38/05-bloat-vacuum.sql</code></td><td>反复 UPDATE 全表、VACUUM、再 UPDATE、VACUUM FULL 的大小变化;Heap Fetches</td></tr>
+    <tr><td><code>sql/day38/06-autovacuum.sql</code></td><td>全局设置、每张表的触发线、在 <code>av_demo</code> 上制造死元组</td></tr>
+    <tr><td><code>sql/day38/07-long-transaction.sql</code></td><td>会话 B 那一侧:找出挂着的事务、UPDATE + <code>VACUUM (VERBOSE)</code></td></tr>
+    <tr><td><code>sql/day38/08-freeze.sql</code></td><td><code>age(datfrozenxid)</code>、<code>VACUUM (FREEZE)</code></td></tr>
+    <tr><td><code>scripts/day38-try.mjs</code> + <code>package.json</code> 的 <code>day38</code></td><td>观察脚本(只引用 nest-lab 里的文件)</td></tr>
+    <tr><td><code>README.md</code></td><td>命令、成长日志 Day 38</td></tr>
+  </table>
+</section>
+
+<section id="sec3">
+  <h2>📇 概念卡 #1:行版本与快照 —— 账本从不涂改</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    PostgreSQL 的 UPDATE 不改原地的行,而是<b>写一个新版本</b>,并在旧版本上记下「从第几号事务起作废」;DELETE 也只是做这个标记。每个版本带着两个事务号:<code>xmin</code>(谁写下了它)和 <code>xmax</code>(谁让它作废)。<b>快照</b>是一张名单:「拍照那一刻,哪些事务已经结束、哪些还在进行」。一个版本对某张快照可见,当且仅当写下它的事务在快照里已经提交,而且让它作废的事务在快照里还不算数。所以读和写各看各的版本,<b>读不阻塞写,写不阻塞读</b>。
+  </div>
+
+  <h3>② 生活类比:账本从不涂改</h3>
+  <p>账房立了一条规矩:<b>账本上写过的字永远不涂改</b>。要改 Alice 的余额,就在后面另起一行写新余额,并在旧的那一行旁边注明「自第 231454 号作业单起作废」;要删一笔账,也只是在那一行旁边写上作废标记。</p>
+  <p>每个伙计手里都有一张<b>名单</b>(快照),是他拍照那一刻抄下的:「这些号的作业单已经盖章了,这些号还在办,比这个号大的还没开始」。伙计查账时,一行行地对照名单:「写这一行的作业单在我名单上盖章了吗?作废它的那张呢?」于是同一页账本,两个伙计可能看到不同的行。谁也不用等谁。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测</th></tr>
+    <tr><td>另起一行写新余额</td><td>UPDATE 写新版本,新的 <code>ctid</code></td><td><code>(0,1)</code> → <code>(0,4)</code></td></tr>
+    <tr><td>这一行是哪张作业单写的</td><td><code>xmin</code></td><td>新版本 xmin = 本事务号 231454</td></tr>
+    <tr><td>「自第 N 号作业单起作废」</td><td><code>xmax</code></td><td>回滚后 xmax = 231455,但状态 <code>aborted</code></td></tr>
+    <tr><td>伙计手里的名单</td><td>快照 <code>xmin:xmax:xip_list</code></td><td><code>231504:231504:</code></td></tr>
+    <tr><td>对照名单挑该看的那一行</td><td>可见性规则</td><td>A 看到 v = 11,B 看到 v = 111</td></tr>
+    <tr><td>谁也不用等谁</td><td>读不阻塞写、写不阻塞读</td><td>4.1–4.7 ms、0.6–0.7 ms</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:系统列。</b>✍️ <b>预测(先写再运行)</b>:UPDATE 之后 <code>ctid</code> 和 <code>xmin</code> 怎么变?一个回滚了的 UPDATE 会在旧行上留下痕迹吗?真实结果(<code>02-versions.sql</code>):</p>
+  <pre><code>=== ① 刚插入:xmin = 插入它的事务号,xmax = 0
+ ctid  |  xmin  | xmax | id | v
+-------+--------+------+----+----
+ (0,1) | 231444 |    0 |  1 | 10
+ (0,2) | 231444 |    0 |  2 | 20
+ (0,3) | 231444 |    0 |  3 | 30
+=== ② UPDATE 不是改原地
+ 这个事务的事务号:231454
+ ctid  |  xmin  | xmax | id | v
+ (0,4) | 231454 |    0 |  1 | 11          ← 新版本:新位置,xmin = 本事务
+=== ③ 回滚的 UPDATE
+ 要回滚的事务号:231455
+ ctid  |  xmin  |  xmax  | id | v
+ (0,2) | 231444 | 231455 |  2 | 20         ← xmax 不是 0,v 还是 20
+ 事务号 |  状态
+ 231455 | aborted
+=== ④ DELETE 也不会立刻把行抹掉
+ ctid  |  xmin  |  xmax  | id | v
+ (0,4) | 231454 |      0 |  1 | 11
+ (0,2) | 231444 | 231455 |  2 | 20          ← 第 3 行看不见了,但还在页上(见下)</code></pre>
+  <ul>
+    <li>Day 29 说「UPDATE 之后 ctid 变了」,原因就在这里:新版本写在了新的位置。</li>
+    <li><b><code>xmax</code> 不是 0,不等于这一行被删了</b>:写下 xmax 的事务(231455)回滚了,所以这个标记不算数。判断可见性要看那个事务的状态,不能只看有没有 xmax。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 B:pageinspect 看数据页(超级用户)。</b>✍️ <b>预测</b>:<code>items</code> 第 0 页上现在有几个版本?VACUUM 之后呢?真实结果(<code>sudo -u postgres psql -d nest_lab -f sql/day38/03-pageinspect.sql</code>,紧接在 02 之后执行):</p>
+  <pre><code>=== ① items 第 0 页:每个行版本的 xmin / xmax / 指向的 ctid
+ lp | lp_flags | t_xmin | t_xmax | t_ctid |      hot      | heap_only
+----+----------+--------+--------+--------+---------------+------------
+  1 |        1 | 231468 | 231478 | (0,4)  | 被 HOT 更新过 |               ← id=1 的旧版本,指向新版本 (0,4)
+  2 |        1 | 231468 | 231479 | (0,5)  | 被 HOT 更新过 |               ← id=2:被那个回滚的事务「更新」过
+  3 |        1 | 231468 | 231480 | (0,3)  |               |               ← id=3:已删除,还占着位置
+  4 |        1 | 231478 |      0 | (0,4)  |               | HOT 新版本    ← id=1 的新版本
+  5 |        1 | 231479 |      0 | (0,5)  |               | HOT 新版本    ← 回滚事务写的新版本:永远不会被任何人看见
+=== ② VACUUM 之后再看
+ lp | lp_flags | t_xmin | t_xmax | t_ctid
+----+----------+--------+--------+--------
+  1 |        2 |        |        |                ← 重定向:HOT 链的入口,指向 4
+  2 |        1 | 231468 | 231479 | (0,5)          ← 仍然是 id=2 的当前版本(xmax 的事务回滚了)
+  3 |        0 |        |        |                ← 空位,可以给新数据用
+  4 |        1 | 231478 |      0 | (0,4)</code></pre>
+  <p>(事务号和上面 02 的输出不同,因为这是重新建表后的另一次运行。)</p>
+  <ul>
+    <li>页上有 5 个版本,用户能看到的只有 2 行。被删除的 id=3、被替换的 id=1 旧版本,都是<b>死元组</b>。</li>
+    <li><b>回滚也会产生死元组</b>:回滚的那个 UPDATE 已经写下了新版本(lp 5),回滚只是让它永远不可见,并没有把它擦掉。所以 PostgreSQL 的回滚很快(只要把事务标成 aborted),但留下的垃圾同样要清理。</li>
+    <li><b>HOT</b>(Day 32):id=1 改的列不在任何索引里,新版本又放在同一页,于是索引不用动。VACUUM 后 lp 1 变成「重定向」(<code>lp_flags = 2</code>),索引里仍然指向 lp 1,顺着它跳到 lp 4。这种页内的清理在平时的查询中也会顺手做(page pruning),不一定要等 VACUUM。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 C:快照与两个版本。</b>✍️ <b>预测</b>:A 用 Repeatable Read 读了 id=1,B 接着把它 +100 并提交。A 和 B 再读,各看到什么?B 要不要等 A?真实结果(观察脚本第 4 幕,两个连接):</p>
+  <pre><code>=== ① 现在的快照
+      快照      |  xmin  |  xmax
+ 231503:231503: | 231503 | 231503
+=== ② 一个事务在第一次写之前没有事务号;写了才分配
+ SELECT 之后的事务号(空 = 还没分配):(空)
+ UPDATE 之后的事务号:231503
+
+  A:BEGIN REPEATABLE READ;读 id=1 → v = 11,A 的快照 = 231504:231504:
+  B:UPDATE id=1(v + 100)并提交,用了 4.1 ms —— 没有等 A(读不阻塞写),B 的事务号 = 231504
+  A 看到:ctid (0,4)  xmin 231500  xmax 231504  v = 11    ← 旧版本(它的 xmax 是 B,但 B 不在 A 的快照里)
+  B 看到:ctid (0,5)  xmin 231504  xmax 0       v = 111   ← 新版本
+  在 A 的快照里,B 的事务号 231504 算「已经提交」吗?pg_visible_in_snapshot → false
+  B:BEGIN; UPDATE id=1 SET v = -1(没提交)→ A 立刻读到 v = 111,用了 0.6 ms —— 写不阻塞读</code></pre>
+  <ul>
+    <li>快照 <code>231504:231504:</code> 的意思是:「231504 以前的事务都结束了;231504 及以后的事务,拍照时还没开始;中间没有进行中的事务」。B 的事务号正好是 231504,所以对 A 来说「B 不存在」:B 写的新版本看不见,B 打在旧版本上的作废标记也不算数。A 看到旧版本 v = 11。</li>
+    <li>可见性规则:一个版本可见 ⇔ <b><code>xmin</code> 已提交、且在快照之前</b>(不在 <code>xip_list</code> 里、小于快照的 <code>xmax</code>),<b>并且 <code>xmax</code> 为 0,或者 <code>xmax</code> 的事务对这张快照不可见</b>(回滚了、还在进行中、或者在快照之后)。</li>
+    <li>B 的 UPDATE 用了 4.1–4.7 ms(3 遍),A 读 B 正在改的行用了 0.6–0.7 ms:<b>读和写互不等待</b>。但「写不阻塞写」不成立:Day 36、37 里,两个事务改同一行时,后来的那个要等前一个结束。</li>
+    <li>只读的事务不分配事务号(第一次写才分配),这让只读查询非常便宜。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「读不阻塞写」不等于「写不阻塞写」。</b>两个事务改同一行,后来的必须等前一个结束(Day 36 第 4 幕 B 等 A),因为新版本只能接在最新版本的后面。MVCC 解决的是读和写之间的冲突。</li>
+      <li><b>「作废标记」不一定生效。</b><code>xmax</code> 有值,可能是删除、更新、回滚了的更新,甚至只是行锁(Day 39 的 <code>SELECT … FOR UPDATE</code> 也会写 xmax)。真正判断要看那个事务的状态。</li>
+      <li><b>「从不涂改」有代价。</b>账本只会越写越长:每次更新都多一行,旧行不会自己消失。下一张卡就是清理它们的人。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>MVCC</b>(multi-version concurrency control);<b>tuple / row version</b>;系统列 <b><code>xmin</code> / <code>xmax</code> / <code>ctid</code></b>(还有 <code>cmin</code> / <code>cmax</code>);<b>snapshot</b>:<code>pg_current_snapshot()</code>、<code>pg_snapshot_xmin/xmax/xip</code>、<code>pg_visible_in_snapshot()</code>;<code>pg_current_xact_id_if_assigned()</code>、<code>pg_xact_status()</code>;<b>commit log (CLOG / pg_xact)</b>;<b>hint bits</b>;<b>pageinspect</b>:<code>get_raw_page</code>、<code>heap_page_items</code>、<code>lp_flags</code>(normal / redirect / dead / unused);<b>HOT chain</b>、<b>page pruning</b>。
+  </div>
+</section>
+
+<section id="sec4">
+  <h2>📇 概念卡 #2:死元组与 VACUUM —— 清洁工、誊抄新册子</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    作废的版本(<b>死元组</b>)不会自己消失,要等「没有任何快照还需要它」之后,由 <b>VACUUM</b> 回收。普通 VACUUM 把空间标成「可以再用」,留给这张表以后写入,<b>文件一般不会变小</b>,也不挡读写。<b>VACUUM FULL</b> 把整张表誊抄成一个新文件,空间还给操作系统,但期间整张表被锁住,谁都不能读写。平时靠 <b>autovacuum</b> 在后台按阈值自动清理:默认死元组超过 <code>50 + 20% × 行数</code> 才动手,大表要按表调小。
+  </div>
+
+  <h3>② 生活类比:清洁工、誊抄新册子</h3>
+  <p>账本只往后写,作废的行越来越多。账房请了一位<b>清洁工</b>:把「没有任何伙计的照片还会用到」的作废行擦掉,腾出格子,以后新记的账可以写在这些空格子里。账本的页数不会因此变少,只是里面空格子多了,以后不用再加页。</p>
+  <p>如果账本已经被作废行撑得太厚,还可以<b>誊抄</b>:把有效的行一行行抄到一本新册子上,扔掉旧册子。新册子薄了很多,但誊抄的时候,谁都不能翻这本账。</p>
+  <p>清洁工不是一直站在旁边,而是每隔一段时间(默认 1 分钟)巡视一遍,看哪本账的作废行超过了「该打扫的线」才动手。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测(20 万行的 bloat 表)</th></tr>
+    <tr><td>作废的行</td><td>死元组,<code>pg_stat_user_tables.n_dead_tup</code></td><td>UPDATE 3 遍后 600000 个</td></tr>
+    <tr><td>账本被撑厚</td><td>表膨胀</td><td>16 MB → 64 MB,主键 4408 kB → 9792 kB</td></tr>
+    <tr><td>擦掉、腾出格子,页数不变</td><td><code>VACUUM</code></td><td>77.7–85.9 ms,仍 64 MB,死元组 0</td></tr>
+    <tr><td>新账写进空格子</td><td>空闲空间映射(free space map)</td><td>再 UPDATE 全表,仍 64 MB</td></tr>
+    <tr><td>誊抄新册子,期间不能翻</td><td><code>VACUUM FULL</code>(ACCESS EXCLUSIVE 锁)</td><td>179.7–234.8 ms,回到 16 MB / 4408 kB</td></tr>
+    <tr><td>定时巡视、超线才打扫</td><td>autovacuum:<code>autovacuum_naptime</code>、阈值</td><td><code>av_demo</code> 阈值 50:约 26–52 秒内自己清理</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:膨胀、VACUUM、VACUUM FULL。</b>✍️ <b>预测</b>:20 万行全部 UPDATE 3 遍,表从 16 MB 变成多大?VACUUM 之后呢?VACUUM 之后再全表 UPDATE 一遍呢?真实结果(<code>05-bloat-vacuum.sql</code>,3 遍完全一致):</p>
+  <pre><code>=== ① 刚建好
+ 表大小 | 主键索引大小 | 死元组
+ 16 MB  | 4408 kB      |      0
+=== ② 把 20 万行全部 UPDATE 3 遍
+ 64 MB  | 9792 kB      | 600000
+=== ③ 死元组也会让 Index Only Scan 回表
+               -&gt;  Parallel Index Only Scan using bloat_pkey on bloat (actual rows=16667 loops=3)
+                     Heap Fetches: 114347
+=== ④ VACUUM
+Time: 77.661 ms
+ 64 MB  | 9792 kB      |      0
+   -&gt;  Index Only Scan using bloat_pkey on bloat (actual rows=50000 loops=1)
+         Heap Fetches: 0
+=== ⑤ VACUUM 之后再全部 UPDATE 一遍:新版本写进腾出来的空位
+ 64 MB  | 9792 kB      | 200000
+=== ⑥ VACUUM FULL
+Time: 206.659 ms
+ 16 MB  | 4408 kB      |      0</code></pre>
+  <ul>
+    <li>每一遍全表 UPDATE 都给 20 万行各写一个新版本:3 遍之后,表里有 20 万个活的、60 万个死的,4 倍大小。<b>索引也膨胀了</b>(每个新版本如果不是 HOT,索引里也要多一个条目)。</li>
+    <li>③ 是 Day 31 的谜底:页上有死元组,visibility map 里这一页就不是「全部可见」,Index Only Scan 只好回表确认,<code>Heap Fetches: 114347</code>。VACUUM 之后变成 0。</li>
+    <li>VACUUM 之后文件还是 64 MB,但⑤ 再全表 UPDATE 一遍,表<b>没有再变大</b>:新版本写进了腾出来的空间。所以对一张稳定被更新的表,膨胀到某个大小后会停住,不需要 VACUUM FULL。</li>
+    <li>VACUUM FULL 回到 16 MB,但这 0.2 秒里整张表被 <code>ACCESS EXCLUSIVE</code> 锁住:连 SELECT 都要等。20 万行要 0.2 秒,几十 GB 的表要几十分钟,线上基本不能用(Day 39 讲锁;不锁表的替代方案如 <code>pg_repack</code> 是第三方扩展,没有实测)。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 B:autovacuum。</b>✍️ <b>预测</b>:<code>bloat</code> 表要攒多少死元组 autovacuum 才会来?把 <code>av_demo</code> 的阈值调成 50 后,制造 1000 个死元组,多久会被清理?真实结果(<code>06-autovacuum.sql</code>):</p>
+  <pre><code>                name                |  setting  | unit
+ autovacuum                         | on        |
+ autovacuum_freeze_max_age          | 200000000 |
+ autovacuum_max_workers             | 3         |
+ autovacuum_naptime                 | 60        | s
+ autovacuum_vacuum_insert_threshold | 1000      |
+ autovacuum_vacuum_scale_factor     | 0.2       |
+ autovacuum_vacuum_threshold        | 50        |
+   表    | 估计行数 | 死元组超过多少就清理
+ av_demo |       -1 |                   50       ← WITH (autovacuum_vacuum_threshold = 50, autovacuum_vacuum_scale_factor = 0)
+ bloat   |   200000 |                40050
+ longtx  |    10000 |                 2050
+--- 制造 1000 个死元组之后
+ 死元组 | 上次自动清理 | 自动清理次数
+   1000 |              |            0
+(手动每 5 秒查一次)… 26s  0  2026-11-04 17:47:07.642007+00  1
+(观察脚本 3 遍:2 遍在约 52 秒内清理完毕;1 遍到第 52 秒还没来)</code></pre>
+  <ul>
+    <li>触发线 = <code>autovacuum_vacuum_threshold + autovacuum_vacuum_scale_factor × reltuples</code>。20 万行的表要 40050 个死元组;<b>1 亿行的表要 2000 万个</b>,对大表来说太晚了。常见做法是给大表单独设 <code>ALTER TABLE big SET (autovacuum_vacuum_scale_factor = 0.01)</code>,或者把 scale factor 设成 0、只用一个固定的阈值。</li>
+    <li>autovacuum <b>不是实时的</b>:launcher 每 <code>autovacuum_naptime</code>(默认 60 秒)检查一次每个库,所以从超线到被清理,等了 26 秒到一分多钟不等。</li>
+    <li>只插入不更新的表,PostgreSQL 13 起也会按 <code>autovacuum_vacuum_insert_threshold</code> 定期 VACUUM(为了更新 visibility map 和冻结),不然 Index Only Scan 会一直回表。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「打扫完账本就变薄了」——普通 VACUUM 腾出的空间只给这张表自己用,文件一般不缩</b>(只有表末尾整页都空了才会截掉)。监控上看到 VACUUM 之后磁盘没降,不代表它没工作。</li>
+      <li><b>「清洁工一直在旁边」——autovacuum 不是实时的</b>,而且同时只有 <code>autovacuum_max_workers</code>(默认 3)个在干活。大批量 UPDATE / DELETE 之后,最好手动 <code>VACUUM (ANALYZE)</code> 一次,而不是等它。</li>
+      <li><b>「誊抄一下就好了」——VACUUM FULL 锁住整张表,还需要和表一样大的额外磁盘空间</b>(新旧文件同时存在)。它是事故后的补救,不是日常维护。日常靠的是让普通 VACUUM 跟得上。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>dead tuple</b>、<b>table bloat / index bloat</b>;<b><code>VACUUM</code></b>、<code>VACUUM (VERBOSE, ANALYZE)</code>、<b><code>VACUUM FULL</code></b>(重写表,<code>ACCESS EXCLUSIVE</code>);<b>free space map (FSM)</b>、<b>visibility map (VM)</b>;<b>autovacuum</b>:launcher / worker、<code>autovacuum_naptime</code>、<code>autovacuum_vacuum_threshold</code>、<code>autovacuum_vacuum_scale_factor</code>、<code>autovacuum_vacuum_insert_threshold</code>、<code>autovacuum_max_workers</code>、按表的 storage parameter;<code>pg_stat_user_tables</code>:<code>n_dead_tup</code>、<code>last_autovacuum</code>、<code>autovacuum_count</code>;<code>pg_stat_force_next_flush()</code>。
+  </div>
+</section>
+
+<section id="sec5">
+  <h2>📇 概念卡 #3:长事务与冻结 —— 拿着旧照片不走的伙计</h2>
+
+  <div class="concept">
+    <span class="tag">① 一句话大白话:</span>
+    VACUUM 只能清理「所有还活着的快照都不需要」的死元组。只要有一个事务<b>拿着一张很旧的快照不走</b>(Repeatable Read 的事务、写过数据还没提交的事务,常见的是 <code>idle in transaction</code> 的连接),它开始之后产生的所有死元组,<b>全库的</b> VACUUM 都清不掉,表就一直膨胀。另一个问题是事务号只有 32 位,会转圈;VACUUM 要定期把足够老的行版本「冻结」,否则转一圈之后它们会被误判成「来自未来」。
+  </div>
+
+  <h3>② 生活类比:拿着旧照片不走的伙计</h3>
+  <p>清洁工擦作废行之前,要先问一圈:「还有谁手里的照片比这一行作废得早?」只要有一个伙计拿着一张早上 9 点拍的照片坐在角落里不走,9 点以后作废的所有行都不能擦。也许他还要用到这些行。哪怕他早就去喝茶了、根本不会再看照片,清洁工也不敢擦。一天下来,账本越来越厚。</p>
+  <p>不过,如果这个伙计用的是「每看一页重新拍」的方式(Read Committed),而且只看过、没写过,他每看完一页就把照片扔了,手里其实没有照片,就挡不住清洁工。</p>
+
+  <h3>比喻 ↔ 真实 对照</h3>
+  <table>
+    <tr><th>比喻</th><th>真实概念</th><th>实测</th></tr>
+    <tr><td>拿着旧照片不走</td><td>事务持有旧快照:<code>backend_xmin</code> 有值,或已经分配了事务号 <code>backend_xid</code></td><td>RR 只读、RC 写过一行:都挡住</td></tr>
+    <tr><td>看一页扔一张、手里没照片</td><td>RC 事务在两条语句之间不持有快照</td><td>RC 只 SELECT 过:没挡住</td></tr>
+    <tr><td>清洁工不敢擦</td><td><code>dead but not yet removable</code>、<code>removable cutoff</code></td><td>10000 个死元组清不掉</td></tr>
+    <tr><td>找出那个伙计</td><td><code>pg_stat_activity</code>:<code>state = 'idle in transaction'</code>、<code>xact_start</code>、<code>backend_xmin</code></td><td>见下</td></tr>
+    <tr><td>账页上的作业单编号转了一圈</td><td>32 位事务号回卷、<b>冻结</b></td><td><code>age(datfrozenxid)</code> = 230825</td></tr>
+  </table>
+
+  <p><b>⑤ 动手验证 A:长事务挡住清理。</b>✍️ <b>预测</b>:会话 A 开着事务不提交,会话 B 把 1 万行全部 UPDATE 一遍再 VACUUM。下面三种 A,哪几种会挡住清理?真实结果(观察脚本第 6 幕,3 遍完全一致):</p>
+  <pre><code>── A:READ COMMITTED,只 SELECT 过,然后挂着(idle in transaction) ──
+=== ① 谁开着事务不走?
+ pid | state | 事务已开了多久 | backend_xid | backend_xmin | …          ← 一个都没查到
+=== ② 把 1 万行全部 UPDATE 一遍,再 VACUUM
+tuples: 10000 removed, 10000 remain, 0 are dead but not yet removable
+removable cutoff: 231513, which was 0 XIDs old when operation ended
+
+── A:REPEATABLE READ,只 SELECT 过,然后挂着 ──
+=== ① 谁开着事务不走?
+ pid  |        state        | 事务已开了多久  | backend_xid | backend_xmin | backend_xmin 落后了几个事务号 |        最后一条语句
+ 7388 | idle in transaction | 00:00:00.062527 |             |       231513 |                             0 | SELECT count(*) FROM longtx
+=== ② 把 1 万行全部 UPDATE 一遍,再 VACUUM
+tuples: 0 removed, 20000 remain, 10000 are dead but not yet removable
+removable cutoff: 231513, which was 1 XIDs old when operation ended
+  A COMMIT 之后再 VACUUM (VERBOSE):
+tuples: 10000 removed, 10000 remain, 0 are dead but not yet removable
+
+── A:READ COMMITTED,写过(另一张表的)一行,然后挂着 ──
+ 7496 | idle in transaction | 00:00:00.048612 |      231545 |              |   | UPDATE items SET v = v WHERE id = 2
+tuples: 0 removed, 20000 remain, 10000 are dead but not yet removable
+removable cutoff: 231545, which was 2 XIDs old when operation ended
+  A COMMIT 之后再 VACUUM (VERBOSE):
+tuples: 10000 removed, 10000 remain, 0 are dead but not yet removable</code></pre>
+  <ul>
+    <li><b>RR 只读、RC 写过</b>的事务挂着时,VACUUM 的原话是 <code>0 removed, 20000 remain, 10000 are dead but not yet removable</code>,<code>removable cutoff</code> 停在 A 的位置。A 提交之后再 VACUUM,立刻 <code>10000 removed</code>。</li>
+    <li><b>注意第三种 A 写的是另一张表</b>(<code>items</code>),挡住的却是 <code>longtx</code> 的清理。<b>清理的界线是全库的</b>,一个连接挂着,所有表都受影响。</li>
+    <li>RC 只 SELECT 过的事务没有挡住:Read Committed 在两条语句之间不持有快照,<code>backend_xmin</code> 是空的。很多资料笼统地说「<code>BEGIN; SELECT</code> 之后挂着就会挡住 VACUUM」,在 PG 的默认级别下不准确。但这种连接仍然占着一个连接,而且只要它下一条语句是写,或者是一条正在执行的长查询,就会挡住。</li>
+    <li>线上怎么找:<code>pg_stat_activity</code> 里 <code>state = 'idle in transaction'</code>、<code>xact_start</code> 很早、<code>backend_xmin</code> 或 <code>backend_xid</code> 有值的连接(<code>07-long-transaction.sql</code> 的第 ① 段)。常见来源:应用里开了事务却在中间调了一个很慢的外部接口(Day 36 说过不要这么做)、代码出错后忘了 ROLLBACK 就把连接还了回去(Day 36 修的就是这个)、有人在 psql 里 <code>BEGIN</code> 了忘了提交、一条跑了几个小时的报表查询。</li>
+    <li>兜底的办法是 <code>idle_in_transaction_session_timeout</code>:事务空闲超过这个时间,数据库直接断开连接(Day 41 和另外两个超时一起讲)。除了长事务,备库的 <code>hot_standby_feedback</code> 和没人消费的复制槽也会挡住清理(没有实测,Week 9 讲复制时再说)。</li>
+  </ul>
+
+  <p><b>⑤ 动手验证 B:冻结与事务号回卷(点到为止)。</b>真实结果(<code>08-freeze.sql</code>):</p>
+  <pre><code>  datname  |  年龄
+ nest_lab  | 230825          ← 本库最老的未冻结事务号离现在 23 万个事务
+ relname | 年龄
+ items   |   27
+VACUUM (FREEZE) items;
+ items   |    0</code></pre>
+  <ul>
+    <li>事务号是 32 位的(约 42 亿个),用完了从头再来;比较「谁新谁旧」靠的是「前后各约 21 亿」的窗口。一个行版本如果 20 多亿个事务都没被处理,它的 <code>xmin</code> 就会被误判为「在未来」,这一行突然对所有人不可见。</li>
+    <li>所以 VACUUM 会把足够老的版本<b>冻结</b>:标成「对所有人永远可见」,不再依赖它的事务号。表的年龄超过 <code>autovacuum_freeze_max_age</code>(默认 2 亿)时,autovacuum 会强制做,即使这张表关了 autovacuum 也一样;再拖下去,数据库会拒绝分配新的事务号以保护数据。</li>
+    <li>线上要监控 <code>age(datfrozenxid)</code>。长事务同样会挡住冻结。真实的生产事故都和「VACUUM 长期跟不上」有关,具体案例这里不展开。</li>
+  </ul>
+
+  <div class="warn">
+    <span class="tag">③ ⚠️ 这个比喻在哪里会骗你:</span>
+    <ol>
+      <li><b>「只要有人挂着事务就会挡」——要看他手里有没有快照或事务号。</b>RC 下只读过的空闲事务没挡;RR 事务、写过的事务、正在执行的长查询会挡。但不管挡不挡,<code>idle in transaction</code> 都占着一个连接(Day 27 的池子),还可能锁着行(Day 39),都应该消灭。</li>
+      <li><b>「只影响他自己那本账」——清理的界线是全库的。</b>实测里 A 写的是 <code>items</code>,清不掉的是 <code>longtx</code>。一个被遗忘的连接,会让整个库所有频繁更新的表一起膨胀。</li>
+      <li><b>「回卷离我很远」——冻结同样靠 VACUUM。</b>年龄是 23 万,离 20 亿很远;但如果 VACUUM 长期被长事务挡住,或者大表的 autovacuum 一直跑不完,年龄会一直涨。这是 PostgreSQL 运维里最需要监控的指标之一。</li>
+    </ol>
+  </div>
+
+  <div class="concept">
+    <span class="tag">④ 真实术语:</span>
+    <b>long-running transaction</b>、<b><code>idle in transaction</code></b>;<code>pg_stat_activity</code>:<code>state</code>、<code>xact_start</code>、<code>backend_xid</code>、<code>backend_xmin</code>;<b>xmin horizon</b>、<b>removable cutoff</b>、<code>dead but not yet removable</code>;<b><code>idle_in_transaction_session_timeout</code></b>(Day 41);<code>hot_standby_feedback</code>、<b>replication slot</b>(Week 9);<b>transaction ID wraparound</b>、<b>freezing</b>、<code>relfrozenxid</code> / <code>datfrozenxid</code>、<code>age()</code>、<code>autovacuum_freeze_max_age</code>、<code>VACUUM (FREEZE)</code>。
+  </div>
+</section>
+
+<section id="sec6">
+  <h2>🌍 跨语言对照 + 面试翻译练习</h2>
+  <table>
+    <tr><th></th><th>PostgreSQL</th><th>MySQL(InnoDB)</th><th>SQL Server</th></tr>
+    <tr><td>旧版本放在哪</td><td><b>就在表里</b>:新旧版本都是表里的行</td><td>表里(聚簇索引)只放最新版本;旧版本靠 <b>undo log</b> 往回推</td><td>默认(锁实现的 RC)不保留旧版本;开了 RCSI / Snapshot 后,旧版本放在 <b>tempdb 的版本存储</b>里(2019 起的 ADR 放在用户库里)</td></tr>
+    <tr><td>谁回收</td><td>VACUUM / autovacuum</td><td>后台 <b>purge</b> 线程</td><td>后台清理版本存储</td></tr>
+    <tr><td>回滚</td><td>很快:只把事务标成 aborted;垃圾留给 VACUUM</td><td>要用 undo 把改动一条条撤回,大事务回滚很慢</td><td>按日志撤回</td></tr>
+    <tr><td>长事务的危害</td><td>挡住 VACUUM,表和索引膨胀</td><td>挡住 purge,undo / history list 越来越长,读旧版本越来越慢</td><td>tempdb 的版本存储越来越大</td></tr>
+  </table>
+  <p><b>PostgreSQL 这种「旧版本留在表里」的设计</b>,好处是回滚极快、读旧版本不用回溯日志、不需要一个单独的 undo 区域;代价是需要 VACUUM、频繁更新的表容易膨胀、每次非 HOT 的更新都要改所有索引(Day 32 的写放大)。没有哪种设计绝对更好,这是 PostgreSQL 运维比 MySQL 多一块「VACUUM 调优」的原因。</p>
+  <p><b>ORM 层面</b>:<code>UPDATE tasks SET …</code> 不带 WHERE、或者 ORM 的「批量更新全部记录」(EF Core 的 <code>ExecuteUpdate</code>、Prisma 的 <code>updateMany({})</code>、JPA 的批量 JPQL),在 PostgreSQL 里等于把整张表复制一遍,今天实测 20 万行表一次就多出 16 MB。批量修数据时:分批做,每批之间让 autovacuum 有机会跟上;或者做完手动 <code>VACUUM (ANALYZE)</code>。</p>
+  <p>🔎 核实说明:本节的 MySQL InnoDB undo log / purge / history list、SQL Server tempdb 版本存储与 ADR、ORM 批量更新 API 名称、<code>pg_repack</code>,都是公认事实或我的记忆,<b>没有在本机实测</b>,也没有联网核对。PostgreSQL 的所有行为都在本机实测过。</p>
+  <p>📌 Day 42 复盘时,可以在 roadmap 顶部的对照表里新增一行「MVCC 实现」:PG 旧版本在表里 + VACUUM ↔ InnoDB undo log + purge ↔ SQL Server tempdb 版本存储,内容自己写。</p>
+
+  <div class="story">
+    <span class="tag">🎤 面试翻译练习:</span>
+    面试官问:<b>"What is MVCC? Why does PostgreSQL need VACUUM? What's the harm of a long-running transaction? How is MySQL's MVCC different from PostgreSQL's?"</b>(或者:「什么是 MVCC?为什么 PostgreSQL 需要 VACUUM?长事务有什么危害?MySQL 的 MVCC 和 PostgreSQL 有什么不同?」)你可以答:<br>
+    <b>"MVCC 是多版本并发控制:更新一行时不改原来的版本,而是写一个新版本,旧版本标记为从某个事务起失效。每个事务拿着一份快照,也就是拍照那一刻哪些事务已提交、哪些还在进行,读的时候按快照挑出该看的版本,所以读不阻塞写、写不阻塞读,但两个事务写同一行仍然要排队。PostgreSQL 把新旧版本都放在表里,每行有 xmin、xmax 两个事务号,我用 pageinspect 看过,一次更新之后同一页上就有两个版本,回滚的更新也会留下一个永远不可见的版本。这些死版本不会自己消失,要等没有任何快照还需要它们之后由 VACUUM 回收;普通 VACUUM 把空间留给这张表复用、不缩文件、不锁表,VACUUM FULL 重写表能缩小但会锁住整张表。autovacuum 默认在死元组超过 50 加 20% 行数时触发,大表需要按表调小。长事务的危害是它持有的旧快照会让全库的 VACUUM 都清不掉它之后产生的死元组,我实测过一个挂着的 Repeatable Read 事务让一万个死元组 not yet removable,它一提交就能清掉;它还占着连接、可能锁着行,也会拖慢冻结,严重时有事务号回卷的风险。所以要用 pg_stat_activity 找 idle in transaction 的连接,用 idle_in_transaction_session_timeout 兜底。MySQL InnoDB 的做法是表里只放最新版本,旧版本通过 undo log 回推,由 purge 线程回收,所以它不需要 VACUUM,但大事务回滚慢,长事务会让 undo 和 history list 膨胀、读旧版本变慢。"</b><br>
+    自己练一遍:合上文档 60 秒说完。
+  </div>
+</section>
+
+<section id="sec7">
+  <h2>🛠️ 今日习题(约 30 min)</h2>
+
+  <div class="task">
+    <h3>习题 1:跟着跑一遍(动手,约 12 min)</h3>
+    <ol>
+      <li>先把第 3、4、5 节里的 ✍️ 预测写进 <code>notes.md</code> 的预测区,再跑 <code>npm run day38</code> 批改(有 sudo 的话用 <code>sudo npm run day38</code>,能看到 pageinspect 那一段)。</li>
+      <li>开两个 psql 窗口做「长事务」:窗口 A <code>BEGIN ISOLATION LEVEL REPEATABLE READ; SELECT 1;</code> 后挂着;窗口 B 执行 <code>\i sql/day38/07-long-transaction.sql</code>。✍️ <b>预测</b>:窗口 B 第 ① 段能查到 A 吗?<code>backend_xmin</code> 是多少?然后在窗口 A 先 <code>SET idle_in_transaction_session_timeout = '5s';</code>,再 <code>BEGIN …</code> 重来一次,等 5 秒,A 会怎样?</li>
+      <li>✍️ <b>预测</b>:对 <code>bloat</code> 表执行 <code>UPDATE bloat SET v = v + 1 WHERE id &lt;= 1000;</code> 十次,中间不 VACUUM。这次是 HOT 更新吗?用 <code>pg_stat_user_tables.n_tup_hot_upd</code> 验证(Day 32)。</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 2:给 nest-lab 估一估(动笔,约 10 min)</h3>
+    <ol>
+      <li>Day 34 的负载脚本里,PATCH 改 <code>done</code> 最频繁。按 Day 34 的数据(30 万任务,约 1/15 的请求是 PATCH),<code>tasks</code> 表的默认 autovacuum 触发线是多少个死元组?大约多少次 PATCH 之后才会触发?你会给 <code>tasks</code> 设什么按表的参数?</li>
+      <li>nest-lab 的 <code>transaction()</code>(Day 36)如果在 COMMIT 之前调用了一个要 30 秒的外部接口,对 VACUUM 有什么影响?对连接池呢?</li>
+      <li>写一条监控 SQL:列出本库里「idle in transaction 超过 1 分钟」的连接,以及每张表的死元组占比(<code>n_dead_tup / (n_live_tup + n_dead_tup)</code>)超过 20% 的表。</li>
+    </ol>
+  </div>
+
+  <div class="task">
+    <h3>习题 3:为什么回滚快(思考,约 3 min)</h3>
+    <p>用今天 pageinspect 的输出解释:为什么 PostgreSQL 回滚一个改了 100 万行的事务几乎是瞬间完成的,而 MySQL 可能要很久?PostgreSQL 为此付出了什么代价?</p>
+  </div>
+
+  <div class="task">
+    <h3>习题 4:讲给别人听(动笔不动键盘,约 5 min)</h3>
+    <p>文件:<code>src/38-mvcc-vacuum/notes.md</code>(骨架已放好)。合上本文档,用中文回答三题(每题不超过 5 句话,必须用自己的话):</p>
+    <ol>
+      <li>一个只写过前端的同事说:「React 里每次 setState 都产生一个新对象,旧对象没人引用了就被 GC 回收;git 的每次提交也保留旧版本。数据库的 MVCC 是一回事吗?」用「账本从不涂改」的比喻讲清楚行版本、快照和 VACUUM,并说出这个比喻在哪里会骗人。</li>
+      <li>普通 VACUUM 和 VACUUM FULL 各做了什么?为什么 VACUUM 之后文件没变小,表也不会再无限变大?autovacuum 什么时候触发,为什么大表要单独调?</li>
+      <li>长事务为什么会让表膨胀?哪几种「挂着的事务」会挡住清理,哪种不会?怎么在线上找出它们、怎么兜底?</li>
+    </ol>
+    <p>写完回到第 3、4、5 节对答案,把说错的地方写进订正区。</p>
+  </div>
+  <p>⏱️ 最后 10 分钟整理:在 <code>nest-lab/README.md</code> 的成长日志里记一笔;确认 <code>git status</code> 里没有 <code>.env</code>、<code>node_modules/</code>、<code>dist/</code>,然后提交。</p>
+</section>
+
+<section id="sec8">
+  <h2>✅ 总结与自测</h2>
+  <h3>今天带走的 4 句话</h3>
+  <ol>
+    <li><b>MVCC</b>:UPDATE 写新版本(新 <code>ctid</code>、新 <code>xmin</code>),旧版本记上 <code>xmax</code>;DELETE 只记 <code>xmax</code>;回滚的更新也会留下一个永远不可见的版本。<code>xmax</code> 有值不等于被删了,要看那个事务的状态。</li>
+    <li><b>快照</b> = 「哪些事务已结束、哪些还在进行」的名单。版本可见 ⇔ <code>xmin</code> 在快照里已提交,且 <code>xmax</code> 为 0 或不算数。所以读写互不等待(B 改并提交用了 4 ms,A 读正在被改的行用了 0.6 ms),但写同一行仍要排队。</li>
+    <li><b>VACUUM</b>:20 万行全表更新 3 遍,16 MB → 64 MB;VACUUM 后死元组归零、Heap Fetches 归零,文件仍 64 MB,再更新也不再变大;VACUUM FULL 回到 16 MB,但要锁整张表。autovacuum 默认死元组超过 <code>50 + 20% × 行数</code> 才来,而且每 60 秒才巡视一次。</li>
+    <li><b>长事务</b>:一个持有旧快照(RR)或事务号(写过)的空闲事务,会让<b>全库</b>的死元组 <code>not yet removable</code>;RC 下只读过的空闲事务不会。用 <code>pg_stat_activity</code> 找、用 <code>idle_in_transaction_session_timeout</code> 兜底。冻结防的是 32 位事务号回卷,同样靠 VACUUM。</li>
+  </ol>
+  <h3>自测(合上文档,能答出来才算过关)</h3>
+  <ul class="check">
+    <li>UPDATE 一行之后,页上多了什么?<code>xmin</code>、<code>xmax</code>、<code>ctid</code> 各怎么变?</li>
+    <li>快照 <code>231504:231504:</code> 是什么意思?为什么 A 看不到 B 已经提交的修改?</li>
+    <li>为什么 VACUUM 之后 Index Only Scan 的 Heap Fetches 归零了?</li>
+    <li>VACUUM 和 VACUUM FULL 的区别?什么时候才用 VACUUM FULL?</li>
+    <li>RR 只读、RC 只读、RC 写过的三种空闲事务,哪几种会挡住 VACUUM?为什么?</li>
+    <li>什么是事务号回卷?冻结做了什么?该监控哪个指标?</li>
+  </ul>
+  <p>🔮 明天 <b>Day 39</b>:锁。今天的 <code>xmax</code> 除了表示「作废」,还能表示「锁住」。行锁有 <code>FOR UPDATE</code> / <code>FOR NO KEY UPDATE</code> / <code>FOR SHARE</code>,加上 <code>NOWAIT</code> 和用 <code>SKIP LOCKED</code> 实现任务队列;表锁有不同的级别(VACUUM FULL 和事务里的 DROP INDEX 为什么会锁住整张表),以及 <code>lock_timeout</code>;还要复现死锁(<code>deadlock detected</code>),用 <code>pg_locks</code> / <code>pg_stat_activity</code> 看谁在等谁;最后是 advisory lock。</p>
+</section>
+
+<footer>
+  Day 38 · Phase 2 / Week 6 · 产出:<code>docs/38-mvcc-vacuum/</code> 本文档 + <code>nest-lab/</code>(<code>sql/day38/</code> 八个文件、<code>npm run day38</code>)+ <code>src/38-mvcc-vacuum/notes.md</code> 默写骨架 · 完成后在 progress.md 把状态改为「已完成」并 commit。
+</footer>
+
+</div>
+</body>
+</html>
