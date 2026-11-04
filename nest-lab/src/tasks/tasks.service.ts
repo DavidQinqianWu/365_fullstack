@@ -3,6 +3,7 @@ import { CLOCK, type Clock } from '../common/clock.js';
 import { ProblemException } from '../common/problems/problem.exception.js';
 import { ProblemTypes } from '../common/problems/problem-types.js';
 import { ctxLog } from '../common/request-context/request-context.js';
+import { withRetry } from '../database/with-retry.js';
 import type { Task, TaskWritable } from './task.js';
 import type { CreateTaskDto } from './dto/create-task.dto.js';
 import type { ReplaceTaskDto } from './dto/replace-task.dto.js';
@@ -96,43 +97,82 @@ export class TasksService {
   // PUT 是整体替换:没给 checklist = 清空成 [](不是「保留原样」—— 要保留请用 PATCH)
   async replace(id: number, input: ReplaceTaskDto): Promise<Task> {
     ctxLog(`   ④ Service    后厨做菜:replace(${id})`);
-    this.assertCanChange(await this.findOne(id), input);
-    // Day 27:先查(409 规则)再改,中间隔着一次往返 —— 两个请求同时改同一条时会有竞态,Week 6 处理
-    return this.found(id, await this.repo.update(id, { title: input.title, done: input.done, checklist: input.checklist ?? [] }));
+    return this.change(id, input, { title: input.title, done: input.done, checklist: input.checklist ?? [] });
   }
 
   // Day 15:PATCH —— 只改给了的字段
   async update(id: number, patch: UpdateTaskDto): Promise<Task> {
     ctxLog(`   ④ Service    后厨做菜:update(${id}, ${JSON.stringify(patch)})`);
-    this.assertCanChange(await this.findOne(id), patch);
     // Day 16:只把自己明确列出的字段写进台账,不把 DTO 整包合并(DTO 之外的第二道保险,防批量赋值)
     const changes: Partial<TaskWritable> = {};
     if (patch.title !== undefined) changes.title = patch.title;
     if (patch.done !== undefined) changes.done = patch.done;
     if (patch.checklist !== undefined) changes.checklist = patch.checklist;
-    return this.found(id, await this.repo.update(id, changes));
+    return this.change(id, patch, changes);
+  }
+
+  // Day 40:PUT / PATCH 共用的「读 → 判断业务规则 → 带版本号写」(乐观锁)。
+  //
+  // Day 27 起这里一直写着「先查(409 规则)再改,中间隔着一次往返 —— 有竞态,Week 6 处理」:
+  //   await 读 → 判断 → await 写,两个 await 之间别的请求可以插进来(Node 单线程也一样,插队发生在 await 上)。
+  //   插进来的请求如果改了同一个任务,我们会基于过时的数据判断、再把它覆盖掉:
+  //     ① 丢失更新:A、B 读到同一版,A 改标题、B 改清单,后写的把先写的悄悄盖掉(PUT 时整份覆盖)
+  //     ② 绕过业务规则:读的时候还没完成 → 允许改标题;写之前别人把它标成已完成 → 写出「已完成但标题被改了」
+  //
+  // 修法:写的时候带上读到的版本号,版本变了就不写(repo.update 返回 stale)。之后:
+  //   客户端给了 version(「我是照着第几版改的」)→ 409 conflict/stale-version,由客户端决定怎么办(重新拉取、提示用户……)
+  //   客户端没给 version → 它没有表达「基于哪一版」,服务器替它把整轮重做一次:重新读、重新判断业务规则、再写。
+  //     重做时如果任务已经被标成已完成,这一轮的 assertCanChange 会给出 409 conflict/task-completed
+  //   重试只重做这一轮,不重做别的请求;几次都被抢先(极少见),也回 409 stale-version
+  private async change(id: number, input: UpdateTaskDto, changes: Partial<TaskWritable>): Promise<Task> {
+    try {
+      return await withRetry(
+        async (attempt) => {
+          const current = await this.findOne(id); // 404 在这里
+          if (input.version !== undefined && input.version !== current.version) throw this.stale(id, input.version, current.version);
+          assertCanChange(current, input);
+          const result = await this.repo.update(id, changes, current.version);
+          if (result.status === 'updated') return result.task;
+          if (result.status === 'not-found') throw new NotFoundException(`没有 id 为 ${id} 的任务`); // 读的时候还在、写的时候被删了
+          if (input.version !== undefined) throw this.stale(id, input.version);
+          ctxLog(`   ④ Service    第 ${attempt} 轮写入时版本已变(读到 v${current.version}),重新读、重新判断`);
+          throw new LostRace();
+        },
+        { isRetryable: (err) => err instanceof LostRace, maxAttempts: 3, baseDelayMs: 5, maxDelayMs: 50 },
+      );
+    } catch (err) {
+      if (err instanceof LostRace) throw this.stale(id);
+      throw err;
+    }
+  }
+
+  private stale(id: number, expected?: number, actual?: number): ProblemException {
+    const detail =
+      actual !== undefined
+        ? `任务 ${id} 当前是第 ${actual} 版,请求基于第 ${expected} 版;请重新获取后再修改`
+        : `任务 ${id} 在读取之后被其他请求修改了;请重新获取后再修改`;
+    return new ProblemException(ProblemTypes.staleVersion, detail);
   }
 
   async remove(id: number): Promise<void> {
     ctxLog(`   ④ Service    后厨做菜:remove(${id})`);
     if (!(await this.repo.remove(id))) throw new NotFoundException(`没有 id 为 ${id} 的任务`);
   }
+}
 
-  // Day 27:查的时候还在、改的时候没了(被别的请求删掉)—— 也是 404
-  private found(id: number, task: Task | undefined): Task {
-    if (!task) throw new NotFoundException(`没有 id 为 ${id} 的任务`);
-    return task;
-  }
-
-  // 409 Conflict:请求本身没毛病,但和资源「当前的状态」冲突。
-  // 规则:已完成的任务不能改标题;要改,请在同一个请求里把 done 改回 false(先重新打开)
-  // 这是业务规则,不是格式规则 —— 所以留在 Service,DTO 管不了它(Day 16 讲义卡 #1 边界)
-  private assertCanChange(current: Task, changes: UpdateTaskDto): void {
-    const renaming = changes.title !== undefined && changes.title !== current.title;
-    const staysDone = (changes.done ?? current.done) === true;
-    if (current.done && renaming && staysDone) {
-      // Day 17:带上错误类别,调用方可以按 type 精确判断「是哪一种冲突」
-      throw new ProblemException(ProblemTypes.taskCompleted, `任务 ${current.id} 已完成,不能改标题;请先把 done 改为 false`);
-    }
+// 409 Conflict:请求本身没毛病,但和资源「当前的状态」冲突。
+// 规则:已完成的任务不能改标题;要改,请在同一个请求里把 done 改回 false(先重新打开)
+// 这是业务规则,不是格式规则 —— 所以留在 Service 这一层,DTO 管不了它(Day 16 讲义卡 #1 边界)
+// Day 40:从 TasksService 的私有方法改成导出的函数 —— 它只看传进来的 current,不碰仓储,
+// 乐观锁(TasksService.change)和悲观锁(repo.updateLocked 的 decide,scripts/day40-try.mjs 里用)共用同一条规则
+export function assertCanChange(current: Task, changes: Pick<UpdateTaskDto, 'title' | 'done'>): void {
+  const renaming = changes.title !== undefined && changes.title !== current.title;
+  const staysDone = (changes.done ?? current.done) === true;
+  if (current.done && renaming && staysDone) {
+    // Day 17:带上错误类别,调用方可以按 type 精确判断「是哪一种冲突」
+    throw new ProblemException(ProblemTypes.taskCompleted, `任务 ${current.id} 已完成,不能改标题;请先把 done 改为 false`);
   }
 }
+
+// 「写的时候版本已经变了」—— 只在 TasksService.change 内部用来触发重做,不会出现在响应里
+class LostRace extends Error {}

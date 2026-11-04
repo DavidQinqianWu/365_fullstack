@@ -27,6 +27,7 @@
 | `method-not-allowed` | 405 | 该资源不支持此 HTTP 方法 | 例如 `PATCH /tasks`;响应头 `Allow` 列出了支持的方法 | 按 `Allow` 改用正确的方法 |
 | `not-acceptable` | 406 | 无法提供客户端要求的响应格式 | `Accept` 里没有 JSON | 接受 `application/json` |
 | `conflict/task-completed` | 409 | 已完成的任务不能修改标题 | 对 `done: true` 的任务改标题,且没有同时把 `done` 改回 `false` | 先重新打开任务,或在同一个请求里带上 `done: false` |
+| `conflict/stale-version` | 409 | 任务已被其他请求修改 | PUT / PATCH 请求体带了 `version`,但任务在你读取之后已经被改过(当前版本号不同);或者没带 `version`、服务器连续几次重读重写都被别的请求抢先(极少见)。Day 40 新增 | **不要原样重试**(那等于覆盖别人的修改):重新 GET 拿到最新内容和 `version`,让用户确认或合并后再提交 |
 | `conflict` | 409 | 与资源当前状态冲突 | 其他未细分的状态冲突(预留) | 重新获取资源最新状态后再决定 |
 | `unsupported-media-type` | 415 | 不支持的请求体格式 | 写请求的 `Content-Type` 不是 `application/json` | 改为发送 JSON |
 | `validation-error` | 422 | 请求内容未通过校验 | JSON 合法,但字段不符合规则;见 `errors` | 按 `errors[].pointer` 把错误显示到对应输入框 |

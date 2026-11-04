@@ -21,7 +21,11 @@ CREATE TABLE tasks (
   title      text NOT NULL,
   done       boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
+  -- Day 40:乐观锁的版本号。每次 UPDATE 都 version = version + 1,带着「我读到的版本」写:
+  --   UPDATE … WHERE id = $1 AND version = $2  —— 0 行受影响 = 被人抢先改过(或者行已经没了)
+  version    integer NOT NULL DEFAULT 1,
   CONSTRAINT tasks_pkey PRIMARY KEY (id),
+  CONSTRAINT tasks_version_check CHECK (version >= 1),
   -- 对应 Day 16 的 @IsNotBlank + @MaxLength(100):DTO 先拦,数据库兜底
   CONSTRAINT tasks_title_check CHECK (char_length(btrim(title)) BETWEEN 1 AND 100)
 );

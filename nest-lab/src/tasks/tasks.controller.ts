@@ -106,7 +106,10 @@ export class TasksController {
   }
 
   // PUT /tasks/:id —— 整体替换,幂等:同一个请求发 N 次,结果和发 1 次一样
-  @ApiOperation({ summary: '整体替换一个任务', description: '幂等。checklist 不给 = 清空为 []。' })
+  @ApiOperation({
+    summary: '整体替换一个任务',
+    description: '幂等。checklist 不给 = 清空为 []。带上 version(乐观锁)时,版本已过时返回 409 conflict/stale-version。',
+  })
   @ApiSecurity('demo-key')
   @ApiOkResponse({ type: TaskResponse })
   @ApiProblemResponses(400, 403, 404, 409, 415, 422)
@@ -117,7 +120,10 @@ export class TasksController {
   }
 
   // PATCH /tasks/:id —— 部分更新:只改给了的字段
-  @ApiOperation({ summary: '部分更新一个任务', description: '只改给了的字段,至少给一个。' })
+  @ApiOperation({
+    summary: '部分更新一个任务',
+    description: '只改给了的字段,至少给一个(version 不算)。带上 version(乐观锁)时,版本已过时返回 409 conflict/stale-version。',
+  })
   @ApiSecurity('demo-key')
   @ApiOkResponse({ type: TaskResponse })
   @ApiProblemResponses(400, 403, 404, 409, 415, 422)
@@ -125,7 +131,8 @@ export class TasksController {
   async update(@Param('id', TracedParseIntPipe) id: number, @Body() dto: UpdateTaskDto): Promise<TaskResponse> {
     ctxLog(`  ③ Controller 前台接单:PATCH /tasks/${id}`);
     // PartialType 让每个字段都可选,所以 {} 能通过 DTO 校验;「至少改一个字段」这条规则自己补
-    if (Object.keys(dto).length === 0) {
+    // Day 40:只给 version 不算「改了字段」
+    if (Object.keys(dto).filter((k) => k !== 'version').length === 0) {
       throw new ProblemException(ProblemTypes.validation, '至少要给 title、done、checklist 中的一个', { errors: [] });
     }
     return toTaskResponse(await this.tasksService.update(id, dto));

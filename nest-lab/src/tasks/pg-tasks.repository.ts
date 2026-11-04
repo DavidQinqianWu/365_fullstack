@@ -5,7 +5,7 @@ import { ProblemTypes } from '../common/problems/problem-types.js';
 import { isPgError, translatePgError } from '../database/pg-errors.js';
 import type { ChecklistItem, Task, TaskWritable } from './task.js';
 import type { SortField, SortKey, TaskQuery } from './task-query.js';
-import type { TasksRepository } from './tasks.repository.js';
+import type { TasksRepository, UpdateResult } from './tasks.repository.js';
 
 const logger = new Logger('PgTasksRepository');
 
@@ -27,7 +27,7 @@ const SORT_SQL: Record<SortField, { expr: string; cast: string }> = {
 
 // 读一个任务时,顺便用 LATERAL 子查询把它的清单项拼成 JSON 数组(Day 26 的 json_agg + coalesce)
 const SELECT_TASKS = `
-  SELECT t.id, t.title, t.done, t.created_at, coalesce(cl.items, '[]'::json) AS checklist
+  SELECT t.id, t.title, t.done, t.created_at, t.version, coalesce(cl.items, '[]'::json) AS checklist
   FROM tasks t
   LEFT JOIN LATERAL (
     SELECT json_agg(json_build_object('text', c.text, 'done', c.done) ORDER BY c.position) AS items
@@ -41,6 +41,7 @@ interface TaskRow {
   done: boolean;
   created_at: Date; // timestamptz → Date(一个绝对时刻)
   checklist: ChecklistItem[]; // json → 驱动已经解析成对象
+  version: number; // integer → number(32 位,驱动直接给 number)
 }
 
 // 数据库的一行 → 内部模型 Task(Day 18:内部模型和 API 表示分开,这里只是又多了一层「表示」)
@@ -51,6 +52,7 @@ function toTask(row: TaskRow): Task {
     done: row.done,
     checklist: row.checklist,
     createdAt: row.created_at.toISOString(),
+    version: row.version,
   };
 }
 
@@ -113,7 +115,7 @@ export class PgTasksRepository implements TasksRepository, OnModuleInit {
   }
 
   // POST:任务和清单项一起写 —— 要么都成功,要么都不留下
-  async insert(data: Omit<Task, 'id'>): Promise<Task> {
+  async insert(data: Omit<Task, 'id' | 'version'>): Promise<Task> {
     return this.transaction(async (client) => {
       const { rows } = await client.query<{ id: string }>(
         'INSERT INTO tasks (title, done, created_at) VALUES ($1, $2, $3) RETURNING id',
@@ -126,21 +128,35 @@ export class PgTasksRepository implements TasksRepository, OnModuleInit {
   }
 
   // PUT / PATCH:只改给了的字段;给了 checklist 就整份替换(先删后插)
-  async update(id: number, changes: Partial<TaskWritable>): Promise<Task | undefined> {
+  // Day 40:乐观锁 —— 「读」不加锁,「写」时带上读到的版本号:
+  //   UPDATE tasks SET …, version = version + 1 WHERE id = $1 AND version = $2
+  // 两个请求都读到 version 3、都来写:第一个把它改成 4;第二个的 WHERE version = 3 匹配不到行(rowCount 0)。
+  // 第二个 UPDATE 如果在第一个提交前就到了,会先等第一个的行锁(Day 39),第一个提交后它重新检查 WHERE(PG 在 RC 下
+  // 对更新后的行重新求值,Day 37)—— 看到的已经是 version 4,于是 0 行。所以不需要更高的隔离级别,Read Committed 就够。
+  // rowCount 0 有两种可能:行没了(404)/ 版本变了(409),再查一次区分。
+  async update(id: number, changes: Partial<TaskWritable>, expectedVersion?: number): Promise<UpdateResult> {
     return this.transaction(async (client) => {
-      // 列名来自代码里的固定清单(不是用户输入),值走参数
-      const sets: string[] = [];
-      const params: unknown[] = [id];
-      if (changes.title !== undefined) sets.push(`title = $${params.push(changes.title)}`);
-      if (changes.done !== undefined) sets.push(`done = $${params.push(changes.done)}`);
-      const { rowCount } = sets.length
-        ? await client.query(`UPDATE tasks SET ${sets.join(', ')} WHERE id = $1`, params)
-        : await client.query('SELECT 1 FROM tasks WHERE id = $1', [id]);
-      if (rowCount === 0) return undefined; // 没有这一行 → Service 翻译成 404
-      if (changes.checklist !== undefined) {
-        await client.query('DELETE FROM checklist_items WHERE task_id = $1', [id]);
-        await this.writeChecklist(client, id, changes.checklist);
+      if (!(await this.writeChanges(client, id, changes, expectedVersion))) {
+        if (expectedVersion === undefined) return { status: 'not-found' };
+        const { rowCount } = await client.query('SELECT 1 FROM tasks WHERE id = $1', [id]);
+        return rowCount ? { status: 'stale' } : { status: 'not-found' };
       }
+      return { status: 'updated', task: (await this.findById(id, client))! };
+    });
+  }
+
+  // Day 40:悲观锁 —— 先把这一行锁住,再读、判断、写,锁一直持有到 COMMIT。
+  // FOR NO KEY UPDATE 而不是 FOR UPDATE:我们不改主键,不需要挡住「插入引用这个任务的 checklist_items」时的外键检查
+  // (它要的是 FOR KEY SHARE:和 FOR UPDATE 冲突、和 FOR NO KEY UPDATE 不冲突,Day 39 的行锁兼容表)。
+  // 锁只加在 tasks 这一行上:SELECT_TASKS 里有 json_agg,所以分两步 ——
+  // 先 SELECT 1 … FOR NO KEY UPDATE 拿锁,再在同一个事务里 findById 读最新内容。
+  async updateLocked(id: number, decide: (current: Task) => Partial<TaskWritable>): Promise<Task | undefined> {
+    return this.transaction(async (client) => {
+      const { rowCount } = await client.query('SELECT 1 FROM tasks WHERE id = $1 FOR NO KEY UPDATE', [id]);
+      if (!rowCount) return undefined;
+      const current = (await this.findById(id, client))!; // 锁已经在手:别人改不了,读到的就是最新的
+      const changes = decide(current); // 抛异常 → transaction() 回滚,锁释放
+      await this.writeChanges(client, id, changes);
       return this.findById(id, client);
     });
   }
@@ -188,6 +204,29 @@ export class PgTasksRepository implements TasksRepository, OnModuleInit {
       }
       throw err;
     }
+  }
+
+  // 改 tasks 这一行(版本号 + 1),给了 checklist 就整份替换。返回 false = 没有匹配的行(行不存在,或版本对不上)
+  // 即使只改 checklist,tasks 这一行也要 UPDATE:版本号必须跟着变,不然别人察觉不到「清单被改过」
+  private async writeChanges(
+    client: pg.PoolClient,
+    id: number,
+    changes: Partial<TaskWritable>,
+    expectedVersion?: number,
+  ): Promise<boolean> {
+    // 列名来自代码里的固定清单(不是用户输入),值走参数
+    const params: unknown[] = [id];
+    const sets: string[] = ['version = version + 1'];
+    if (changes.title !== undefined) sets.push(`title = $${params.push(changes.title)}`);
+    if (changes.done !== undefined) sets.push(`done = $${params.push(changes.done)}`);
+    const versionCheck = expectedVersion === undefined ? '' : ` AND version = $${params.push(expectedVersion)}`;
+    const { rowCount } = await client.query(`UPDATE tasks SET ${sets.join(', ')} WHERE id = $1${versionCheck}`, params);
+    if (rowCount === 0) return false;
+    if (changes.checklist !== undefined) {
+      await client.query('DELETE FROM checklist_items WHERE task_id = $1', [id]);
+      await this.writeChecklist(client, id, changes.checklist);
+    }
+    return true;
   }
 
   // 一次写入所有清单项:两个数组按位置对齐展开,WITH ORDINALITY 给出 1, 2, 3 … 作为 position

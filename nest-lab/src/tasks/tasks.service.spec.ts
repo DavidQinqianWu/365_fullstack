@@ -39,22 +39,39 @@ describe('TasksService(用真实的 TasksModule,只换掉时钟)', () => {
 
   it('create 分配自增 id,createdAt = 时钟的时间', async () => {
     const task = await service.create({ title: '写单元测试' });
-    expect(task).toEqual({ id: 3, title: '写单元测试', done: false, checklist: [], createdAt: '2026-01-01T00:00:00.000Z' });
-    expect(await service.findOne(3)).toBe(task);
+    expect(task).toEqual({ id: 3, title: '写单元测试', done: false, checklist: [], createdAt: '2026-01-01T00:00:00.000Z', version: 1 });
+    // Day 40:内存仓储交出去的是复印件 —— 内容相同(toEqual),但不再是同一个对象(以前这里是 toBe)
+    expect(await service.findOne(3)).toEqual(task);
+    expect(await service.findOne(3)).not.toBe(task);
+  });
+
+  it('Day 40:改了别的字段,手里的旧快照不会跟着变;每次修改 version + 1', async () => {
+    const before = await service.findOne(2);
+    const after = await service.update(2, { title: '改过了' });
+    expect(before).toMatchObject({ title: '看懂 Module / Controller / Provider', version: 1 });
+    expect(after).toMatchObject({ title: '改过了', version: 2 });
+  });
+
+  it('Day 40:请求带的 version 和当前不一致 → 409 conflict/stale-version,不写', async () => {
+    await expect(service.update(2, { title: '基于旧版本', version: 7 })).rejects.toMatchObject({
+      problemType: { type: 'https://nest-lab.example/problems/conflict/stale-version' },
+    });
+    expect(await service.findOne(2)).toMatchObject({ title: '看懂 Module / Controller / Provider', version: 1 });
   });
 });
 
 describe('TasksService(把仓储换成假的,只测业务逻辑)', () => {
   it('create 把 title + 时钟时间交给仓储,不关心仓储怎么存', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
-    const saved: Task = { id: 42, title: '假的', done: false, checklist: [], createdAt: '2026-01-01T00:00:00.000Z' };
+    const saved: Task = { id: 42, title: '假的', done: false, checklist: [], createdAt: '2026-01-01T00:00:00.000Z', version: 1 };
     const fakeRepo: TasksRepository = {
       // Day 27:接口改成 async,假仓储也要返回 Promise
       findAll: vi.fn(async () => []),
       findById: vi.fn(async () => undefined),
       insert: vi.fn(async () => saved),
       remove: vi.fn(async () => undefined), // Day 11:接口新增了 remove,假仓储也要补上
-      update: vi.fn(async () => undefined), // Day 15:接口新增了 update
+      update: vi.fn(async () => ({ status: 'not-found' as const })), // Day 15:接口新增了 update(Day 40 起返回三种结果)
+      updateLocked: vi.fn(async () => undefined), // Day 40:悲观锁版本
       findPage: vi.fn(async () => []), // Day 19:接口新增了 findPage
     };
     const moduleRef = await Test.createTestingModule({ imports: [TasksModule] })
